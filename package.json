@@ -19,6 +19,7 @@
     "express": "^5.1.0",
     "openai": "^5.10.2",
     "swagger-ui-express": "^5.0.1",
+    "twilio": "^5.8.0",
     "yamljs": "^0.3.0"
   }
 }

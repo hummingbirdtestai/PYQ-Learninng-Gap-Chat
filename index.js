@@ -7,14 +7,14 @@ const YAML = require('yamljs');
 
 const app = express();
 
-// ✅ CORS Configuration — allow frontend to call API
+// ✅ CORS Configuration
 app.use(cors({
-  origin: '*', // Or restrict to frontend: "https://your-frontend-domain"
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// ✅ JSON Parsing Middleware
+// ✅ JSON Parsing
 app.use(express.json());
 
 // ✅ Load Swagger Docs
@@ -24,12 +24,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 // ✅ Active Routes
 app.use('/auth', require('./routes/auth.routes'));
 app.use('/users', require('./routes/user.routes'));
-
-// ❌ Commented-out routes (enable when ready)
-// app.use('/mcqs', require('./routes/mcq.routes'));
-// app.use('/topics', require('./routes/topic.routes'));
-// app.use('/leaderboard', require('./routes/leaderboard.routes'));
-// app.use('/ai', require('./routes/ai.routes'));
+app.use('/colleges', require('./routes/college.routes')); // 👈 ADD THIS LINE
 
 // ✅ Server Start
 const PORT = process.env.PORT || 3000;

@@ -1,9 +1,8 @@
-# Swagger YAML
 openapi: 3.0.0
 info:
   title: PYQ Learning Gap Chat API
   version: 1.0.0
-  description: API for user registration, OTP login using Twilio, and more
+  description: API for user registration, OTP login using Twilio, and college data
 
 servers:
   - url: https://pyq-learninng-gap-chat-production.up.railway.app
@@ -14,6 +13,8 @@ tags:
     description: Twilio OTP Authentication
   - name: Users
     description: User registration and profile
+  - name: Colleges
+    description: List of medical colleges
 
 paths:
   /auth/otp/start:
@@ -125,3 +126,30 @@ paths:
           description: User profile retrieved
         '500':
           description: User not found or server error
+
+  /colleges:
+    get:
+      tags: [Colleges]
+      summary: Get all medical colleges
+      responses:
+        '200':
+          description: List of colleges
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    city:
+                      type: string
+                    state:
+                      type: string
+                    ownership:
+                      type: string
+        '500':
+          description: Failed to fetch colleges

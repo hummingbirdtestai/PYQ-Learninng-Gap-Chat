@@ -1,4 +1,3 @@
-// User Controller
 const supabase = require('../config/supabaseClient');
 
 /**
@@ -77,19 +76,46 @@ exports.registerUser = async (req, res) => {
     year_of_joining
   } = req.body;
 
-  const { data, error } = await supabase.from('users').insert({
-    country_code,
-    phone,
-    email,
-    name,
-    photograph_url,
-    medical_college_id,
-    year_of_joining
-  }).select().single();
+  // Validate required fields
+  if (!country_code || !phone || !email || !name || !medical_college_id || !year_of_joining) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
 
-  if (error) return res.status(500).json({ error: error.message });
+  try {
+    // Check if user already exists
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('phone', phone)
+      .limit(1);
 
-  res.status(201).json(data);
+    if (checkError) return res.status(500).json({ error: checkError.message });
+    if (existingUser.length > 0) {
+      return res.status(409).json({ error: 'User already registered' });
+    }
+
+    // Insert new user
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        country_code,
+        phone,
+        email,
+        name,
+        photograph_url: photograph_url || null,
+        medical_college_id,
+        year_of_joining,
+        is_active: false
+      })
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    res.status(201).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
 
 /**
@@ -112,13 +138,17 @@ exports.registerUser = async (req, res) => {
 exports.getUserById = async (req, res) => {
   const { id } = req.params;
 
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', id)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+    if (error) return res.status(500).json({ error: error.message });
 
-  res.status(200).json(data);
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };

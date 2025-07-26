@@ -1,4 +1,5 @@
 require('dotenv').config();
+const express = require('express');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
@@ -10,7 +11,7 @@ app.use(express.json());
 const swaggerDoc = YAML.load('./docs/swagger.yaml');
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
-// Routes
+// Mounting routes
 app.use('/auth', require('./routes/auth.routes'));
 app.use('/users', require('./routes/user.routes'));
 app.use('/mcqs', require('./routes/mcq.routes'));

@@ -18,8 +18,6 @@ const supabase = require('../config/supabaseClient');
  *               - phone
  *               - email
  *               - name
- *               - medical_college_id
- *               - year_of_joining
  *             properties:
  *               country_code:
  *                 type: string
@@ -61,7 +59,7 @@ exports.registerUser = async (req, res) => {
     year_of_joining
   } = req.body;
 
-  if (!country_code || !phone || !email || !name || !medical_college_id || !year_of_joining) {
+  if (!country_code || !phone || !email || !name) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
@@ -73,6 +71,7 @@ exports.registerUser = async (req, res) => {
       .limit(1);
 
     if (checkError) return res.status(500).json({ error: checkError.message });
+
     if (existingUser.length > 0) {
       return res.status(409).json({ error: 'User already registered' });
     }
@@ -179,6 +178,67 @@ exports.getUserStatusByPhone = async (req, res) => {
     if (error || !data) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * @swagger
+ * /users/{id}/toggle-activation:
+ *   patch:
+ *     tags:
+ *       - Users
+ *     summary: Toggle is_active status for a user
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Activation status toggled
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                 is_active:
+ *                   type: boolean
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+exports.toggleUserActivation = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('id, is_active')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const newStatus = !user.is_active;
+
+    const { data, error: updateError } = await supabase
+      .from('users')
+      .update({ is_active: newStatus })
+      .eq('id', id)
+      .select('id, is_active')
+      .single();
+
+    if (updateError) return res.status(500).json({ error: updateError.message });
 
     res.status(200).json(data);
   } catch (err) {

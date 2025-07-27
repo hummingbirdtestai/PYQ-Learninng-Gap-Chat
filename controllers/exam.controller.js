@@ -4,46 +4,59 @@ const { supabase } = require('../utils/supabaseClient');
  * @swagger
  * /exams:
  *   post:
- *     summary: Create a new exam
+ *     summary: Create one or multiple exams
  *     tags: [Exams]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [name]
- *             properties:
- *               name:
- *                 type: string
- *                 example: NEET PG
+ *             oneOf:
+ *               - type: object
+ *                 required: [name]
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *               - type: array
+ *                 items:
+ *                   type: object
+ *                   required: [name]
+ *                   properties:
+ *                     name:
+ *                       type: string
  *     responses:
  *       201:
- *         description: Exam created successfully
+ *         description: Exam(s) created successfully
  *       400:
  *         description: Missing required fields
  *       500:
- *         description: Failed to create exam
+ *         description: Failed to create exam(s)
  */
 exports.createExam = async (req, res) => {
-  const { name } = req.body;
+  let exams = [];
 
-  if (!name) {
+  if (Array.isArray(req.body)) {
+    exams = req.body.filter(e => e.name);
+  } else if (req.body?.name) {
+    exams = [req.body];
+  }
+
+  if (exams.length === 0) {
     return res.status(400).json({ error: 'Missing required field: name' });
   }
 
   try {
     const { data, error } = await supabase
       .from('exams')
-      .insert([{ name }])
+      .insert(exams)
       .select();
 
     if (error) throw error;
 
-    res.status(201).json({ message: 'Exam created', exam: data[0] });
+    res.status(201).json({ message: 'Exam(s) created', exams: data });
   } catch (err) {
-    console.error('❌ Error creating exam:', err.message);
-    res.status(500).json({ error: 'Failed to create exam' });
+    console.error('❌ Error creating exams:', err.message);
+    res.status(500).json({ error: 'Failed to create exams' });
   }
 };
 
@@ -51,7 +64,7 @@ exports.createExam = async (req, res) => {
  * @swagger
  * /exams/{examId}/subjects:
  *   post:
- *     summary: Create a new subject under a specific exam
+ *     summary: Create one or multiple subjects under a specific exam
  *     tags: [Exams]
  *     parameters:
  *       - in: path
@@ -65,40 +78,66 @@ exports.createExam = async (req, res) => {
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [name]
- *             properties:
- *               name:
- *                 type: string
- *                 example: Anatomy
+ *             oneOf:
+ *               - type: object
+ *                 required: [name]
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *                   code:
+ *                     type: string
+ *                   description:
+ *                     type: string
+ *               - type: array
+ *                 items:
+ *                   type: object
+ *                   required: [name]
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                     code:
+ *                       type: string
+ *                     description:
+ *                       type: string
  *     responses:
  *       201:
- *         description: Subject created successfully
+ *         description: Subject(s) created successfully
  *       400:
  *         description: Missing required fields
  *       500:
- *         description: Failed to create subject
+ *         description: Failed to create subject(s)
  */
 exports.createSubjectUnderExam = async (req, res) => {
   const { examId } = req.params;
-  const { name } = req.body;
 
-  if (!examId || !name) {
-    return res.status(400).json({ error: 'Missing required fields: examId or name' });
+  if (!examId) {
+    return res.status(400).json({ error: 'Missing required parameter: examId' });
+  }
+
+  let subjects = [];
+
+  if (Array.isArray(req.body)) {
+    subjects = req.body.filter(s => s.name).map(s => ({ ...s, exam_id: examId }));
+  } else if (req.body?.name) {
+    subjects = [{ ...req.body, exam_id: examId }];
+  }
+
+  if (subjects.length === 0) {
+    return res.status(400).json({ error: 'Missing subject name(s)' });
   }
 
   try {
     const { data, error } = await supabase
       .from('subjects')
-      .insert([{ exam_id: examId, name }])
+      .insert(subjects)
       .select();
 
     if (error) throw error;
 
-    res.status(201).json({ message: 'Subject created', subject: data[0] });
+    res.status(201).json({ message: 'Subject(s) created', subjects: data });
   } catch (err) {
-    console.error('❌ Error creating subject:', err.message);
-    res.status(500).json({ error: 'Failed to create subject' });
+    console.error('❌ Error creating subjects:', err.message);
+    res.status(500).json({ error: 'Failed to create subjects' });
   }
 };
 
@@ -150,7 +189,9 @@ exports.getExamsWithSubjects = async (req, res) => {
         name,
         subjects (
           id,
-          name
+          name,
+          code,
+          description
         )
       `);
 

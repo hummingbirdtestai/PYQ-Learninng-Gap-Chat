@@ -217,7 +217,6 @@ exports.toggleActivationByPhone = async (req, res) => {
   const { phone } = req.params;
 
   try {
-    // Get current status
     const { data: user, error } = await supabase
       .from('users')
       .select('is_active')
@@ -228,7 +227,6 @@ exports.toggleActivationByPhone = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Toggle is_active
     const newStatus = !user.is_active;
 
     const { data, updateError } = await supabase

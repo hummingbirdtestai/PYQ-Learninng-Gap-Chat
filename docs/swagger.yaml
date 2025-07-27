@@ -221,30 +221,40 @@ paths:
   /exams:
     post:
       tags: [Exams]
-      summary: Create a new exam
+      summary: Create one or multiple exams
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [name]
-              properties:
-                name:
-                  type: string
-                  example: "NEET PG"
+              oneOf:
+                - type: object
+                  required: [name]
+                  properties:
+                    name:
+                      type: string
+                      example: "NEET PG"
+                - type: array
+                  items:
+                    type: object
+                    required: [name]
+                    properties:
+                      name:
+                        type: string
+                        example: "FMGE"
       responses:
         '201':
-          description: Exam created
+          description: Exam(s) created
         '400':
-          description: Missing name field
+          description: Missing name field(s)
         '500':
           description: Server error
+
 
   /exams/{examId}/subjects:
     post:
       tags: [Exams]
-      summary: Create a subject under an exam
+      summary: Create one or multiple subjects under an exam
       parameters:
         - in: path
           name: examId
@@ -257,19 +267,41 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [name]
-              properties:
-                name:
-                  type: string
-                  example: "Anatomy"
+              oneOf:
+                - type: object
+                  required: [name]
+                  properties:
+                    name:
+                      type: string
+                      example: "Anatomy"
+                    code:
+                      type: string
+                      example: "ANAT"
+                    description:
+                      type: string
+                      example: "Study of structure"
+                - type: array
+                  items:
+                    type: object
+                    required: [name]
+                    properties:
+                      name:
+                        type: string
+                        example: "Physiology"
+                      code:
+                        type: string
+                        example: "PHYS"
+                      description:
+                        type: string
+                        example: "Functions of organs"
       responses:
         '201':
-          description: Subject created
+          description: Subject(s) created
         '400':
-          description: Missing examId or name
+          description: Missing examId or subject name(s)
         '500':
           description: Server error
+
 
   /exams-with-subjects:
     get:

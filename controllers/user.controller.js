@@ -138,6 +138,46 @@ exports.getUserById = async (req, res) => {
 
 /**
  * @swagger
+ * /users/phone/{phone}:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get full user details by phone number
+ *     parameters:
+ *       - in: path
+ *         name: phone
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: '9876543210'
+ *     responses:
+ *       200:
+ *         description: Full user profile
+ *       404:
+ *         description: User not found
+ */
+exports.getUserByPhone = async (req, res) => {
+  const { phone } = req.params;
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('phone', phone)
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * @swagger
  * /users/status/{phone}:
  *   get:
  *     tags:

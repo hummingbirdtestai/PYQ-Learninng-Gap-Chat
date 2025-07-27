@@ -3,13 +3,20 @@ const express = require('express');
 const router = express.Router();
 const examController = require('../controllers/exam.controller');
 
-// ❌ WRONG → maybe you're doing this:
-router.post('/exams', examController.createExam); // <- If createExam is undefined
-
-// ✅ RIGHT → Only if createExam is a valid function
+// ✅ Create a new exam
+// POST /exams
 router.post('/', examController.createExam);
+
+// ✅ Create a subject under a given exam
+// POST /exams/:examId/subjects
 router.post('/:examId/subjects', examController.createSubjectUnderExam);
-router.get('/exams-with-subjects', examController.getExamsWithSubjects);
+
+// ✅ Get all exams with their subjects
+// GET /exams/with-subjects
+router.get('/with-subjects', examController.getExamsWithSubjects);
+
+// ✅ Get all exams (flat list)
+// GET /exams
 router.get('/', examController.getAllExams);
 
 module.exports = router;

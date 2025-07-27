@@ -157,9 +157,14 @@ exports.getUserById = async (req, res) => {
  *         description: User not found
  */
 exports.getUserByPhone = async (req, res) => {
-  const { phone } = req.params;
+  let { phone } = req.params;
 
   try {
+    // ✅ Normalize: ensure +91 prefix
+    if (!phone.startsWith('+')) {
+      phone = '+91' + phone;
+    }
+
     const { data, error } = await supabase
       .from('users')
       .select('*')

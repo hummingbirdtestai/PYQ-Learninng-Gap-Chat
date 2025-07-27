@@ -169,6 +169,29 @@ exports.getAllExams = async (req, res) => {
  *     responses:
  *       200:
  *         description: A list of exams with their subjects
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 exams:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       subjects:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: string
+ *                             name:
+ *                               type: string
  *       500:
  *         description: Failed to fetch exams with subjects
  */
@@ -181,9 +204,7 @@ exports.getExamsWithSubjects = async (req, res) => {
         name,
         subjects (
           id,
-          name,
-          code,
-          description
+          name
         )
       `);
 

@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: PYQ Learning Gap Chat API
   version: 1.0.0
-  description: API for user registration, OTP login using Twilio, and college data
+  description: API for registration, OTP login via Twilio, college data, exams & subjects.
 
 servers:
   - url: https://pyq-learninng-gap-chat-production.up.railway.app
@@ -15,8 +15,11 @@ tags:
     description: User registration and profile
   - name: Colleges
     description: List of medical colleges
+  - name: Exams
+    description: Exams and their subjects
 
 paths:
+
   /auth/otp/start:
     post:
       tags: [Auth]
@@ -96,7 +99,6 @@ paths:
           required: true
           schema:
             type: string
-          description: Unique user ID (UUID)
       responses:
         '200':
           description: User profile retrieved
@@ -106,8 +108,6 @@ paths:
                 $ref: '#/components/schemas/User'
         '404':
           description: User not found
-        '500':
-          description: Server error
 
   /users/phone/{phone}:
     get:
@@ -120,7 +120,6 @@ paths:
           schema:
             type: string
             example: "9876543210"
-          description: 10-digit phone number without country code
       responses:
         '200':
           description: Full user profile
@@ -142,7 +141,6 @@ paths:
           schema:
             type: string
             example: "9876543210"
-          description: 10-digit phone number without country code
       responses:
         '200':
           description: Activation status
@@ -169,7 +167,6 @@ paths:
           schema:
             type: string
             example: "9876543210"
-          description: 10-digit phone number without country code
       responses:
         '200':
           description: Activation status updated
@@ -220,6 +217,107 @@ paths:
           description: Invalid input
         '500':
           description: Error while adding college
+
+  /exams:
+    post:
+      tags: [Exams]
+      summary: Create a new exam
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, code]
+              properties:
+                name:
+                  type: string
+                  example: "NEETPG"
+                code:
+                  type: string
+                  example: "NEETPG2025"
+                description:
+                  type: string
+                  example: "National eligibility entrance test PG"
+      responses:
+        '201':
+          description: Exam created
+        '400':
+          description: Missing fields
+        '500':
+          description: Server error
+
+  /subjects:
+    post:
+      tags: [Exams]
+      summary: Create a subject under an exam
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [exam_id, name]
+              properties:
+                exam_id:
+                  type: string
+                  example: "exam-uuid"
+                name:
+                  type: string
+                  example: "Anatomy"
+                code:
+                  type: string
+                  example: "ANAT101"
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Subject created
+        '400':
+          description: Missing fields
+        '500':
+          description: Server error
+
+  /exams-with-subjects:
+    get:
+      tags: [Exams]
+      summary: Get all exams with their subjects
+      responses:
+        '200':
+          description: Exams with nested subjects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exams:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        code:
+                          type: string
+                        description:
+                          type: string
+                        subjects:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                              name:
+                                type: string
+                              code:
+                                type: string
+                              description:
+                                type: string
+        '500':
+          description: Server error
 
 components:
   schemas:

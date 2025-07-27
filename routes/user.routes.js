@@ -1,12 +1,18 @@
-// User Routes
 const express = require('express');
 const router = express.Router();
-const { registerUser, getUserById } = require('../controllers/user.controller');
+const {
+  registerUser,
+  getUserById,
+  getUserStatusByPhone
+} = require('../controllers/user.controller');
 
 // Register new student
 router.post('/register', registerUser);
 
 // Get user profile by ID
 router.get('/:id', getUserById);
+
+// Check activation status by phone
+router.get('/status/:phone', getUserStatusByPhone);
 
 module.exports = router;

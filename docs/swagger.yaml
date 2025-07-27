@@ -153,16 +153,17 @@ paths:
         '404':
           description: User not found
 
-  /users/{id}/toggle-activation:
+  /users/phone/{phone}/toggle-activation:
     patch:
       tags: [Users]
-      summary: Toggle the user's is_active status
+      summary: Toggle the user's is_active status by phone number
       parameters:
         - in: path
-          name: id
+          name: phone
           required: true
           schema:
             type: string
+            example: '9876543210'
       responses:
         '200':
           description: User activation status updated
@@ -171,7 +172,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  id:
+                  phone:
                     type: string
                   is_active:
                     type: boolean
@@ -179,7 +180,6 @@ paths:
           description: User not found
         '500':
           description: Failed to update user status
-
 
   /colleges:
     get:

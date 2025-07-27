@@ -7,25 +7,27 @@ const YAML = require('yamljs');
 
 const app = express();
 
-// ✅ CORS Configuration
+// ✅ Load Swagger Docs
+const swaggerDocument = YAML.load('./docs/swagger.yaml');
+
+// ✅ Middleware: CORS
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// ✅ JSON Parsing Middleware
+// ✅ Middleware: JSON Parser
 app.use(express.json());
 
-// ✅ Swagger Docs Loader
-const swaggerDoc = YAML.load('./docs/swagger.yaml');
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
+// ✅ Swagger UI Route
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// ✅ Route Registrations
-app.use('/auth', require('./routes/auth.routes'));           // Twilio OTP Auth
-app.use('/users', require('./routes/user.routes'));          // User Registration, Status
-app.use('/colleges', require('./routes/college.routes'));    // Medical Colleges
-app.use('/exams', require('./routes/exam.routes'));          // Exams + Subjects
+// ✅ API Route Registrations
+app.use('/auth', require('./routes/auth.routes'));             // Twilio OTP
+app.use('/users', require('./routes/user.routes'));            // User Profile + Activation
+app.use('/colleges', require('./routes/college.routes'));      // Medical Colleges
+app.use('/exams', require('./routes/exam.routes'));            // Exams + Subjects
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

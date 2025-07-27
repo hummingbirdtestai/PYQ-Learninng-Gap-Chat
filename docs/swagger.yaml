@@ -153,3 +153,39 @@ paths:
                       type: string
         '500':
           description: Failed to fetch colleges
+  
+  /colleges:
+    post:
+      tags: [Colleges]
+      summary: Add a new medical college
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - city
+                - state
+                - ownership
+              properties:
+                name:
+                  type: string
+                  example: "NIMS Hyderabad"
+                city:
+                  type: string
+                  example: "Hyderabad"
+                state:
+                  type: string
+                  example: "Telangana"
+                ownership:
+                  type: string
+                  enum: [Government, Private]
+                  example: "Government"
+      responses:
+        '201':
+          description: College added successfully
+        '500':
+          description: Error while adding college
+

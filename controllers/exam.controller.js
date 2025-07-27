@@ -1,13 +1,4 @@
-const express = require('express');
-const router = express.Router();
-const examController = require('../controllers/exam.controller');
-
-/**
- * @swagger
- * tags:
- *   - name: Exams
- *     description: Manage Exams and Subjects
- */
+const { supabase } = require('../utils/supabaseClient');
 
 /**
  * @swagger
@@ -25,15 +16,42 @@ const examController = require('../controllers/exam.controller');
  *             properties:
  *               name:
  *                 type: string
+ *                 example: NEET PG
  *               code:
  *                 type: string
+ *                 example: neetpg
  *               description:
  *                 type: string
+ *                 example: Postgraduate entrance exam in India
  *     responses:
  *       201:
- *         description: Exam created
+ *         description: Exam created successfully
+ *       400:
+ *         description: Missing required fields
+ *       500:
+ *         description: Failed to create exam
  */
-router.post('/', examController.createExam);
+exports.createExam = async (req, res) => {
+  const { name, code, description } = req.body;
+
+  if (!name || !code) {
+    return res.status(400).json({ error: 'Missing required fields: name or code' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('exams')
+      .insert([{ name, code, description }])
+      .select();
+
+    if (error) throw error;
+
+    res.status(201).json({ message: 'Exam created', exam: data[0] });
+  } catch (err) {
+    console.error('❌ Error creating exam:', err.message);
+    res.status(500).json({ error: 'Failed to create exam' });
+  }
+};
 
 /**
  * @swagger
@@ -58,27 +76,43 @@ router.post('/', examController.createExam);
  *             properties:
  *               name:
  *                 type: string
+ *                 example: Anatomy
  *               code:
  *                 type: string
+ *                 example: anat
  *               description:
  *                 type: string
+ *                 example: Study of human structure
  *     responses:
  *       201:
- *         description: Subject created
+ *         description: Subject created successfully
+ *       400:
+ *         description: Missing required fields
+ *       500:
+ *         description: Failed to create subject
  */
-router.post('/:examId/subjects', examController.createSubjectUnderExam);
+exports.createSubjectUnderExam = async (req, res) => {
+  const { examId } = req.params;
+  const { name, code, description } = req.body;
 
-/**
- * @swagger
- * /exams/with-subjects:
- *   get:
- *     summary: Get all exams with their subjects
- *     tags: [Exams]
- *     responses:
- *       200:
- *         description: A list of exams with their subjects
- */
-router.get('/with-subjects', examController.getExamsWithSubjects);
+  if (!examId || !name) {
+    return res.status(400).json({ error: 'Missing required fields: examId or name' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('subjects')
+      .insert([{ exam_id: examId, name, code, description }])
+      .select();
+
+    if (error) throw error;
+
+    res.status(201).json({ message: 'Subject created', subject: data[0] });
+  } catch (err) {
+    console.error('❌ Error creating subject:', err.message);
+    res.status(500).json({ error: 'Failed to create subject' });
+  }
+};
 
 /**
  * @swagger
@@ -89,7 +123,58 @@ router.get('/with-subjects', examController.getExamsWithSubjects);
  *     responses:
  *       200:
  *         description: List of all exams
+ *       500:
+ *         description: Failed to fetch exams
  */
-router.get('/', examController.getAllExams);
+exports.getAllExams = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('exams')
+      .select('id, name, code, description');
 
-module.exports = router;
+    if (error) throw error;
+
+    res.status(200).json({ exams: data });
+  } catch (err) {
+    console.error('❌ Error fetching exams:', err.message);
+    res.status(500).json({ error: 'Failed to fetch exams' });
+  }
+};
+
+/**
+ * @swagger
+ * /exams/with-subjects:
+ *   get:
+ *     summary: Get all exams with their subjects
+ *     tags: [Exams]
+ *     responses:
+ *       200:
+ *         description: A list of exams with their subjects
+ *       500:
+ *         description: Failed to fetch exams with subjects
+ */
+exports.getExamsWithSubjects = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('exams')
+      .select(`
+        id,
+        name,
+        code,
+        description,
+        subjects:subjects (
+          id,
+          name,
+          code,
+          description
+        )
+      `);
+
+    if (error) throw error;
+
+    res.status(200).json({ exams: data });
+  } catch (err) {
+    console.error('❌ Error fetching exams with subjects:', err.message);
+    res.status(500).json({ error: 'Failed to fetch exams with subjects' });
+  }
+};

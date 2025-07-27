@@ -85,8 +85,8 @@ exports.registerUser = async (req, res) => {
         email,
         name,
         photograph_url: photograph_url || null,
-        medical_college_id,
-        year_of_joining,
+        medical_college_id: medical_college_id || null,
+        year_of_joining: year_of_joining || null,
         is_active: false
       })
       .select()

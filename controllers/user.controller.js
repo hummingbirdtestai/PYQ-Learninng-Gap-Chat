@@ -45,25 +45,10 @@ const supabase = require('../config/supabaseClient');
  *     responses:
  *       201:
  *         description: User registered successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id:
- *                   type: string
- *                 phone:
- *                   type: string
- *                 country_code:
- *                   type: string
- *                 email:
- *                   type: string
- *                 name:
- *                   type: string
- *                 medical_college_id:
- *                   type: string
- *                 year_of_joining:
- *                   type: integer
+ *       409:
+ *         description: User already registered
+ *       500:
+ *         description: Registration failed
  */
 exports.registerUser = async (req, res) => {
   const {
@@ -76,13 +61,11 @@ exports.registerUser = async (req, res) => {
     year_of_joining
   } = req.body;
 
-  // Validate required fields
   if (!country_code || !phone || !email || !name || !medical_college_id || !year_of_joining) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
-    // Check if user already exists
     const { data: existingUser, error: checkError } = await supabase
       .from('users')
       .select('id')
@@ -94,7 +77,6 @@ exports.registerUser = async (req, res) => {
       return res.status(409).json({ error: 'User already registered' });
     }
 
-    // Insert new user
     const { data, error } = await supabase
       .from('users')
       .insert({
@@ -134,6 +116,8 @@ exports.registerUser = async (req, res) => {
  *     responses:
  *       200:
  *         description: User profile
+ *       500:
+ *         description: Error fetching user
  */
 exports.getUserById = async (req, res) => {
   const { id } = req.params;
@@ -146,6 +130,55 @@ exports.getUserById = async (req, res) => {
       .single();
 
     if (error) return res.status(500).json({ error: error.message });
+
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * @swagger
+ * /users/status/{phone}:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Check if user is active
+ *     parameters:
+ *       - in: path
+ *         name: phone
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: '9999999999'
+ *     responses:
+ *       200:
+ *         description: Activation status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 phone:
+ *                   type: string
+ *                 is_active:
+ *                   type: boolean
+ *       404:
+ *         description: User not found
+ */
+exports.getUserStatusByPhone = async (req, res) => {
+  const { phone } = req.params;
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('phone, is_active')
+      .eq('phone', phone)
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     res.status(200).json(data);
   } catch (err) {

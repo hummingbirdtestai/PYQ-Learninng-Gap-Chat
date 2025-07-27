@@ -108,6 +108,8 @@ paths:
       responses:
         '201':
           description: User registered successfully
+        '409':
+          description: User already registered with this phone number
         '500':
           description: Registration failed
 
@@ -126,6 +128,32 @@ paths:
           description: User profile retrieved
         '500':
           description: User not found or server error
+
+  /users/status/{phone}:
+    get:
+      tags: [Users]
+      summary: Check user activation status by phone number
+      parameters:
+        - in: path
+          name: phone
+          required: true
+          schema:
+            type: string
+            example: "9876543210"
+      responses:
+        '200':
+          description: Returns is_active status of the user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phone:
+                    type: string
+                  is_active:
+                    type: boolean
+        '404':
+          description: User not found
 
   /colleges:
     get:
@@ -153,7 +181,7 @@ paths:
                       type: string
         '500':
           description: Failed to fetch colleges
-  
+
   /colleges:
     post:
       tags: [Colleges]
@@ -188,4 +216,3 @@ paths:
           description: College added successfully
         '500':
           description: Error while adding college
-

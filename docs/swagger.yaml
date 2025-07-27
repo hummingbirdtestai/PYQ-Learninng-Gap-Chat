@@ -127,6 +127,46 @@ paths:
         '500':
           description: User not found or server error
 
+  /users/phone/{phone}:
+    get:
+      tags: [Users]
+      summary: Get full user profile by phone number
+      parameters:
+        - in: path
+          name: phone
+          required: true
+          schema:
+            type: string
+            example: "9876543210"
+      responses:
+        '200':
+          description: Full user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  phone:
+                    type: string
+                  email:
+                    type: string
+                  is_active:
+                    type: boolean
+                  country_code:
+                    type: string
+                  photograph_url:
+                    type: string
+                  medical_college_id:
+                    type: string
+                  year_of_joining:
+                    type: integer
+        '404':
+          description: User not found
+
   /users/status/{phone}:
     get:
       tags: [Users]

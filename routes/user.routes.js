@@ -4,7 +4,8 @@ const {
   registerUser,
   getUserById,
   getUserStatusByPhone,
-  toggleActivationByPhone
+  toggleActivationByPhone,
+  getUserByPhone
 } = require('../controllers/user.controller');
 
 router.post('/register', registerUser);

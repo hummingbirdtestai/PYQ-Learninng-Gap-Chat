@@ -84,20 +84,12 @@ exports.createExam = async (req, res) => {
  *                 properties:
  *                   name:
  *                     type: string
- *                   code:
- *                     type: string
- *                   description:
- *                     type: string
  *               - type: array
  *                 items:
  *                   type: object
  *                   required: [name]
  *                   properties:
  *                     name:
- *                       type: string
- *                     code:
- *                       type: string
- *                     description:
  *                       type: string
  *     responses:
  *       201:
@@ -117,9 +109,9 @@ exports.createSubjectUnderExam = async (req, res) => {
   let subjects = [];
 
   if (Array.isArray(req.body)) {
-    subjects = req.body.filter(s => s.name).map(s => ({ ...s, exam_id: examId }));
+    subjects = req.body.filter(s => s.name).map(s => ({ name: s.name, exam_id: examId }));
   } else if (req.body?.name) {
-    subjects = [{ ...req.body, exam_id: examId }];
+    subjects = [{ name: req.body.name, exam_id: examId }];
   }
 
   if (subjects.length === 0) {

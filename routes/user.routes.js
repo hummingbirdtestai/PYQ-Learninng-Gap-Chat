@@ -3,7 +3,8 @@ const router = express.Router();
 const {
   registerUser,
   getUserById,
-  getUserStatusByPhone
+  getUserStatusByPhone,
+  toggleActivationStatus
 } = require('../controllers/user.controller');
 
 // Register new student

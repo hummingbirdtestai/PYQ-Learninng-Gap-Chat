@@ -228,53 +228,46 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, code]
+              required: [name]
               properties:
                 name:
                   type: string
-                  example: "NEETPG"
-                code:
-                  type: string
-                  example: "NEETPG2025"
-                description:
-                  type: string
-                  example: "National eligibility entrance test PG"
+                  example: "NEET PG"
       responses:
         '201':
           description: Exam created
         '400':
-          description: Missing fields
+          description: Missing name field
         '500':
           description: Server error
 
-  /subjects:
+  /exams/{examId}/subjects:
     post:
       tags: [Exams]
       summary: Create a subject under an exam
+      parameters:
+        - in: path
+          name: examId
+          required: true
+          schema:
+            type: string
+            example: "exam-uuid"
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [exam_id, name]
+              required: [name]
               properties:
-                exam_id:
-                  type: string
-                  example: "exam-uuid"
                 name:
                   type: string
                   example: "Anatomy"
-                code:
-                  type: string
-                  example: "ANAT101"
-                description:
-                  type: string
       responses:
         '201':
           description: Subject created
         '400':
-          description: Missing fields
+          description: Missing examId or name
         '500':
           description: Server error
 
@@ -299,10 +292,6 @@ paths:
                           type: string
                         name:
                           type: string
-                        code:
-                          type: string
-                        description:
-                          type: string
                         subjects:
                           type: array
                           items:
@@ -311,10 +300,6 @@ paths:
                               id:
                                 type: string
                               name:
-                                type: string
-                              code:
-                                type: string
-                              description:
                                 type: string
         '500':
           description: Server error

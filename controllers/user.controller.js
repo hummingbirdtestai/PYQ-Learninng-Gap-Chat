@@ -187,55 +187,55 @@ exports.getUserStatusByPhone = async (req, res) => {
 
 /**
  * @swagger
- * /users/{id}/toggle-activation:
+ * /users/phone/{phone}/toggle-activation:
  *   patch:
- *     tags:
- *       - Users
- *     summary: Toggle is_active status for a user
+ *     tags: [Users]
+ *     summary: Toggle user's active status using phone number
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: phone
  *         required: true
  *         schema:
  *           type: string
+ *           example: '9876543210'
  *     responses:
  *       200:
- *         description: Activation status toggled
+ *         description: is_active status toggled
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 id:
+ *                 phone:
  *                   type: string
  *                 is_active:
  *                   type: boolean
  *       404:
  *         description: User not found
- *       500:
- *         description: Server error
  */
-exports.toggleUserActivation = async (req, res) => {
-  const { id } = req.params;
+exports.toggleActivationByPhone = async (req, res) => {
+  const { phone } = req.params;
 
   try {
-    const { data: user, error: fetchError } = await supabase
+    // Get current status
+    const { data: user, error } = await supabase
       .from('users')
-      .select('id, is_active')
-      .eq('id', id)
+      .select('is_active')
+      .eq('phone', phone)
       .single();
 
-    if (fetchError || !user) {
+    if (error || !user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Toggle is_active
     const newStatus = !user.is_active;
 
-    const { data, error: updateError } = await supabase
+    const { data, updateError } = await supabase
       .from('users')
       .update({ is_active: newStatus })
-      .eq('id', id)
-      .select('id, is_active')
+      .eq('phone', phone)
+      .select('phone, is_active')
       .single();
 
     if (updateError) return res.status(500).json({ error: updateError.message });

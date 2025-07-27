@@ -137,7 +137,7 @@ paths:
           required: true
           schema:
             type: string
-            example: "9876543210"
+            example: "+919876543210"
       responses:
         '200':
           description: Full user profile

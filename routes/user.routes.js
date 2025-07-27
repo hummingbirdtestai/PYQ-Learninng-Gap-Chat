@@ -4,12 +4,12 @@ const {
   registerUser,
   getUserById,
   getUserStatusByPhone,
-  toggleUserActivation
+  toggleActivationByPhone
 } = require('../controllers/user.controller');
 
 router.post('/register', registerUser);
 router.get('/:id', getUserById);
 router.get('/status/:phone', getUserStatusByPhone);
-router.patch('/:id/toggle-activation', toggleUserActivation); // ✅ NEW
+router.patch('/phone/:phone/toggle-activation', toggleActivationByPhone); // ✅ NEW
 
 module.exports = router;

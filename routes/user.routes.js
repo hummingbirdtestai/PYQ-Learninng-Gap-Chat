@@ -11,5 +11,6 @@ router.post('/register', registerUser);
 router.get('/:id', getUserById);
 router.get('/status/:phone', getUserStatusByPhone);
 router.patch('/phone/:phone/toggle-activation', toggleActivationByPhone); // ✅ NEW
+router.get('/phone/:phone', getUserByPhone);
 
 module.exports = router;

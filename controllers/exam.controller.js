@@ -12,17 +12,11 @@ const { supabase } = require('../utils/supabaseClient');
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, code]
+ *             required: [name]
  *             properties:
  *               name:
  *                 type: string
  *                 example: NEET PG
- *               code:
- *                 type: string
- *                 example: neetpg
- *               description:
- *                 type: string
- *                 example: Postgraduate entrance exam in India
  *     responses:
  *       201:
  *         description: Exam created successfully
@@ -32,16 +26,16 @@ const { supabase } = require('../utils/supabaseClient');
  *         description: Failed to create exam
  */
 exports.createExam = async (req, res) => {
-  const { name, code, description } = req.body;
+  const { name } = req.body;
 
-  if (!name || !code) {
-    return res.status(400).json({ error: 'Missing required fields: name or code' });
+  if (!name) {
+    return res.status(400).json({ error: 'Missing required field: name' });
   }
 
   try {
     const { data, error } = await supabase
       .from('exams')
-      .insert([{ name, code, description }])
+      .insert([{ name }])
       .select();
 
     if (error) throw error;
@@ -77,12 +71,6 @@ exports.createExam = async (req, res) => {
  *               name:
  *                 type: string
  *                 example: Anatomy
- *               code:
- *                 type: string
- *                 example: anat
- *               description:
- *                 type: string
- *                 example: Study of human structure
  *     responses:
  *       201:
  *         description: Subject created successfully
@@ -93,7 +81,7 @@ exports.createExam = async (req, res) => {
  */
 exports.createSubjectUnderExam = async (req, res) => {
   const { examId } = req.params;
-  const { name, code, description } = req.body;
+  const { name } = req.body;
 
   if (!examId || !name) {
     return res.status(400).json({ error: 'Missing required fields: examId or name' });
@@ -102,7 +90,7 @@ exports.createSubjectUnderExam = async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('subjects')
-      .insert([{ exam_id: examId, name, code, description }])
+      .insert([{ exam_id: examId, name }])
       .select();
 
     if (error) throw error;
@@ -130,7 +118,7 @@ exports.getAllExams = async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('exams')
-      .select('id, name, code, description');
+      .select('id, name');
 
     if (error) throw error;
 
@@ -160,13 +148,9 @@ exports.getExamsWithSubjects = async (req, res) => {
       .select(`
         id,
         name,
-        code,
-        description,
-        subjects:subjects (
+        subjects (
           id,
-          name,
-          code,
-          description
+          name
         )
       `);
 

@@ -303,7 +303,7 @@ paths:
           description: Server error
 
 
-  /exams-with-subjects:
+  /exams/with-subjects:
     get:
       tags: [Exams]
       summary: Get all exams with their subjects

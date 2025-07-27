@@ -153,6 +153,34 @@ paths:
         '404':
           description: User not found
 
+  /users/{id}/toggle-activation:
+    patch:
+      tags: [Users]
+      summary: Toggle the user's is_active status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User activation status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  is_active:
+                    type: boolean
+        '404':
+          description: User not found
+        '500':
+          description: Failed to update user status
+
+
   /colleges:
     get:
       tags: [Colleges]

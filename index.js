@@ -21,10 +21,11 @@ app.use(express.json());
 const swaggerDoc = YAML.load('./docs/swagger.yaml');
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
-// ✅ Route Registration
-app.use('/auth', require('./routes/auth.routes'));
-app.use('/users', require('./routes/user.routes'));
-app.use('/colleges', require('./routes/college.routes')); // ✅ College routes
+// ✅ Route Registrations
+app.use('/auth', require('./routes/auth.routes'));           // Twilio OTP Auth
+app.use('/users', require('./routes/user.routes'));          // User Registration, Status
+app.use('/colleges', require('./routes/college.routes'));    // Medical Colleges
+app.use('/exams', require('./routes/exam.routes'));          // Exam + Subject APIs
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

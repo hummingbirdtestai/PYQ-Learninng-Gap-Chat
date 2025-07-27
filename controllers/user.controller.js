@@ -159,12 +159,12 @@ exports.getUserById = async (req, res) => {
 exports.getUserByPhone = async (req, res) => {
   let { phone } = req.params;
 
-  try {
-    // ✅ Normalize: ensure +91 prefix
-    if (!phone.startsWith('+')) {
-      phone = '+91' + phone;
-    }
+  // ✅ Normalize phone to exclude any +91 or +XX prefix
+  if (phone.startsWith('+91')) {
+    phone = phone.substring(3);
+  }
 
+  try {
     const { data, error } = await supabase
       .from('users')
       .select('*')

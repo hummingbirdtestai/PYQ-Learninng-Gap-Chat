@@ -81,8 +81,6 @@ paths:
                 - phone
                 - email
                 - name
-                - medical_college_id
-                - year_of_joining
               properties:
                 country_code:
                   type: string

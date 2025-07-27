@@ -14,19 +14,19 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// ✅ JSON Parsing
+// ✅ JSON Parsing Middleware
 app.use(express.json());
 
-// ✅ Load Swagger Docs
+// ✅ Swagger Docs Loader
 const swaggerDoc = YAML.load('./docs/swagger.yaml');
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
-// ✅ Active Routes
+// ✅ Route Registration
 app.use('/auth', require('./routes/auth.routes'));
 app.use('/users', require('./routes/user.routes'));
-app.use('/colleges', require('./routes/college.routes')); // 👈 ADD THIS LINE
+app.use('/colleges', require('./routes/college.routes')); // ✅ College routes
 
-// ✅ Server Start
+// ✅ Start Express Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);

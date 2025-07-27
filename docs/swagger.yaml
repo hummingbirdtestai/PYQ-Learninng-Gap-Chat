@@ -250,7 +250,6 @@ paths:
         '500':
           description: Server error
 
-
   /exams/{examId}/subjects:
     post:
       tags: [Exams]
@@ -274,12 +273,6 @@ paths:
                     name:
                       type: string
                       example: "Anatomy"
-                    code:
-                      type: string
-                      example: "ANAT"
-                    description:
-                      type: string
-                      example: "Study of structure"
                 - type: array
                   items:
                     type: object
@@ -288,12 +281,6 @@ paths:
                       name:
                         type: string
                         example: "Physiology"
-                      code:
-                        type: string
-                        example: "PHYS"
-                      description:
-                        type: string
-                        example: "Functions of organs"
       responses:
         '201':
           description: Subject(s) created
@@ -301,7 +288,6 @@ paths:
           description: Missing examId or subject name(s)
         '500':
           description: Server error
-
 
   /exams/with-subjects:
     get:

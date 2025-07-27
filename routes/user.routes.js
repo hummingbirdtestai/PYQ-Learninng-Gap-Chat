@@ -15,4 +15,6 @@ router.get('/:id', getUserById);
 // Check activation status by phone
 router.get('/status/:phone', getUserStatusByPhone);
 
+router.patch('/:id/toggle-activation', toggleActivationStatus);
+
 module.exports = router;

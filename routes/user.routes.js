@@ -4,18 +4,12 @@ const {
   registerUser,
   getUserById,
   getUserStatusByPhone,
-  toggleActivationStatus
+  toggleUserActivation
 } = require('../controllers/user.controller');
 
-// Register new student
 router.post('/register', registerUser);
-
-// Get user profile by ID
 router.get('/:id', getUserById);
-
-// Check activation status by phone
 router.get('/status/:phone', getUserStatusByPhone);
-
-router.patch('/:id/toggle-activation', toggleActivationStatus);
+router.patch('/:id/toggle-activation', toggleUserActivation); // ✅ NEW
 
 module.exports = router;

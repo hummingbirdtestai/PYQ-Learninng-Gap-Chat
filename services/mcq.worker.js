@@ -3,30 +3,30 @@ const { openai } = require('../config/openaiClient');
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// Worker that fetches and processes one pending MCQ at a time
 async function processNextMCQ() {
-  const { data: queueItem, error } = await supabase
-    .from('mcq_generation_queue')
-    .select('id, raw_mcq_id')
-    .eq('status', 'pending')
-    .limit(1)
-    .maybeSingle();
+  // Atomically pick one pending item and mark as processing
+  const { data: nextItem } = await supabase.rpc('fetch_and_lock_next_mcq');
 
-  if (error || !queueItem) return;
+  if (!nextItem) return; // No work
 
-  // Mark as processing
-  await supabase
-    .from('mcq_generation_queue')
-    .update({ status: 'processing', started_at: new Date() })
-    .eq('id', queueItem.id);
+  const { id, raw_mcq_id } = nextItem;
 
-  const { data: rawMCQ } = await supabase
+  const { data: rawMCQ, error: rawError } = await supabase
     .from('raw_primary_mcqs')
     .select('*')
-    .eq('id', queueItem.raw_mcq_id)
-    .single();
+    .eq('id', raw_mcq_id)
+    .maybeSingle();
 
-  const prompt = `You are a medical educator... [insert your exact 10-level MCQ graph prompt here] \n\nMCQ: ${rawMCQ.question_with_options}\nCorrect Answer: ${rawMCQ.correct_answer}`;
+  if (!rawMCQ || rawError) {
+    console.error(`❌ Failed to fetch raw MCQ: ${raw_mcq_id}`);
+    await supabase
+      .from('mcq_generation_queue')
+      .update({ status: 'failed', error_message: 'Raw MCQ fetch failed', failed_at: new Date() })
+      .eq('id', id);
+    return;
+  }
+
+  const prompt = `You are a medical educator... [Insert your exact final 10-level prompt here]\n\nMCQ: ${rawMCQ.question_with_options}\nCorrect Answer: ${rawMCQ.correct_answer}`;
 
   try {
     const chatResponse = await openai.chat.completions.create({
@@ -37,23 +37,39 @@ async function processNextMCQ() {
 
     const raw = chatResponse.choices[0].message.content;
 
-    const parsed = JSON.parse(raw); // Validate output
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      throw new Error('Invalid JSON from GPT');
+    }
+
     await supabase.from('mcq_graphs').insert({
-      raw_mcq_id: queueItem.raw_mcq_id,
+      raw_mcq_id,
       generated_json: parsed
     });
 
     await supabase
       .from('mcq_generation_queue')
       .update({ status: 'done', completed_at: new Date() })
-      .eq('id', queueItem.id);
+      .eq('id', id);
+
+    console.log(`✅ Done: ${raw_mcq_id}`);
   } catch (err) {
-    console.error('❌ GPT failed:', err.message);
+    console.error(`❌ GPT error: ${err.message}`);
     await supabase
       .from('mcq_generation_queue')
       .update({ status: 'failed', error_message: err.message, failed_at: new Date() })
-      .eq('id', queueItem.id);
+      .eq('id', id);
   }
 }
 
-module.exports = { processNextMCQ };
+// Worker loop to run continuously
+async function startWorker() {
+  while (true) {
+    await processNextMCQ();
+    await delay(1000); // Optional delay
+  }
+}
+
+module.exports = { startWorker };

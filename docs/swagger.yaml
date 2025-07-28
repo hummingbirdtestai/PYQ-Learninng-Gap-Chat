@@ -384,10 +384,53 @@ paths:
       responses:
         '201':
           description: MCQs queued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "✅ 25 MCQs added to generation queue."
+                  queued:
+                    type: integer
+                    example: 25
+        '200':
+          description: No MCQs found to queue
         '400':
           description: Missing examId or subjectId
         '500':
           description: Failed to queue MCQs
+
+  /generation/status:
+    get:
+      tags: [Generation]
+      summary: Get current GPT generation queue status
+      responses:
+        '200':
+          description: Current MCQ generation queue status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    example: 100
+                  pending:
+                    type: integer
+                    example: 60
+                  processing:
+                    type: integer
+                    example: 20
+                  completed:
+                    type: integer
+                    example: 15
+                  failed:
+                    type: integer
+                    example: 5
+        '500':
+          description: Failed to fetch queue status
 
 components:
   schemas:

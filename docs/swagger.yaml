@@ -456,28 +456,31 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  results:
-                    type: array
-                    items:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    raw_mcq_id:
+                      type: string
+                      format: uuid
+                    exam_id:
+                      type: string
+                      format: uuid
+                    subject_id:
+                      type: string
+                      format: uuid
+                    graph:
                       type: object
-                      properties:
-                        id:
-                          type: string
-                          format: uuid
-                        raw_mcq_id:
-                          type: string
-                          format: uuid
-                        generated_json:
-                          type: object
-                        question_with_options:
-                          type: string
-                        correct_answer:
-                          type: string
+                    generated:
+                      type: boolean
+                    created_at:
+                      type: string
+                      format: date-time
         500:
           description: Server error or Supabase failure
-
 
 components:
   schemas:

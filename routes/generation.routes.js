@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { queueMCQGeneration, getGenerationStatus } = require('../controllers/generation.controller');
+const controller = require('../controllers/generation.controller');
 
-router.post('/queue', queueMCQGeneration);
-router.get('/status', getGenerationStatus);
+router.post('/queue', controller.queueMCQGeneration);
+router.get('/status', controller.getGenerationStatus);
+router.get('/results', controller.getGeneratedResults);
 
 module.exports = router;

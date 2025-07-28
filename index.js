@@ -9,7 +9,7 @@ const app = express();
 
 // ✅ Load Swagger Docs
 const swaggerDocument = YAML.load('./docs/swagger.yaml');
-const importRoutes = require('./routes/import.route');
+const importRoutes = require('./routes/import.routes');
 
 // ✅ Middleware: CORS
 app.use(cors({

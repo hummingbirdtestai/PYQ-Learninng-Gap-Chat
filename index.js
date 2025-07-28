@@ -17,6 +17,7 @@ const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const collegeRoutes = require('./routes/college.routes');
 const examRoutes = require('./routes/exam.routes');
+const generationRoutes = require('./routes/generation.routes');
 
 // ✅ Middleware: CORS
 app.use(cors({
@@ -37,6 +38,7 @@ app.use('/users', userRoutes);            // User Registration + Activation
 app.use('/colleges', collegeRoutes);      // Medical Colleges List
 app.use('/exams', examRoutes);            // Exams and Subjects
 app.use('/api', importRoutes);            // Import MCQs from Google Sheets
+app.use('/generation', generationRoutes);
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

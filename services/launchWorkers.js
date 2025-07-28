@@ -25,7 +25,7 @@ async function startWorkers(parallelCount = 5) {
 
 // ✅ Auto-start if executed directly
 if (require.main === module) {
-  startWorkers(5); // Default: 5 workers (can be changed)
+  startWorkers(8); // Default: 8 workers (can be changed)
 }
 
 module.exports = { startWorkers };

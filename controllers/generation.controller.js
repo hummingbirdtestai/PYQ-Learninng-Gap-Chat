@@ -34,8 +34,12 @@ const { v4: uuidv4 } = require('uuid');
  *               properties:
  *                 message:
  *                   type: string
+ *                   example: "✅ 25 MCQs added to generation queue."
  *                 queued:
  *                   type: integer
+ *                   example: 25
+ *       200:
+ *         description: No MCQs found to queue
  *       400:
  *         description: Missing examId or subjectId
  *       500:
@@ -83,4 +87,64 @@ exports.queueMCQGeneration = async (req, res) => {
     message: `✅ ${queueItems.length} MCQs added to generation queue.`,
     queued: queueItems.length
   });
+};
+
+
+/**
+ * @swagger
+ * /generation/status:
+ *   get:
+ *     summary: Get current GPT generation queue status
+ *     tags:
+ *       - Generation
+ *     responses:
+ *       200:
+ *         description: Status of the MCQ generation queue
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 total:
+ *                   type: integer
+ *                 pending:
+ *                   type: integer
+ *                 processing:
+ *                   type: integer
+ *                 completed:
+ *                   type: integer
+ *                 failed:
+ *                   type: integer
+ *       500:
+ *         description: Failed to fetch status
+ */
+exports.getGenerationStatus = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('mcq_generation_queue')
+      .select('status');
+
+    if (error) {
+      return res.status(500).json({ error: '❌ Failed to fetch status.', details: error.message });
+    }
+
+    const summary = {
+      total: data.length,
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0
+    };
+
+    data.forEach(item => {
+      const status = item.status || 'unknown';
+      if (summary[status] !== undefined) {
+        summary[status]++;
+      }
+    });
+
+    return res.status(200).json(summary);
+  } catch (err) {
+    return res.status(500).json({ error: '❌ Server error.', details: err.message });
+  }
 };

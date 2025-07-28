@@ -6,17 +6,14 @@ const { v4: uuidv4 } = require('uuid');
  * /generation/queue:
  *   post:
  *     summary: Queue all raw MCQs for GPT generation
- *     tags:
- *       - Generation
+ *     tags: [Generation]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - examId
- *               - subjectId
+ *             required: [examId, subjectId]
  *             properties:
  *               examId:
  *                 type: string
@@ -27,17 +24,6 @@ const { v4: uuidv4 } = require('uuid');
  *     responses:
  *       201:
  *         description: MCQs queued successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "✅ 25 MCQs added to generation queue."
- *                 queued:
- *                   type: integer
- *                   example: 25
  *       200:
  *         description: No MCQs found to queue
  *       400:
@@ -89,17 +75,15 @@ exports.queueMCQGeneration = async (req, res) => {
   });
 };
 
-
 /**
  * @swagger
  * /generation/status:
  *   get:
  *     summary: Get current GPT generation queue status
- *     tags:
- *       - Generation
+ *     tags: [Generation]
  *     responses:
  *       200:
- *         description: Status of the MCQ generation queue
+ *         description: Queue summary
  *         content:
  *           application/json:
  *             schema:
@@ -144,6 +128,48 @@ exports.getGenerationStatus = async (req, res) => {
     });
 
     return res.status(200).json(summary);
+  } catch (err) {
+    return res.status(500).json({ error: '❌ Server error.', details: err.message });
+  }
+};
+
+/**
+ * @swagger
+ * /generation/results:
+ *   get:
+ *     summary: Get all generated MCQ graphs
+ *     tags: [Generation]
+ *     responses:
+ *       200:
+ *         description: List of generated MCQ graphs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   raw_mcq_id:
+ *                     type: string
+ *                   generated_json:
+ *                     type: object
+ *                   created_at:
+ *                     type: string
+ *       500:
+ *         description: Failed to fetch generated results
+ */
+exports.getGeneratedResults = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('mcq_graphs')
+      .select('raw_mcq_id, generated_json, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ error: '❌ Failed to fetch results.', details: error.message });
+    }
+
+    return res.status(200).json(data);
   } catch (err) {
     return res.status(500).json({ error: '❌ Server error.', details: err.message });
   }

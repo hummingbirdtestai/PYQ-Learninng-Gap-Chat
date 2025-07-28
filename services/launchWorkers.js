@@ -1,5 +1,25 @@
-const { runWorker } = require('./services/gptWorker');
+const { processNextInQueue } = require('./gptWorker');
 
-for (let i = 0; i < 5; i++) {
-  runWorker(i + 1); // Engage 5 parallel workers
+async function startWorkers(parallelCount = 5) {
+  console.log(`🚀 Launching ${parallelCount} GPT workers...`);
+
+  const workers = Array.from({ length: parallelCount }).map((_, i) =>
+    (async function loop() {
+      console.log(`🧠 Worker ${i + 1} started`);
+
+      while (true) {
+        try {
+          await processNextInQueue();
+        } catch (err) {
+          console.error(`❌ Worker ${i + 1} crashed:`, err.message);
+        }
+
+        await new Promise(res => setTimeout(res, 1000)); // Sleep 1s before next task
+      }
+    })()
+  );
+
+  await Promise.all(workers);
 }
+
+module.exports = { startWorkers };

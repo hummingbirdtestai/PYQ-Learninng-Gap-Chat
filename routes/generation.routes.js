@@ -1,9 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const controller = require('../controllers/generation.controller');
+const generationController = require('../controllers/generation.controller');
 
-router.post('/queue', controller.queueMCQGeneration);
-router.get('/status', controller.getGenerationStatus);
-router.get('/results', controller.getGeneratedResults);
+// ✅ POST /generation/queue — Queue MCQs for generation
+router.post('/queue', generationController.queueMCQGeneration);
+
+// ✅ GET /generation/status — Get generation queue status
+router.get('/status', generationController.getGenerationStatus);
+
+// ✅ GET /generation/results — Get all generated MCQ outputs
+router.get('/results', generationController.getGenerationResults);
 
 module.exports = router;

@@ -17,6 +17,8 @@ tags:
     description: List of medical colleges
   - name: Exams
     description: Exams and their subjects
+  - name: Import MCQs
+    description: Upload MCQs from Google Sheets into raw_primary_mcqs
 
 paths:
 
@@ -321,6 +323,43 @@ paths:
                                 type: string
         '500':
           description: Server error
+
+  /api/import-mcqs:
+    post:
+      tags: [Import MCQs]
+      summary: Import MCQs from Google Sheets into raw_primary_mcqs table
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sheetUrl, examId, subjectId]
+              properties:
+                sheetUrl:
+                  type: string
+                  example: "https://docs.google.com/spreadsheets/d/e/abc123/pub?output=csv"
+                examId:
+                  type: string
+                  example: "a9c1e690-4f18-4c62-b3e9-f47384135a20"
+                subjectId:
+                  type: string
+                  example: "e7b2e1e7-5cbe-4b4e-b5ea-d0741e51e0e1"
+      responses:
+        '200':
+          description: MCQs imported successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "✅ Imported 25 MCQs."
+        '400':
+          description: Missing required fields
+        '500':
+          description: Import failed
 
 components:
   schemas:

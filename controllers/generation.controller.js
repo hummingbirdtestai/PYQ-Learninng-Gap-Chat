@@ -137,11 +137,25 @@ exports.getGenerationStatus = async (req, res) => {
  * @swagger
  * /generation/results:
  *   get:
- *     summary: Get all generated MCQ graphs
- *     tags: [Generation]
+ *     summary: Get all GPT-generated MCQ outputs
+ *     tags:
+ *       - Generation
+ *     parameters:
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Optional exam UUID to filter results
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *         required: false
+ *         description: Optional subject UUID to filter results
  *     responses:
  *       200:
- *         description: List of generated MCQ graphs
+ *         description: List of GPT-generated outputs
  *         content:
  *           application/json:
  *             schema:
@@ -149,21 +163,33 @@ exports.getGenerationStatus = async (req, res) => {
  *               items:
  *                 type: object
  *                 properties:
+ *                   id:
+ *                     type: string
  *                   raw_mcq_id:
  *                     type: string
- *                   generated_json:
- *                     type: object
- *                   created_at:
+ *                   exam_id:
  *                     type: string
+ *                   subject_id:
+ *                     type: string
+ *                   graph:
+ *                     type: object
+ *                   generated:
+ *                     type: boolean
  *       500:
- *         description: Failed to fetch generated results
+ *         description: Failed to fetch results
  */
-exports.getGeneratedResults = async (req, res) => {
+exports.getGenerationResults = async (req, res) => {
+  const { examId, subjectId } = req.query;
+
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('mcq_graphs')
-      .select('raw_mcq_id, generated_json, created_at')
-      .order('created_at', { ascending: false });
+      .select('*');
+
+    if (examId) query = query.eq('exam_id', examId);
+    if (subjectId) query = query.eq('subject_id', subjectId);
+
+    const { data, error } = await query;
 
     if (error) {
       return res.status(500).json({ error: '❌ Failed to fetch results.', details: error.message });

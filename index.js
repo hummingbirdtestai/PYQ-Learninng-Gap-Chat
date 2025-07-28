@@ -38,7 +38,7 @@ app.use('/users', userRoutes);            // User Registration + Activation
 app.use('/colleges', collegeRoutes);      // Medical Colleges List
 app.use('/exams', examRoutes);            // Exams and Subjects
 app.use('/api', importRoutes);            // Import MCQs from Google Sheets
-app.use('/generation', generationRoutes);
+app.use('/api/generation', generationRoutes);
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

@@ -432,6 +432,53 @@ paths:
         '500':
           description: Failed to fetch queue status
 
+  /generation/results:
+    get:
+      summary: Get all GPT-generated MCQ outputs
+      tags:
+        - Generation
+      parameters:
+        - in: query
+          name: examId
+          required: false
+          schema:
+            type: string
+          description: Optional exam UUID to filter results
+        - in: query
+          name: subjectId
+          required: false
+          schema:
+            type: string
+          description: Optional subject UUID to filter results
+      responses:
+        200:
+          description: List of generated MCQ graphs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        raw_mcq_id:
+                          type: string
+                          format: uuid
+                        generated_json:
+                          type: object
+                        question_with_options:
+                          type: string
+                        correct_answer:
+                          type: string
+        500:
+          description: Server error or Supabase failure
+
+
 components:
   schemas:
     User:

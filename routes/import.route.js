@@ -1,3 +1,4 @@
+// routes/import.routes.js
 const express = require('express');
 const router = express.Router();
 const { importMCQs } = require('../services/importMCQsFromSheet');
@@ -12,7 +13,7 @@ router.post('/import-mcqs', async (req, res) => {
   const result = await importMCQs({ sheetUrl, examId, subjectId });
 
   if (result.success) {
-    res.status(200).json({ message: `Imported ${result.count} MCQs.` });
+    res.status(200).json({ message: `✅ Imported ${result.count} MCQs.` });
   } else {
     res.status(500).json({ error: result.error });
   }

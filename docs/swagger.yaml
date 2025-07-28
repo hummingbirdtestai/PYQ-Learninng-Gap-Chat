@@ -19,6 +19,8 @@ tags:
     description: Exams and their subjects
   - name: Import MCQs
     description: Upload MCQs from Google Sheets into raw_primary_mcqs
+  - name: Generation
+    description: Queue MCQs for GPT-powered question generation
 
 paths:
 
@@ -360,6 +362,32 @@ paths:
           description: Missing required fields
         '500':
           description: Import failed
+
+  /generation/queue:
+    post:
+      tags: [Generation]
+      summary: Queue raw MCQs for GPT generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [examId, subjectId]
+              properties:
+                examId:
+                  type: string
+                  example: "a9c1e690-4f18-4c62-b3e9-f47384135a20"
+                subjectId:
+                  type: string
+                  example: "e7b2e1e7-5cbe-4b4e-b5ea-d0741e51e0e1"
+      responses:
+        '201':
+          description: MCQs queued successfully
+        '400':
+          description: Missing examId or subjectId
+        '500':
+          description: Failed to queue MCQs
 
 components:
   schemas:

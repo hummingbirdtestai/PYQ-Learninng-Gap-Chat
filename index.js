@@ -18,6 +18,7 @@ const userRoutes = require('./routes/user.routes');
 const collegeRoutes = require('./routes/college.routes');
 const examRoutes = require('./routes/exam.routes');
 const generationRoutes = require('./routes/generation.routes'); // ✅ Generation APIs
+const adaptiveRoutes = require('./routes/adaptive.routes');
 
 // ✅ Middleware: CORS
 app.use(cors({
@@ -39,6 +40,7 @@ app.use('/colleges', collegeRoutes);      // Medical Colleges List
 app.use('/exams', examRoutes);            // Exams and Subjects
 app.use('/api', importRoutes);            // Import MCQs from Google Sheets
 app.use('/generation', generationRoutes); // ✅ FIXED: now Swagger /generation/status will work
+app.use('/api', adaptiveRoutes);
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

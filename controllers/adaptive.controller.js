@@ -153,8 +153,6 @@ exports.getNextMCQBatch = async (req, res) => {
   }
 };
 
-const supabase = require('../config/supabaseClient');
-
 // POST /adaptive/mcqs/next-action
 exports.handleNextAction = async (req, res) => {
   const {

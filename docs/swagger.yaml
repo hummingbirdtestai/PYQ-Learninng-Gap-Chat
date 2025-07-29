@@ -21,6 +21,8 @@ tags:
     description: Upload MCQs from Google Sheets into raw_primary_mcqs
   - name: Generation
     description: Queue MCQs for GPT-powered question generation
+  - name: Adaptive MCQs
+    description: Adaptive MCQ Graph Retrieval, Response Submission, Progress Resume, and Scoring
 
 paths:
 

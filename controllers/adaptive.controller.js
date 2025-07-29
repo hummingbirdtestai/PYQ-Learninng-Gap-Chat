@@ -152,3 +152,103 @@ exports.getNextMCQBatch = async (req, res) => {
     return res.status(500).json({ error: 'Server error fetching MCQs.' });
   }
 };
+
+const supabase = require('../config/supabaseClient');
+
+// POST /adaptive/mcqs/next-action
+exports.handleNextAction = async (req, res) => {
+  const {
+    user_id,
+    exam_id,
+    subject_id,
+    raw_mcq_id,
+    selected_option,
+    is_correct,
+    answer_time,
+    start_time,
+    skipped_due_to_timeout,
+  } = req.body;
+
+  if (!user_id || !exam_id || !subject_id || !raw_mcq_id || !selected_option) {
+    return res.status(400).json({ error: 'Missing required fields.' });
+  }
+
+  try {
+    // 1. Save response to "responses" table
+    const { error: storeError } = await supabase.from('responses').upsert([{
+      user_id,
+      mcq_id: raw_mcq_id,
+      selected_option,
+      is_correct,
+      skipped_due_to_timeout,
+      answer_time,
+      start_time,
+      exam_id,
+      subject_id,
+    }]);
+
+    if (storeError) throw storeError;
+
+    // 2. Log score in "mcq_quiz_scores" table
+    const score = is_correct ? 4 : -1;
+    const { error: scoreError } = await supabase.from('mcq_quiz_scores').upsert([{
+      user_id,
+      exam_id,
+      subject_id,
+      raw_mcq_id,
+      score,
+      updated_at: new Date(),
+    }], { onConflict: ['user_id', 'raw_mcq_id'] });
+
+    if (scoreError) throw scoreError;
+
+    // 3. Get next MCQ from mcq_graphs (based on current progress)
+    const { data: graphs, error: graphError } = await supabase
+      .from('mcq_graphs')
+      .select('id, raw_mcq_id, graph')
+      .eq('exam_id', exam_id)
+      .eq('subject_id', subject_id)
+      .order('created_at', { ascending: true });
+
+    if (graphError) throw graphError;
+
+    const { data: progressData } = await supabase
+      .from('mcq_progress')
+      .select('*')
+      .eq('user_id', user_id)
+      .eq('exam_id', exam_id)
+      .eq('subject_id', subject_id);
+
+    const progressMap = new Map();
+    progressData?.forEach(p => progressMap.set(p.raw_mcq_id, p));
+
+    let nextMCQ = null;
+
+    for (const graph of graphs) {
+      const mcqChain = graph.graph?.primary_mcq ? [graph.graph.primary_mcq, ...graph.graph.recursive_levels] : [];
+      const progress = progressMap.get(graph.raw_mcq_id) || { primary_index: -1, secondary_index: -1 };
+
+      const nextIndex = progress.secondary_index + 1;
+      if (nextIndex < mcqChain.length) {
+        nextMCQ = {
+          mcq_graph_id: graph.id,
+          raw_mcq_id: graph.raw_mcq_id,
+          progress,
+          next_mcq: mcqChain[nextIndex],
+          next_index: nextIndex,
+        };
+        break;
+      }
+    }
+
+    if (!nextMCQ) {
+      return res.status(200).json({ message: '✅ All MCQs completed.', next_mcq: null });
+    }
+
+    return res.json(nextMCQ);
+  } catch (err) {
+    console.error('❌ Error in next-action API:', err.message);
+    return res.status(500).json({ error: 'Server error.' });
+  }
+};
+

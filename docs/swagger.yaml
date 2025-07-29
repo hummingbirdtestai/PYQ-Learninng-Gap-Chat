@@ -727,3 +727,63 @@ components:
         '500':
           description: Failed to fetch MCQ batch
 
+  /adaptive/mcqs/next-action:
+    post:
+      summary: Submit MCQ response and get next MCQ
+      tags:
+        - Adaptive MCQs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                exam_id:
+                  type: string
+                subject_id:
+                  type: string
+                raw_mcq_id:
+                  type: string
+                selected_option:
+                  type: string
+                is_correct:
+                  type: boolean
+                skipped_due_to_timeout:
+                  type: boolean
+                answer_time:
+                  type: string
+                  format: date-time
+                start_time:
+                  type: string
+                  format: date-time
+              required:
+                - user_id
+                - exam_id
+                - subject_id
+                - raw_mcq_id
+                - selected_option
+      responses:
+        '200':
+          description: Submission successful and next MCQ returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mcq_graph_id:
+                    type: string
+                  raw_mcq_id:
+                    type: string
+                  progress:
+                    type: object
+                  next_mcq:
+                    type: object
+                  next_index:
+                    type: integer
+        '400':
+          description: Missing required fields
+        '500':
+          description: Server error

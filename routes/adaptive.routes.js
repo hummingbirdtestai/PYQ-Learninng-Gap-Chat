@@ -20,4 +20,6 @@ router.post('/adaptive/progress/update', controller.updateProgress);
 // ✅ 6. Fetch next batch of 20 MCQs for user (skips completed ones)
 router.get('/adaptive-mcqs/next-batch', controller.getNextMCQBatch);
 
+router.post('/adaptive/mcqs/next-action', adaptiveController.handleNextAction);
+
 module.exports = router;

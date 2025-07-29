@@ -558,7 +558,7 @@ components:
 
   /adaptive/mcqs/{examId}/{subjectId}:
     get:
-      tags: [Adaptive MCQ]
+      tags: [Adaptive MCQs]
       summary: Deliver full MCQ graph (20 primary, 200 secondary)
       parameters:
         - in: path
@@ -585,7 +585,7 @@ components:
 
   /adaptive/responses/batch:
     post:
-      tags: [Adaptive MCQ]
+      tags: [Adaptive MCQs]
       summary: Submit batch of MCQ responses
       requestBody:
         required: true
@@ -606,7 +606,7 @@ components:
 
   /adaptive/score/submit:
     post:
-      tags: [Adaptive MCQ]
+      tags: [Adaptive MCQs]
       summary: Submit final quiz score
       requestBody:
         required: true
@@ -634,7 +634,7 @@ components:
 
   /adaptive/progress/{userId}/{examId}/{subjectId}:
     get:
-      tags: [Adaptive MCQ]
+      tags: [Adaptive MCQs]
       summary: Resume user session progress
       parameters:
         - in: path
@@ -660,7 +660,7 @@ components:
 
   /adaptive/progress/update:
     post:
-      tags: [Adaptive MCQ]
+      tags: [Adaptive MCQs]
       summary: Update MCQ progress (optional fallback)
       requestBody:
         required: true
@@ -692,7 +692,7 @@ components:
 
   /adaptive-mcqs/next-batch:
     get:
-      tags: [Adaptive MCQ]
+      tags: [Adaptive MCQs]
       summary: Get next MCQ batch (20 max)
       parameters:
         - in: query

@@ -72,7 +72,7 @@ async function processNextInQueue(workerId = 1) {
 
   if (!item) {
     console.log(`📭 Worker ${workerId}: No pending MCQs in queue.`);
-    return;
+    return false;
   }
 
   const { id, raw_mcq_id } = item;
@@ -94,7 +94,7 @@ async function processNextInQueue(workerId = 1) {
         failed_at: new Date().toISOString()
       })
       .eq('id', id);
-    return;
+    return false;
   }
 
   const fullPrompt = `${PROMPT_TEMPLATE}
@@ -149,6 +149,7 @@ Correct Answer: ${rawMCQ.correct_answer}`;
       .eq('id', id);
 
     console.log(`✅ Worker ${workerId}: Successfully processed ${raw_mcq_id}`);
+    return true;
   } catch (err) {
     console.error(`❌ Worker ${workerId}: GPT error for ${raw_mcq_id}: ${err.message}`);
     await supabase
@@ -159,6 +160,7 @@ Correct Answer: ${rawMCQ.correct_answer}`;
         failed_at: new Date().toISOString()
       })
       .eq('id', id);
+    return false;
   }
 }
 
@@ -169,8 +171,9 @@ if (require.main === module) {
   (async () => {
     console.log('🚀 Single MCQ Worker started (direct run)');
     while (true) {
-      await processNextInQueue(1);
-      await delay(1000); // Optional throttle
+      const done = await processNextInQueue(1);
+      if (!done) break;
+      await delay(1000);
     }
   })();
 }

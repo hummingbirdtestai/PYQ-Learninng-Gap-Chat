@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { controller.getMCQGraph, 
-controller.submitResponses, 
-controller.submitQuizScore, 
-controller.getResumeProgress, 
-controller.updateProgress, 
-controller.getNextMCQBatch,
-adaptiveController.handleNextAction } = require('../controllers/adaptive.controller');
+const { 
+  controller.getMCQGraph, 
+  controller.submitResponses, 
+  controller.submitQuizScore, 
+  controller.getResumeProgress, 
+  controller.updateProgress, 
+  controller.getNextMCQBatch,
+  adaptiveController.handleNextAction 
+} = require('../controllers/adaptive.controller');
 
 // 1. Deliver full MCQ graph for a subject in an exam
 router.get('/adaptive/mcqs/:examId/:subjectId', controller.getMCQGraph);

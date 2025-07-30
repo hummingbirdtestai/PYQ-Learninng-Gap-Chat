@@ -484,7 +484,7 @@ paths:
         500:
           description: Server error or Supabase failure
 
-  /adaptive/mcqs/{examId}/{subjectId}:
+  /api/adaptive/mcqs/{examId}/{subjectId}:
     get:
       tags: [Adaptive MCQs]
       summary: Deliver full MCQ graph (20 primary, 200 secondary)
@@ -511,7 +511,7 @@ paths:
         '500':
           description: Error fetching MCQ graphs
 
-  /adaptive/responses/batch:
+  /api/adaptive/responses/batch:
     post:
       tags: [Adaptive MCQs]
       summary: Submit batch of MCQ responses
@@ -532,7 +532,7 @@ paths:
         '500':
           description: Failed to save responses
 
-  /adaptive/score/submit:
+  /api/adaptive/score/submit:
     post:
       tags: [Adaptive MCQs]
       summary: Submit final quiz score
@@ -560,7 +560,7 @@ paths:
         '500':
           description: Failed to update score
 
-  /adaptive/progress/{userId}/{examId}/{subjectId}:
+  /api/adaptive/progress/{userId}/{examId}/{subjectId}:
     get:
       tags: [Adaptive MCQs]
       summary: Resume user session progress
@@ -586,7 +586,7 @@ paths:
         '500':
           description: Failed to fetch progress
 
-  /adaptive/progress/update:
+  /api/adaptive/progress/update:
     post:
       tags: [Adaptive MCQs]
       summary: Update MCQ progress (optional fallback)
@@ -618,7 +618,7 @@ paths:
         '500':
           description: Failed to update progress
 
-  /adaptive-mcqs/next-batch:
+  /api/adaptive-mcqs/next-batch:
     get:
       tags: [Adaptive MCQs]
       summary: Get next MCQ batch (20 max)
@@ -655,7 +655,7 @@ paths:
         '500':
           description: Failed to fetch MCQ batch
 
-  /adaptive/mcqs/next-action:
+  /api/adaptive/mcqs/next-action:
     post:
       summary: Submit MCQ response and get next MCQ
       tags:

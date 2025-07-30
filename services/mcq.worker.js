@@ -158,9 +158,19 @@ Correct Answer: ${rawMCQ.correct_answer}`;
         id: newId,
         exam_id: rawMCQ.exam_id,
         subject_id: rawMCQ.subject_id,
+        stem: mcq.stem,
+        option_a: mcq.options?.A,
+        option_b: mcq.options?.B,
+        option_c: mcq.options?.C,
+        option_d: mcq.options?.D,
+        option_e: mcq.options?.E,
+        correct_answer: mcq.correct_answer,
+        explanation: mcq.explanation || '',
+        learning_gap: mcq.learning_gap || '',
         level,
         mcq_json: mcq
       });
+
 
       if (insertError) throw insertError;
       return newId;

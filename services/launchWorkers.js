@@ -7,7 +7,7 @@ async function startWorkerLoop(workerId) {
   console.log(`🧠 Worker ${workerId} started`);
 
   let emptyCount = 0;
-  const maxEmptyRetries = 10; // Stop after 10 empty polls (30s total if 3s delay)
+  const maxEmptyRetries = 10;
 
   while (emptyCount < maxEmptyRetries) {
     try {
@@ -18,8 +18,8 @@ async function startWorkerLoop(workerId) {
         console.log(`📭 Worker ${workerId}: No MCQ in queue (${emptyCount}/${maxEmptyRetries}).`);
         await delay(3000);
       } else {
-        emptyCount = 0; // Reset if work was done
-        await delay(500); // Throttle
+        emptyCount = 0;
+        await delay(500);
       }
     } catch (err) {
       console.error(`❌ Worker ${workerId} crashed:`, err.message);
@@ -37,13 +37,8 @@ async function startWorkers(parallelCount = 8) {
     startWorkerLoop(i + 1)
   );
 
-  await Promise.all(workers); // Wait for all to finish
+  await Promise.all(workers);
   console.log(`✅ All ${parallelCount} workers completed.`);
-}
-
-// ✅ Auto-start if executed directly
-if (require.main === module) {
-  startWorkers(8);
 }
 
 module.exports = { startWorkers };

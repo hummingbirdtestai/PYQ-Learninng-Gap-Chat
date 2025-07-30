@@ -20,6 +20,7 @@ const examRoutes = require('./routes/exam.routes');
 const generationRoutes = require('./routes/generation.routes'); // GPT Worker Status APIs
 const adaptiveRoutes = require('./routes/adaptive.routes');
 const mcqGeneratorRoutes = require('./routes/mcqGenerator.routes'); // ✅ NEW: On-demand MCQ generation
+const mcqRoutes = require('./routes/mcq.routes');
 
 // ✅ Middleware: CORS
 app.use(cors({
@@ -43,6 +44,7 @@ app.use('/api', importRoutes);                   // Google Sheets → Supabase M
 app.use('/generation', generationRoutes);        // GPT Worker Status Dashboard
 app.use('/api', adaptiveRoutes);                 // Adaptive MCQ APIs
 app.use('/api', mcqGeneratorRoutes);
+app.use('/api', mcqRoutes);
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

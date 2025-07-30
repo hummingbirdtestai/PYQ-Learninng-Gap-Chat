@@ -764,6 +764,82 @@ paths:
         '500':
           description: Server error
 
+  /api/generate-mcqs/from-raw:
+    post:
+      summary: Generate GPT-based MCQ graph from raw MCQ
+      tags:
+        - MCQ Generation
+      description: >
+        Accepts a raw MCQ (question + options + correct answer) and uses GPT to generate a primary MCQ and 10 recursive learning gap MCQs.  
+        All generated MCQs are inserted into the `mcqs` table, and UUID references are stored in the `mcq_graphs` table.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - question
+                - options
+                - correct_answer
+                - exam_id
+                - subject_id
+              properties:
+                question:
+                  type: string
+                  example: What is the most common site of tuberculosis infection in the body?
+                options:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - Lungs
+                    - Spine
+                    - Kidney
+                    - Brain
+                    - Liver
+                correct_answer:
+                  type: string
+                  example: Lungs
+                exam_id:
+                  type: string
+                  format: uuid
+                  example: 92b3e6d4-5671-4c02-a0aa-34db2ff87c66
+                subject_id:
+                  type: string
+                  format: uuid
+                  example: 9e4bfae5-7789-4fd1-8ef7-206da63b1f21
+      responses:
+        '200':
+          description: MCQ graph generated and stored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      primary_mcq_id:
+                        type: string
+                        format: uuid
+                      recursive_mcq_ids:
+                        type: array
+                        items:
+                          type: string
+                          format: uuid
+                      graph_id:
+                        type: string
+                        format: uuid
+        '400':
+          description: Invalid input or GPT failure
+        '500':
+          description: Internal server error
+
 components:
   schemas:
     User:

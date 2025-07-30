@@ -1,4 +1,4 @@
-const { processNextInQueue } = require('./gptWorker');
+const { processNextInQueue } = require('./mcq.worker');
 
 // Utility delay
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));

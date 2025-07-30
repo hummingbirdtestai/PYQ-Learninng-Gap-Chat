@@ -154,3 +154,74 @@ ${raw_mcq_text}
     return res.status(500).json({ error: 'Failed to generate MCQ graph', details: err.message });
   }
 };
+
+exports.insertMCQGraphFromJson = async (req, res) => {
+  const { graph_json, exam_id, subject_id } = req.body;
+
+  if (!graph_json || !exam_id || !subject_id) {
+    return res.status(400).json({ error: 'Missing graph_json or exam/subject ID' });
+  }
+
+  const parsed = graph_json;
+
+  const insertMCQ = async (mcq, level = null) => {
+    if (!validateMCQ(mcq)) {
+      console.error(`❌ MCQ at level ${level} failed validation:\n`, JSON.stringify(mcq, null, 2));
+      throw new Error(`MCQ at level ${level} failed validation`);
+    }
+
+    const id = uuidv4();
+
+    const { error } = await supabase.from('mcqs').insert({
+      id,
+      exam_id,
+      subject_id,
+      stem: mcq.stem,
+      option_a: mcq.options?.A,
+      option_b: mcq.options?.B,
+      option_c: mcq.options?.C,
+      option_d: mcq.options?.D,
+      option_e: mcq.options?.E,
+      correct_answer: mcq.correct_answer,
+      explanation: mcq.explanation || '',
+      learning_gap: mcq.learning_gap || '',
+      level,
+      mcq_json: mcq
+    });
+
+    if (error) throw error;
+    return id;
+  };
+
+  try {
+    const primaryId = await insertMCQ(parsed.primary_mcq, 0);
+    const recursiveIds = [];
+
+    if (!Array.isArray(parsed.recursive_levels)) {
+      return res.status(400).json({ error: 'recursive_levels must be an array' });
+    }
+
+    for (let i = 0; i < parsed.recursive_levels.length; i++) {
+      const id = await insertMCQ(parsed.recursive_levels[i], i + 1);
+      recursiveIds.push(id);
+    }
+
+    const graph = {
+      primary_mcq: primaryId,
+      recursive_levels: recursiveIds
+    };
+
+    await supabase.from('mcq_graphs').insert({
+      raw_mcq_id: null,
+      exam_id,
+      subject_id,
+      graph,
+      generated: false // manually inserted
+    });
+
+    return res.status(200).json({ message: '✅ MCQ graph inserted successfully', graph });
+  } catch (err) {
+    console.error('❌ Insertion Error:', err.message || err);
+    return res.status(500).json({ error: 'Failed to insert MCQ graph', details: err.message });
+  }
+};

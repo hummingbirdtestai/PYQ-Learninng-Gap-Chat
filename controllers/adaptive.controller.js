@@ -72,12 +72,11 @@ exports.updateProgress = async (req, res) => {
   res.json({ message: '✅ Progress updated.' });
 };
 
-// 5. Get Full MCQ Graph (Optional for Admin)
+// 5. Get Full MCQ Graph (Resolved by UUID)
 exports.getMCQGraph = async (req, res) => {
   const { examId, subjectId } = req.params;
 
   try {
-    // Step 1: Fetch all graph entries
     const { data: graphs, error: graphError } = await supabase
       .from('mcq_graphs')
       .select('raw_mcq_id, graph')
@@ -94,10 +93,9 @@ exports.getMCQGraph = async (req, res) => {
       }
     });
 
-    // Step 2: Resolve UUIDs to actual MCQs
     const { data: mcqs, error: mcqError } = await supabase
       .from('mcqs')
-      .select('id, level, mcq_json')
+      .select('id, mcq_json')
       .in('id', allUUIDs);
 
     if (mcqError) throw mcqError;
@@ -105,7 +103,6 @@ exports.getMCQGraph = async (req, res) => {
     const mcqMap = new Map();
     mcqs.forEach((m) => mcqMap.set(m.id, m.mcq_json));
 
-    // Step 3: Reconstruct full graph
     const reconstructed = graphs.map((g) => ({
       raw_mcq_id: g.raw_mcq_id,
       graph: {
@@ -121,7 +118,93 @@ exports.getMCQGraph = async (req, res) => {
   }
 };
 
-// POST /adaptive/mcqs/next-action
+// 6. Get Next Batch (Resolved UUIDs)
+exports.getNextMCQBatch = async (req, res) => {
+  const { userId, examId, subjectId } = req.query;
+
+  if (!userId || !examId || !subjectId) {
+    return res.status(400).json({ error: 'Missing required query parameters.' });
+  }
+
+  try {
+    const { data: graphs, error: graphError } = await supabase
+      .from('mcq_graphs')
+      .select('id, raw_mcq_id, graph')
+      .eq('exam_id', examId)
+      .eq('subject_id', subjectId)
+      .order('created_at', { ascending: true })
+      .limit(50);
+
+    if (graphError) throw graphError;
+
+    const { data: progressData, error: progressError } = await supabase
+      .from('mcq_progress')
+      .select('raw_mcq_id, primary_index, secondary_index')
+      .eq('user_id', userId)
+      .eq('exam_id', examId)
+      .eq('subject_id', subjectId);
+
+    if (progressError) throw progressError;
+
+    const progressMap = new Map();
+    progressData.forEach(p => {
+      progressMap.set(p.raw_mcq_id, {
+        primary_index: p.primary_index,
+        secondary_index: p.secondary_index,
+      });
+    });
+
+    const allUUIDs = [];
+    graphs.forEach((g) => {
+      if (g.graph?.primary_mcq) allUUIDs.push(g.graph.primary_mcq);
+      if (Array.isArray(g.graph?.recursive_levels)) {
+        allUUIDs.push(...g.graph.recursive_levels);
+      }
+    });
+
+    const { data: mcqs, error: mcqError } = await supabase
+      .from('mcqs')
+      .select('id, mcq_json')
+      .in('id', allUUIDs);
+
+    if (mcqError) throw mcqError;
+
+    const mcqMap = new Map();
+    mcqs.forEach((m) => mcqMap.set(m.id, m.mcq_json));
+
+    const batch = [];
+
+    for (let g of graphs) {
+      const mcqChain = g.graph?.primary_mcq
+        ? [g.graph.primary_mcq, ...(g.graph.recursive_levels || [])]
+        : [];
+
+      const existingProgress = progressMap.get(g.raw_mcq_id);
+      if (existingProgress?.primary_index >= 9 && existingProgress?.secondary_index >= 9) {
+        continue;
+      }
+
+      const fullChain = mcqChain.map((uuid) => mcqMap.get(uuid)).filter(Boolean);
+
+      batch.push({
+        mcq_graph_id: g.id,
+        raw_mcq_id: g.raw_mcq_id,
+        progress: existingProgress || { primary_index: -1, secondary_index: -1 },
+        mcqs: fullChain,
+      });
+
+      if (batch.length >= 20) break;
+    }
+
+    const remaining_count = Math.max(0, graphs.length - batch.length);
+    return res.json({ batch, remaining_count });
+  } catch (err) {
+    console.error('❌ Error fetching batch:', err.message);
+    return res.status(500).json({ error: 'Server error fetching MCQs.' });
+  }
+};
+
+// 7. POST /adaptive/mcqs/next-action
 exports.handleNextAction = async (req, res) => {
   const {
     user_id,
@@ -140,8 +223,7 @@ exports.handleNextAction = async (req, res) => {
   }
 
   try {
-    // 1. Save response to "responses" table
-    const { error: storeError } = await supabase.from('responses').upsert([{
+    await supabase.from('responses').upsert([{
       user_id,
       mcq_id: raw_mcq_id,
       selected_option,
@@ -153,11 +235,8 @@ exports.handleNextAction = async (req, res) => {
       subject_id,
     }]);
 
-    if (storeError) throw storeError;
-
-    // 2. Log score in "mcq_quiz_scores" table
     const score = is_correct ? 4 : -1;
-    const { error: scoreError } = await supabase.from('mcq_quiz_scores').upsert([{
+    await supabase.from('mcq_quiz_scores').upsert([{
       user_id,
       exam_id,
       subject_id,
@@ -166,17 +245,22 @@ exports.handleNextAction = async (req, res) => {
       updated_at: new Date(),
     }], { onConflict: ['user_id', 'raw_mcq_id'] });
 
-    if (scoreError) throw scoreError;
-
-    // 3. Get next MCQ from mcq_graphs (based on current progress)
-    const { data: graphs, error: graphError } = await supabase
+    const { data: graphs } = await supabase
       .from('mcq_graphs')
       .select('id, raw_mcq_id, graph')
       .eq('exam_id', exam_id)
       .eq('subject_id', subject_id)
       .order('created_at', { ascending: true });
 
-    if (graphError) throw graphError;
+    const { data: mcqs } = await supabase
+      .from('mcqs')
+      .select('id, mcq_json')
+      .in('id', graphs.flatMap(g =>
+        [g.graph.primary_mcq, ...(g.graph.recursive_levels || [])]
+      ));
+
+    const mcqMap = new Map();
+    mcqs.forEach((m) => mcqMap.set(m.id, m.mcq_json));
 
     const { data: progressData } = await supabase
       .from('mcq_progress')
@@ -191,16 +275,19 @@ exports.handleNextAction = async (req, res) => {
     let nextMCQ = null;
 
     for (const graph of graphs) {
-      const mcqChain = graph.graph?.primary_mcq ? [graph.graph.primary_mcq, ...graph.graph.recursive_levels] : [];
-      const progress = progressMap.get(graph.raw_mcq_id) || { primary_index: -1, secondary_index: -1 };
+      const uuidChain = graph.graph?.primary_mcq
+        ? [graph.graph.primary_mcq, ...(graph.graph.recursive_levels || [])]
+        : [];
 
+      const progress = progressMap.get(graph.raw_mcq_id) || { primary_index: -1, secondary_index: -1 };
       const nextIndex = progress.secondary_index + 1;
-      if (nextIndex < mcqChain.length) {
+
+      if (nextIndex < uuidChain.length) {
         nextMCQ = {
           mcq_graph_id: graph.id,
           raw_mcq_id: graph.raw_mcq_id,
           progress,
-          next_mcq: mcqChain[nextIndex],
+          next_mcq: mcqMap.get(uuidChain[nextIndex]),
           next_index: nextIndex,
         };
         break;
@@ -217,4 +304,3 @@ exports.handleNextAction = async (req, res) => {
     return res.status(500).json({ error: 'Server error.' });
   }
 };
-

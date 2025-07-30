@@ -801,6 +801,70 @@ paths:
         '500':
           description: GPT or Supabase error
 
+  /api/mcqs/generate-from-input:
+    post:
+      tags:
+        - MCQs
+      summary: Generate MCQ graph from raw MCQ input using GPT
+      description: |
+        Accepts a raw MCQ text string (e.g., from NEETPG or USMLE) along with exam_id and subject_id.
+        Sends to ChatGPT, generates primary and recursive MCQ chain, inserts into Supabase `mcqs` and `mcq_graphs`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - raw_mcq_text
+                - exam_id
+                - subject_id
+              properties:
+                raw_mcq_text:
+                  type: string
+                  example: |
+                    What is the origin of the left intercostal artery?
+                    A. Pulmonary trunk
+                    B. Thymus
+                    C. Left intercostal artery
+                    D. Arch of aorta
+                    E. None of the above
+                    Answer: C
+                exam_id:
+                  type: string
+                  format: uuid
+                  example: "bf488a73-9f75-4bd9-9b94-6a9a93efeb3b"
+                subject_id:
+                  type: string
+                  format: uuid
+                  example: "1f3467e1-7c47-4c3a-9cc3-6ae614cd3d7e"
+      responses:
+        "200":
+          description: MCQ graph successfully created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: ✅ MCQ Graph generated
+                  graph:
+                    type: object
+                    properties:
+                      primary_mcq:
+                        type: string
+                        format: uuid
+                      recursive_levels:
+                        type: array
+                        items:
+                          type: string
+                          format: uuid
+        "400":
+          description: Missing or invalid input
+        "500":
+          description: GPT or Supabase error
+
 components:
   schemas:
     User:

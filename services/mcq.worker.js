@@ -4,7 +4,6 @@ const { v4: uuidv4 } = require('uuid');
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Lock next MCQ in queue
 const lockNextPendingMCQ = async () => {
   try {
     const { data, error } = await supabase
@@ -23,7 +22,6 @@ const lockNextPendingMCQ = async () => {
   }
 };
 
-// GPT Prompt
 const PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
 Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
@@ -67,7 +65,6 @@ All "stem" and "learning_gap" values must contain 2 or more <strong>...</strong>
 If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slide), describe it logically in sentence 5 of the MCQ stem.
 All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.`;
 
-// Validate structure of a single MCQ
 const validateMCQ = (mcq) => {
   return (
     mcq?.stem &&
@@ -177,8 +174,12 @@ Correct Answer: ${rawMCQ.correct_answer}`;
     const primaryId = await insertMCQ(parsed.primary_mcq, 0);
     const recursiveIds = [];
 
-    if (!Array.isArray(parsed.recursive_levels) || parsed.recursive_levels.length !== 10) {
-      throw new Error("Parsed recursive_levels must be an array of length 10");
+    if (!Array.isArray(parsed.recursive_levels)) {
+      throw new Error("parsed.recursive_levels is missing or not an array");
+    }
+
+    if (parsed.recursive_levels.length < 10) {
+      console.warn(`⚠️ Warning: Only ${parsed.recursive_levels.length} recursive levels found (expected 10)`);
     }
 
     for (let i = 0; i < parsed.recursive_levels.length; i++) {
@@ -222,7 +223,6 @@ Correct Answer: ${rawMCQ.correct_answer}`;
 
 module.exports = { processNextInQueue };
 
-// Run as standalone script
 if (require.main === module) {
   (async () => {
     console.log('🚀 Single MCQ Worker started (direct run)');

@@ -1,16 +1,35 @@
 const supabase = require('../config/supabaseClient');
 
-// 1. Submit Responses in Batch
-exports.submitResponses = async (req, res) => {
+// 1. Submit Responses in Batch (UUID-compatible)
+exports.submitResponsesBatch = async (req, res) => {
   const { responses } = req.body;
 
-  const { error } = await supabase.from('responses').upsert(responses, {
-    onConflict: ['user_id', 'mcq_id'],
-    ignoreDuplicates: false,
-  });
+  if (!Array.isArray(responses) || responses.length === 0) {
+    return res.status(400).json({ error: 'No responses provided.' });
+  }
 
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ message: `✅ ${responses.length} responses saved.` });
+  // Ensure each response has a UUID-based `mcq_id`
+  const valid = responses.every(r =>
+    r.user_id && r.mcq_id && 'selected_option' in r
+  );
+
+  if (!valid) {
+    return res.status(400).json({ error: 'One or more responses missing required fields.' });
+  }
+
+  try {
+    const { error } = await supabase.from('responses').upsert(responses, {
+      onConflict: ['user_id', 'mcq_id'],
+      ignoreDuplicates: false,
+    });
+
+    if (error) throw error;
+
+    res.json({ message: `✅ ${responses.length} responses saved.` });
+  } catch (err) {
+    console.error('❌ Error saving batch responses:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 };
 
 // 2. Submit Final Quiz Score

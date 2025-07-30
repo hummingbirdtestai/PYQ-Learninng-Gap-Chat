@@ -42,7 +42,7 @@ app.use('/exams', examRoutes);                   // Exams and Subjects
 app.use('/api', importRoutes);                   // Google Sheets → Supabase MCQ Import
 app.use('/generation', generationRoutes);        // GPT Worker Status Dashboard
 app.use('/api', adaptiveRoutes);                 // Adaptive MCQ APIs
-app.use('/api', mcqGeneratorRoutes);             // ✅ NEW: On-demand GPT MCQ Generation from raw
+app.use('/api', mcqGeneratorRoutes);
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

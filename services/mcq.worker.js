@@ -66,14 +66,23 @@ If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slid
 All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.`;
 
 const validateMCQ = (mcq) => {
-  return (
-    mcq?.stem &&
-    typeof mcq.stem === 'string' &&
-    mcq?.options &&
-    typeof mcq.options === 'object' &&
-    mcq?.correct_answer &&
-    typeof mcq.correct_answer === 'string'
-  );
+  if (
+    !mcq?.stem ||
+    typeof mcq.stem !== 'string' ||
+    !mcq?.options ||
+    typeof mcq.options !== 'object' ||
+    !mcq?.correct_answer ||
+    typeof mcq.correct_answer !== 'string'
+  ) {
+    return false;
+  }
+
+  const requiredOptions = ['A', 'B', 'C', 'D', 'E'];
+  const hasAllOptions = requiredOptions.every(opt => typeof mcq.options[opt] === 'string' && mcq.options[opt].trim() !== '');
+
+  const isValidAnswer = requiredOptions.includes(mcq.correct_answer);
+
+  return hasAllOptions && isValidAnswer;
 };
 
 async function processNextInQueue(workerId = 1) {

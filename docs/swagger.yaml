@@ -865,6 +865,37 @@ paths:
         "500":
           description: GPT or Supabase error
 
+  /api/mcqs/insert-from-json:
+    post:
+      summary: Insert manually created MCQ graph JSON
+      tags:
+        - MCQs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - graph_json
+                - exam_id
+                - subject_id
+              properties:
+                graph_json:
+                  type: object
+                  description: Full MCQ graph JSON (primary + 10 recursive levels)
+                exam_id:
+                  type: string
+                subject_id:
+                  type: string
+      responses:
+        '200':
+          description: MCQ graph inserted successfully
+        '400':
+          description: Bad request or validation failed
+        '500':
+          description: Server error
+
 components:
   schemas:
     User:

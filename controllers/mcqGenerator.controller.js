@@ -28,7 +28,7 @@ exports.generateFromRaw = async (req, res) => {
 
     // ✅ Case A: Fully external MCQ input
     if (!raw_mcq_id) {
-      const { question, options, correct_answer, exam_id, subject_id } = req.body;
+      const { question, options, correct_answer, exam_id, subject_id, raw_mcq_id } = req.body;
 
       if (!question || !options || !correct_answer || !exam_id || !subject_id) {
         return res.status(400).json({ error: 'Missing fields: question, options, correct_answer, exam_id, subject_id' });

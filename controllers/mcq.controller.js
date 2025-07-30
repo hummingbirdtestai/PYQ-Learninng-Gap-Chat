@@ -81,7 +81,11 @@ ${raw_mcq_text}
     const parsed = JSON.parse(raw);
 
     const insertMCQ = async (mcq, level = null) => {
-      if (!validateMCQ(mcq)) throw new Error(`MCQ at level ${level} failed validation`);
+      if (!validateMCQ(mcq)) {
+        console.error(`❌ MCQ at level ${level} failed validation:\n`, JSON.stringify(mcq, null, 2));
+        throw new Error(`MCQ at level ${level} failed validation`);
+      }
+
       const id = uuidv4();
 
       const { error } = await supabase.from('mcqs').insert({
@@ -109,11 +113,11 @@ ${raw_mcq_text}
     const recursiveIds = [];
 
     if (!Array.isArray(parsed.recursive_levels)) {
-      return res.status(400).json({ error: 'Invalid response from GPT' });
+      return res.status(400).json({ error: 'Invalid GPT response: recursive_levels is not an array' });
     }
 
     if (parsed.recursive_levels.length < 10) {
-      console.warn(`⚠️ Only ${parsed.recursive_levels.length} levels found`);
+      console.warn(`⚠️ Only ${parsed.recursive_levels.length} recursive levels returned by GPT`);
     }
 
     for (let i = 0; i < parsed.recursive_levels.length; i++) {
@@ -133,7 +137,7 @@ ${raw_mcq_text}
 
     return res.status(200).json({ message: '✅ MCQ Graph generated', graph });
   } catch (err) {
-    console.error('❌ Error generating MCQ Graph:', err.message);
+    console.error('❌ Error generating MCQ Graph:', err.message || err);
     return res.status(500).json({ error: 'Failed to generate MCQ graph', details: err.message });
   }
 };

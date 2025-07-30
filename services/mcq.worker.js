@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Lock and fetch next pending MCQ from queue
+// Lock next MCQ in queue
 const lockNextPendingMCQ = async () => {
   try {
     const { data, error } = await supabase
@@ -23,6 +23,7 @@ const lockNextPendingMCQ = async () => {
   }
 };
 
+// GPT Prompt
 const PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
 Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
@@ -31,9 +32,7 @@ Your entire output must be a single valid JSON object.
 - It must be directly parsable by JSON.parse().
 
 🔬 You are an expert medical educator and exam learning strategist.
-
 🎯 Your role is to act as a **Learning Gap Diagnostician** for MBBS/MD aspirants preparing for FMGE, NEETPG, INICET, or USMLE.
-
 🧠 OBJECTIVE:
 You will be given a **Previous Year Question (PYQ)** MCQ that a student got wrong. Your task is to:
 
@@ -68,6 +67,19 @@ All "stem" and "learning_gap" values must contain 2 or more <strong>...</strong>
 If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slide), describe it logically in sentence 5 of the MCQ stem.
 All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.`;
 
+// Validate individual MCQ before DB insert
+const validateMCQ = (mcq) => {
+  return (
+    mcq?.stem &&
+    typeof mcq.stem === 'string' &&
+    mcq?.options &&
+    typeof mcq.options === 'object' &&
+    mcq?.correct_answer &&
+    typeof mcq.correct_answer === 'string'
+  );
+};
+
+// Process a single MCQ
 async function processNextInQueue(workerId = 1) {
   console.log(`🧠 Worker ${workerId}: Looking for next pending MCQ...`);
   const item = await lockNextPendingMCQ();
@@ -125,7 +137,6 @@ Correct Answer: ${rawMCQ.correct_answer}`;
       });
 
       raw = chatResponse.choices[0].message.content;
-      console.log(`📦 GPT Raw Output (Attempt ${attempts + 1}):\n${raw}`);
 
       try {
         parsed = JSON.parse(raw);
@@ -138,6 +149,10 @@ Correct Answer: ${rawMCQ.correct_answer}`;
     }
 
     const insertMCQ = async (mcq, level = null) => {
+      if (!validateMCQ(mcq)) {
+        throw new Error(`MCQ at level ${level} failed validation`);
+      }
+
       const newId = uuidv4();
       const { error: insertError } = await supabase.from('mcqs').insert({
         id: newId,
@@ -195,7 +210,7 @@ Correct Answer: ${rawMCQ.correct_answer}`;
 
 module.exports = { processNextInQueue };
 
-// Optional: run as single-worker script
+// Run standalone
 if (require.main === module) {
   (async () => {
     console.log('🚀 Single MCQ Worker started (direct run)');

@@ -1,5 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
-const { supabase } = require('../config/supabaseClient');
+const supabase = require('../config/supabaseClient');
 const openai = require('../config/openaiClient');
 
 const PROMPT_TEMPLATE = `🚨 OUTPUT RULES:

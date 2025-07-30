@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Lock and fetch next pending MCQ from queue
 const lockNextPendingMCQ = async () => {
   try {
     const { data, error } = await supabase
@@ -136,7 +137,6 @@ Correct Answer: ${rawMCQ.correct_answer}`;
       }
     }
 
-    // Insert all MCQs into `mcqs` table and collect UUIDs
     const insertMCQ = async (mcq, level = null) => {
       const newId = uuidv4();
       const { error: insertError } = await supabase.from('mcqs').insert({
@@ -153,6 +153,7 @@ Correct Answer: ${rawMCQ.correct_answer}`;
 
     const primaryId = await insertMCQ(parsed.primary_mcq, 0);
     const recursiveIds = [];
+
     for (let i = 0; i < parsed.recursive_levels.length; i++) {
       const id = await insertMCQ(parsed.recursive_levels[i], i + 1);
       recursiveIds.push(id);
@@ -194,6 +195,7 @@ Correct Answer: ${rawMCQ.correct_answer}`;
 
 module.exports = { processNextInQueue };
 
+// Optional: run as single-worker script
 if (require.main === module) {
   (async () => {
     console.log('🚀 Single MCQ Worker started (direct run)');

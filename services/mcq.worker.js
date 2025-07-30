@@ -67,7 +67,7 @@ All "stem" and "learning_gap" values must contain 2 or more <strong>...</strong>
 If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slide), describe it logically in sentence 5 of the MCQ stem.
 All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.`;
 
-// Validate individual MCQ before DB insert
+// Validate structure of a single MCQ
 const validateMCQ = (mcq) => {
   return (
     mcq?.stem &&
@@ -79,7 +79,6 @@ const validateMCQ = (mcq) => {
   );
 };
 
-// Process a single MCQ
 async function processNextInQueue(workerId = 1) {
   console.log(`🧠 Worker ${workerId}: Looking for next pending MCQ...`);
   const item = await lockNextPendingMCQ();
@@ -124,9 +123,7 @@ Correct Answer: ${rawMCQ.correct_answer}`;
 
   try {
     console.log(`🤖 Worker ${workerId}: Sending to OpenAI...`);
-
-    let raw;
-    let parsed;
+    let raw, parsed;
     let attempts = 0;
 
     while (attempts < 3) {
@@ -140,6 +137,7 @@ Correct Answer: ${rawMCQ.correct_answer}`;
 
       try {
         parsed = JSON.parse(raw);
+        console.log(`📤 GPT JSON Parsed (MCQ ID ${raw_mcq_id}):\n`, JSON.stringify(parsed, null, 2));
         break;
       } catch (err) {
         attempts++;
@@ -150,6 +148,7 @@ Correct Answer: ${rawMCQ.correct_answer}`;
 
     const insertMCQ = async (mcq, level = null) => {
       if (!validateMCQ(mcq)) {
+        console.warn(`⚠️ Validation failed at level ${level} for MCQ:`, mcq);
         throw new Error(`MCQ at level ${level} failed validation`);
       }
 
@@ -171,13 +170,16 @@ Correct Answer: ${rawMCQ.correct_answer}`;
         mcq_json: mcq
       });
 
-
       if (insertError) throw insertError;
       return newId;
     };
 
     const primaryId = await insertMCQ(parsed.primary_mcq, 0);
     const recursiveIds = [];
+
+    if (!Array.isArray(parsed.recursive_levels) || parsed.recursive_levels.length !== 10) {
+      throw new Error("Parsed recursive_levels must be an array of length 10");
+    }
 
     for (let i = 0; i < parsed.recursive_levels.length; i++) {
       const id = await insertMCQ(parsed.recursive_levels[i], i + 1);
@@ -220,7 +222,7 @@ Correct Answer: ${rawMCQ.correct_answer}`;
 
 module.exports = { processNextInQueue };
 
-// Run standalone
+// Run as standalone script
 if (require.main === module) {
   (async () => {
     console.log('🚀 Single MCQ Worker started (direct run)');

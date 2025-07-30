@@ -1,5 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
-const { supabase } = require('../config/supabaseClient');
+const supabase = require('../config/supabaseClient');
 const openai = require('../config/openaiClient');
 
 const PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
@@ -77,8 +77,21 @@ ${raw_mcq_text}
       temperature: 0.7
     });
 
-    const raw = gptResponse.choices[0].message.content;
-    const parsed = JSON.parse(raw);
+    const raw = gptResponse.choices?.[0]?.message?.content;
+
+    console.log("📥 GPT raw output:\n", raw);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (parseError) {
+      console.error("❌ JSON Parse Error:", parseError.message);
+      return res.status(500).json({
+        error: 'Failed to parse GPT response as JSON',
+        details: parseError.message,
+        raw_output: raw
+      });
+    }
 
     const insertMCQ = async (mcq, level = null) => {
       if (!validateMCQ(mcq)) {

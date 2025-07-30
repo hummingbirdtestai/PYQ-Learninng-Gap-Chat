@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabaseClient');
 const openai = require('../config/openaiClient');
+const { v4: uuidv4 } = require('uuid');
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -135,11 +136,38 @@ Correct Answer: ${rawMCQ.correct_answer}`;
       }
     }
 
+    // Insert all MCQs into `mcqs` table and collect UUIDs
+    const insertMCQ = async (mcq, level = null) => {
+      const newId = uuidv4();
+      const { error: insertError } = await supabase.from('mcqs').insert({
+        id: newId,
+        exam_id: rawMCQ.exam_id,
+        subject_id: rawMCQ.subject_id,
+        level,
+        mcq_json: mcq
+      });
+
+      if (insertError) throw insertError;
+      return newId;
+    };
+
+    const primaryId = await insertMCQ(parsed.primary_mcq, 0);
+    const recursiveIds = [];
+    for (let i = 0; i < parsed.recursive_levels.length; i++) {
+      const id = await insertMCQ(parsed.recursive_levels[i], i + 1);
+      recursiveIds.push(id);
+    }
+
+    const uuidGraph = {
+      primary_mcq: primaryId,
+      recursive_levels: recursiveIds
+    };
+
     await supabase.from('mcq_graphs').insert({
       raw_mcq_id,
       exam_id: rawMCQ.exam_id,
       subject_id: rawMCQ.subject_id,
-      graph: parsed,
+      graph: uuidGraph,
       generated: true
     });
 
@@ -166,7 +194,6 @@ Correct Answer: ${rawMCQ.correct_answer}`;
 
 module.exports = { processNextInQueue };
 
-// 🔁 Auto-start the worker loop if executed directly
 if (require.main === module) {
   (async () => {
     console.log('🚀 Single MCQ Worker started (direct run)');

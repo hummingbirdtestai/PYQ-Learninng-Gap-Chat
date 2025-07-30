@@ -3,7 +3,7 @@ const router = express.Router();
 
 const {
   getMCQGraph,
-  submitResponses,
+  submitResponsesBatch, // ✅ Corrected function name
   submitQuizScore,
   getResumeProgress,
   updateProgress,
@@ -13,7 +13,7 @@ const {
 
 // Routes
 router.get('/adaptive/mcqs/:examId/:subjectId', getMCQGraph);
-router.post('/adaptive/responses/batch', submitResponses);
+router.post('/adaptive/responses/batch', submitResponsesBatch); // ✅ Updated here too
 router.post('/adaptive/score/submit', submitQuizScore);
 router.get('/adaptive/progress/:userId/:examId/:subjectId', getResumeProgress);
 router.post('/adaptive/progress/update', updateProgress);

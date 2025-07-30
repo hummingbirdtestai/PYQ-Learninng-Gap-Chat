@@ -514,23 +514,71 @@ paths:
   /api/adaptive/responses/batch:
     post:
       tags: [Adaptive MCQs]
-      summary: Submit batch of MCQ responses
+      summary: Submit batch of MCQ responses (UUID-based)
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [responses]
               properties:
                 responses:
                   type: array
                   items:
                     type: object
+                    required:
+                      - user_id
+                      - mcq_id
+                      - selected_option
+                    properties:
+                      user_id:
+                        type: string
+                        example: "user-uuid"
+                      mcq_id:
+                        type: string
+                        format: uuid
+                        description: UUID of the MCQ being answered
+                        example: "b7f0e99f-d18d-4b27-9477-d53aab01fc80"
+                      selected_option:
+                        type: string
+                        example: "C"
+                      is_correct:
+                        type: boolean
+                        example: false
+                      skipped_due_to_timeout:
+                        type: boolean
+                        example: false
+                      answer_time:
+                        type: string
+                        format: date-time
+                        example: "2025-07-30T13:20:00Z"
+                      start_time:
+                        type: string
+                        format: date-time
+                        example: "2025-07-30T13:19:30Z"
+                      exam_id:
+                        type: string
+                        example: "exam-uuid"
+                      subject_id:
+                        type: string
+                        example: "subject-uuid"
       responses:
         '200':
           description: Responses saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "✅ 20 responses saved."
+        '400':
+          description: Invalid input or missing required fields
         '500':
           description: Failed to save responses
+
 
   /api/adaptive/score/submit:
     post:

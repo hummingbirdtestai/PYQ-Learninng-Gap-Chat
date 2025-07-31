@@ -39,7 +39,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use('/auth', authRoutes);                    // Twilio OTP Auth
 app.use('/users', userRoutes);                   // User Registration + Activation
 app.use('/colleges', collegeRoutes);             // Medical Colleges List
-app.use('/exams', examRoutes);                   // Exams and Subjects
+app.use('/api/exams', examRoutes);                   // Exams and Subjects
 app.use('/api', importRoutes);                   // Google Sheets → Supabase MCQ Import
 app.use('/generation', generationRoutes);        // GPT Worker Status Dashboard
 app.use('/api', adaptiveRoutes);                 // Adaptive MCQ APIs

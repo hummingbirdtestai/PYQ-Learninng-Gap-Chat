@@ -1,6 +1,6 @@
 const supabase = require('../config/supabaseClient');
 
-// 1. Submit Responses in Batch (UUID-compatible)
+// 1. Submit Responses in Batch
 exports.submitResponsesBatch = async (req, res) => {
   const { responses } = req.body;
 
@@ -8,13 +8,12 @@ exports.submitResponsesBatch = async (req, res) => {
     return res.status(400).json({ error: 'No responses provided.' });
   }
 
-  // Ensure each response has a UUID-based `mcq_id`
   const valid = responses.every(r =>
     r.user_id && r.mcq_id && 'selected_option' in r
   );
 
   if (!valid) {
-    return res.status(400).json({ error: 'One or more responses missing required fields.' });
+    return res.status(400).json({ error: 'Missing fields in one or more responses.' });
   }
 
   try {
@@ -22,9 +21,7 @@ exports.submitResponsesBatch = async (req, res) => {
       onConflict: ['user_id', 'mcq_id'],
       ignoreDuplicates: false,
     });
-
     if (error) throw error;
-
     res.json({ message: `✅ ${responses.length} responses saved.` });
   } catch (err) {
     console.error('❌ Error saving batch responses:', err.message);
@@ -36,36 +33,46 @@ exports.submitResponsesBatch = async (req, res) => {
 exports.submitQuizScore = async (req, res) => {
   const { user_id, exam_id, subject_id, raw_mcq_id, score } = req.body;
 
-  const { error } = await supabase.from('mcq_quiz_scores').upsert([{
-    user_id,
-    exam_id,
-    subject_id,
-    raw_mcq_id,
-    score,
-    updated_at: new Date(),
-  }], { onConflict: ['user_id', 'raw_mcq_id'] });
+  try {
+    const { error } = await supabase.from('mcq_quiz_scores').upsert([{
+      user_id,
+      exam_id,
+      subject_id,
+      raw_mcq_id,
+      score,
+      updated_at: new Date(),
+    }], { onConflict: ['user_id', 'raw_mcq_id'] });
 
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ message: '✅ Score updated.' });
+    if (error) throw error;
+    res.json({ message: '✅ Score updated.' });
+  } catch (err) {
+    console.error('❌ Error updating score:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 };
 
 // 3. Get Resume Progress
 exports.getResumeProgress = async (req, res) => {
   const { userId, examId, subjectId } = req.params;
 
-  const { data, error } = await supabase
-    .from('responses')
-    .select('mcq_id, is_correct, skipped_due_to_timeout, answer_time')
-    .eq('user_id', userId)
-    .eq('exam_id', examId)
-    .eq('subject_id', subjectId)
-    .order('answer_time', { ascending: false });
+  try {
+    const { data, error } = await supabase
+      .from('responses')
+      .select('mcq_id, is_correct, skipped_due_to_timeout, answer_time')
+      .eq('user_id', userId)
+      .eq('exam_id', examId)
+      .eq('subject_id', subjectId)
+      .order('answer_time', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ progress: data });
+    if (error) throw error;
+    res.json({ progress: data });
+  } catch (err) {
+    console.error('❌ Error fetching resume progress:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 };
 
-// 4. Update Progress (per-MCQ or fallback)
+// 4. Update Progress (single MCQ)
 exports.updateProgress = async (req, res) => {
   const {
     user_id,
@@ -77,21 +84,26 @@ exports.updateProgress = async (req, res) => {
     start_time
   } = req.body;
 
-  const { error } = await supabase.from('responses').upsert([{
-    user_id,
-    mcq_id,
-    selected_option,
-    is_correct,
-    skipped_due_to_timeout,
-    answer_time,
-    start_time,
-  }]);
+  try {
+    const { error } = await supabase.from('responses').upsert([{
+      user_id,
+      mcq_id,
+      selected_option,
+      is_correct,
+      skipped_due_to_timeout,
+      answer_time,
+      start_time,
+    }]);
 
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ message: '✅ Progress updated.' });
+    if (error) throw error;
+    res.json({ message: '✅ Progress updated.' });
+  } catch (err) {
+    console.error('❌ Error updating progress:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 };
 
-// 5. Get Full MCQ Graph (Resolved by UUID)
+// 5. Get Full Graph
 exports.getMCQGraph = async (req, res) => {
   const { examId, subjectId } = req.params;
 
@@ -105,7 +117,7 @@ exports.getMCQGraph = async (req, res) => {
     if (graphError) throw graphError;
 
     const allUUIDs = [];
-    graphs.forEach((g) => {
+    graphs.forEach(g => {
       if (g.graph?.primary_mcq) allUUIDs.push(g.graph.primary_mcq);
       if (Array.isArray(g.graph?.recursive_levels)) {
         allUUIDs.push(...g.graph.recursive_levels);
@@ -119,34 +131,33 @@ exports.getMCQGraph = async (req, res) => {
 
     if (mcqError) throw mcqError;
 
-    const mcqMap = new Map();
-    mcqs.forEach((m) => mcqMap.set(m.id, m.mcq_json));
+    const mcqMap = new Map(mcqs.map(m => [m.id, m.mcq_json]));
 
-    const reconstructed = graphs.map((g) => ({
+    const reconstructed = graphs.map(g => ({
       raw_mcq_id: g.raw_mcq_id,
       graph: {
         primary_mcq: mcqMap.get(g.graph.primary_mcq),
-        recursive_levels: g.graph.recursive_levels.map((id) => mcqMap.get(id)).filter(Boolean),
+        recursive_levels: (g.graph.recursive_levels || []).map(id => mcqMap.get(id)).filter(Boolean),
       },
     }));
 
     return res.json({ graphs: reconstructed });
   } catch (err) {
     console.error('❌ Error in getMCQGraph:', err.message);
-    return res.status(500).json({ error: 'Server error resolving MCQ graphs.' });
+    res.status(500).json({ error: 'Server error resolving MCQ graphs.' });
   }
 };
 
-// 6. Get Next Batch (Resolved UUIDs)
+// 6. Get Next Batch
 exports.getNextMCQBatch = async (req, res) => {
   const { userId, examId, subjectId } = req.query;
 
   if (!userId || !examId || !subjectId) {
-    return res.status(400).json({ error: 'Missing required query parameters.' });
+    return res.status(400).json({ error: 'Missing query parameters.' });
   }
 
   try {
-    const { data: graphs, error: graphError } = await supabase
+    const { data: graphs } = await supabase
       .from('mcq_graphs')
       .select('id, raw_mcq_id, graph')
       .eq('exam_id', examId)
@@ -154,27 +165,17 @@ exports.getNextMCQBatch = async (req, res) => {
       .order('created_at', { ascending: true })
       .limit(50);
 
-    if (graphError) throw graphError;
-
-    const { data: progressData, error: progressError } = await supabase
+    const { data: progressData } = await supabase
       .from('mcq_progress')
       .select('raw_mcq_id, primary_index, secondary_index')
       .eq('user_id', userId)
       .eq('exam_id', examId)
       .eq('subject_id', subjectId);
 
-    if (progressError) throw progressError;
-
-    const progressMap = new Map();
-    progressData.forEach(p => {
-      progressMap.set(p.raw_mcq_id, {
-        primary_index: p.primary_index,
-        secondary_index: p.secondary_index,
-      });
-    });
+    const progressMap = new Map(progressData.map(p => [p.raw_mcq_id, p]));
 
     const allUUIDs = [];
-    graphs.forEach((g) => {
+    graphs.forEach(g => {
       if (g.graph?.primary_mcq) allUUIDs.push(g.graph.primary_mcq);
       if (Array.isArray(g.graph?.recursive_levels)) {
         allUUIDs.push(...g.graph.recursive_levels);
@@ -182,52 +183,50 @@ exports.getNextMCQBatch = async (req, res) => {
     });
 
     if (allUUIDs.length === 0) {
-      return res.status(200).json({ batch: [], remaining_count: 0 });
+      return res.json({ batch: [], remaining_count: 0 });
     }
 
-    const { data: mcqs, error: mcqError } = await supabase
+    const { data: mcqs } = await supabase
       .from('mcqs')
       .select('id, mcq_json')
       .in('id', allUUIDs);
 
-    if (mcqError) throw mcqError;
-
-    const mcqMap = new Map();
-    mcqs.forEach((m) => mcqMap.set(m.id, m.mcq_json));
+    const mcqMap = new Map(mcqs.map(m => [m.id, m.mcq_json]));
 
     const batch = [];
 
     for (let g of graphs) {
-      const mcqChain = g.graph?.primary_mcq
+      const chain = g.graph?.primary_mcq
         ? [g.graph.primary_mcq, ...(g.graph.recursive_levels || [])]
         : [];
 
-      const existingProgress = progressMap.get(g.raw_mcq_id);
-      if (existingProgress?.primary_index >= 9 && existingProgress?.secondary_index >= 9) {
-        continue;
-      }
+      const progress = progressMap.get(g.raw_mcq_id);
+      if (progress?.primary_index >= 9 && progress?.secondary_index >= 9) continue;
 
-      const fullChain = mcqChain.map((uuid) => mcqMap.get(uuid)).filter(Boolean);
-
+      const fullChain = chain.map(id => mcqMap.get(id)).filter(Boolean);
       if (fullChain.length === 0) continue;
 
       batch.push({
         mcq_graph_id: g.id,
         raw_mcq_id: g.raw_mcq_id,
-        progress
+        progress,
+        mcq_chain: fullChain,
+      });
+    }
 
-// 7. POST /adaptive/mcqs/next-action
+    return res.json({ batch, remaining_count: batch.length });
+  } catch (err) {
+    console.error('❌ Error fetching next batch:', err.message);
+    res.status(500).json({ error: 'Server error fetching MCQs.' });
+  }
+};
+
+// 7. Next Action
 exports.handleNextAction = async (req, res) => {
   const {
-    user_id,
-    exam_id,
-    subject_id,
-    raw_mcq_id,
-    selected_option,
-    is_correct,
-    answer_time,
-    start_time,
-    skipped_due_to_timeout,
+    user_id, exam_id, subject_id, raw_mcq_id,
+    selected_option, is_correct, answer_time,
+    start_time, skipped_due_to_timeout
   } = req.body;
 
   if (!user_id || !exam_id || !subject_id || !raw_mcq_id || !selected_option) {
@@ -236,25 +235,15 @@ exports.handleNextAction = async (req, res) => {
 
   try {
     await supabase.from('responses').upsert([{
-      user_id,
-      mcq_id: raw_mcq_id,
-      selected_option,
-      is_correct,
-      skipped_due_to_timeout,
-      answer_time,
-      start_time,
-      exam_id,
-      subject_id,
+      user_id, mcq_id: raw_mcq_id, selected_option,
+      is_correct, skipped_due_to_timeout, answer_time,
+      start_time, exam_id, subject_id,
     }]);
 
     const score = is_correct ? 4 : -1;
     await supabase.from('mcq_quiz_scores').upsert([{
-      user_id,
-      exam_id,
-      subject_id,
-      raw_mcq_id,
-      score,
-      updated_at: new Date(),
+      user_id, exam_id, subject_id, raw_mcq_id,
+      score, updated_at: new Date(),
     }], { onConflict: ['user_id', 'raw_mcq_id'] });
 
     const { data: graphs } = await supabase
@@ -264,15 +253,20 @@ exports.handleNextAction = async (req, res) => {
       .eq('subject_id', subject_id)
       .order('created_at', { ascending: true });
 
+    const allUUIDs = graphs.flatMap(g =>
+      [g.graph?.primary_mcq, ...(g.graph?.recursive_levels || [])]
+    ).filter(Boolean);
+
+    if (allUUIDs.length === 0) {
+      return res.status(200).json({ message: '✅ All MCQs completed.', next_mcq: null });
+    }
+
     const { data: mcqs } = await supabase
       .from('mcqs')
       .select('id, mcq_json')
-      .in('id', graphs.flatMap(g =>
-        [g.graph.primary_mcq, ...(g.graph.recursive_levels || [])]
-      ));
+      .in('id', allUUIDs);
 
-    const mcqMap = new Map();
-    mcqs.forEach((m) => mcqMap.set(m.id, m.mcq_json));
+    const mcqMap = new Map(mcqs.map(m => [m.id, m.mcq_json]));
 
     const { data: progressData } = await supabase
       .from('mcq_progress')
@@ -281,10 +275,7 @@ exports.handleNextAction = async (req, res) => {
       .eq('exam_id', exam_id)
       .eq('subject_id', subject_id);
 
-    const progressMap = new Map();
-    progressData?.forEach(p => progressMap.set(p.raw_mcq_id, p));
-
-    let nextMCQ = null;
+    const progressMap = new Map(progressData.map(p => [p.raw_mcq_id, p]));
 
     for (const graph of graphs) {
       const uuidChain = graph.graph?.primary_mcq
@@ -295,24 +286,19 @@ exports.handleNextAction = async (req, res) => {
       const nextIndex = progress.secondary_index + 1;
 
       if (nextIndex < uuidChain.length) {
-        nextMCQ = {
+        return res.json({
           mcq_graph_id: graph.id,
           raw_mcq_id: graph.raw_mcq_id,
           progress,
           next_mcq: mcqMap.get(uuidChain[nextIndex]),
           next_index: nextIndex,
-        };
-        break;
+        });
       }
     }
 
-    if (!nextMCQ) {
-      return res.status(200).json({ message: '✅ All MCQs completed.', next_mcq: null });
-    }
-
-    return res.json(nextMCQ);
+    return res.status(200).json({ message: '✅ All MCQs completed.', next_mcq: null });
   } catch (err) {
-    console.error('❌ Error in next-action API:', err.message);
-    return res.status(500).json({ error: 'Server error.' });
+    console.error('❌ Error in next-action:', err.message);
+    res.status(500).json({ error: 'Server error.' });
   }
 };

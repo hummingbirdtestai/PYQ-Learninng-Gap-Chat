@@ -181,6 +181,10 @@ exports.getNextMCQBatch = async (req, res) => {
       }
     });
 
+    if (allUUIDs.length === 0) {
+      return res.status(200).json({ batch: [], remaining_count: 0 });
+    }
+
     const { data: mcqs, error: mcqError } = await supabase
       .from('mcqs')
       .select('id, mcq_json')
@@ -205,23 +209,12 @@ exports.getNextMCQBatch = async (req, res) => {
 
       const fullChain = mcqChain.map((uuid) => mcqMap.get(uuid)).filter(Boolean);
 
+      if (fullChain.length === 0) continue;
+
       batch.push({
         mcq_graph_id: g.id,
         raw_mcq_id: g.raw_mcq_id,
-        progress: existingProgress || { primary_index: -1, secondary_index: -1 },
-        mcqs: fullChain,
-      });
-
-      if (batch.length >= 20) break;
-    }
-
-    const remaining_count = Math.max(0, graphs.length - batch.length);
-    return res.json({ batch, remaining_count });
-  } catch (err) {
-    console.error('❌ Error fetching batch:', err.message);
-    return res.status(500).json({ error: 'Server error fetching MCQs.' });
-  }
-};
+        progress
 
 // 7. POST /adaptive/mcqs/next-action
 exports.handleNextAction = async (req, res) => {

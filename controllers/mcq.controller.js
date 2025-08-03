@@ -64,6 +64,36 @@ const validateRecursiveMCQ = (mcq) => {
   );
 };
 
+// ✅ Insert into Supabase with validation
+const insertMCQ = async (mcq, level, validateFn, exam_id, subject_id) => {
+  if (!validateFn(mcq)) {
+    console.error(`❌ MCQ at level ${level} failed validation:\n`, JSON.stringify(mcq, null, 2));
+    throw new Error(`MCQ at level ${level} failed validation`);
+  }
+
+  const id = uuidv4();
+  const { error } = await supabase.from('mcqs').insert({
+    id,
+    exam_id,
+    subject_id,
+    stem: mcq.stem,
+    option_a: mcq.options?.A || null,
+    option_b: mcq.options?.B || null,
+    option_c: mcq.options?.C || null,
+    option_d: mcq.options?.D || null,
+    option_e: mcq.options?.E || null,
+    correct_answer: mcq.correct_answer,
+    explanation: mcq.explanation || '',
+    learning_gap: mcq.learning_gap || '',
+    level,
+    mcq_json: mcq
+  });
+
+  if (error) throw error;
+  return id;
+};
+
+// 🔁 GPT-based generation
 exports.generateMCQGraphFromInput = async (req, res) => {
   const { raw_mcq_text, exam_id, subject_id } = req.body;
 
@@ -101,48 +131,15 @@ ${raw_mcq_text}
       });
     }
 
-    const insertMCQ = async (mcq, level = null, validateFn) => {
-      if (!validateFn(mcq)) {
-        console.error(`❌ MCQ at level ${level} failed validation:\n`, JSON.stringify(mcq, null, 2));
-        throw new Error(`MCQ at level ${level} failed validation`);
-      }
-
-      const id = uuidv4();
-      const { error } = await supabase.from('mcqs').insert({
-        id,
-        exam_id,
-        subject_id,
-        stem: mcq.stem,
-        option_a: mcq.options?.A || null,
-        option_b: mcq.options?.B || null,
-        option_c: mcq.options?.C || null,
-        option_d: mcq.options?.D || null,
-        option_e: mcq.options?.E || null,
-        correct_answer: mcq.correct_answer,
-        explanation: mcq.explanation || '',
-        learning_gap: mcq.learning_gap || '',
-        level,
-        mcq_json: mcq
-      });
-
-      if (error) throw error;
-      return id;
-    };
-
-    // ✅ Insert primary MCQ (4 or 5 options allowed)
-    const primaryId = await insertMCQ(parsed.primary_mcq, 0, validatePrimaryMCQ);
+    const primaryId = await insertMCQ(parsed.primary_mcq, 0, validatePrimaryMCQ, exam_id, subject_id);
     const recursiveIds = [];
 
     if (!Array.isArray(parsed.recursive_levels)) {
       return res.status(400).json({ error: 'Invalid GPT response: recursive_levels is not an array' });
     }
 
-    if (parsed.recursive_levels.length < 10) {
-      console.warn(`⚠️ Only ${parsed.recursive_levels.length} recursive levels returned by GPT`);
-    }
-
     for (let i = 0; i < parsed.recursive_levels.length; i++) {
-      const id = await insertMCQ(parsed.recursive_levels[i], i + 1, validateRecursiveMCQ);
+      const id = await insertMCQ(parsed.recursive_levels[i], i + 1, validateRecursiveMCQ, exam_id, subject_id);
       recursiveIds.push(id);
     }
 
@@ -167,5 +164,46 @@ ${raw_mcq_text}
   } catch (err) {
     console.error('❌ Error generating MCQ Graph:', err.message);
     return res.status(500).json({ error: 'Failed to generate MCQ graph', details: err.message });
+  }
+};
+
+// 🛠️ Manual insertion endpoint
+exports.insertMCQGraphFromJson = async (req, res) => {
+  const { graph_json, exam_id, subject_id } = req.body;
+
+  if (!graph_json || !exam_id || !subject_id) {
+    return res.status(400).json({ error: 'Missing graph_json or exam/subject ID' });
+  }
+
+  try {
+    const primaryId = await insertMCQ(graph_json.primary_mcq, 0, validatePrimaryMCQ, exam_id, subject_id);
+    const recursiveIds = [];
+
+    if (!Array.isArray(graph_json.recursive_levels)) {
+      return res.status(400).json({ error: 'recursive_levels must be an array' });
+    }
+
+    for (let i = 0; i < graph_json.recursive_levels.length; i++) {
+      const id = await insertMCQ(graph_json.recursive_levels[i], i + 1, validateRecursiveMCQ, exam_id, subject_id);
+      recursiveIds.push(id);
+    }
+
+    const graph = {
+      primary_mcq: primaryId,
+      recursive_levels: recursiveIds
+    };
+
+    await supabase.from('mcq_graphs').insert({
+      raw_mcq_id: null,
+      exam_id,
+      subject_id,
+      graph,
+      generated: false
+    });
+
+    return res.status(200).json({ message: '✅ MCQ graph inserted successfully', graph });
+  } catch (err) {
+    console.error('❌ Insertion Error:', err.message);
+    return res.status(500).json({ error: 'Failed to insert MCQ graph', details: err.message });
   }
 };

@@ -807,8 +807,10 @@ paths:
         - MCQs
       summary: Generate MCQ graph from raw MCQ input using GPT
       description: |
-        Accepts a raw MCQ text string (e.g., from NEETPG or USMLE) along with exam_id and subject_id.
-        Sends to ChatGPT, generates primary and recursive MCQ chain, inserts into Supabase `mcqs` and `mcq_graphs`.
+        Accepts a raw MCQ string and generates a primary + 10-level recursive MCQ graph using ChatGPT.
+        - Primary MCQ can have **4 or 5 options** based on the input.
+        - All recursive MCQs must have **exactly 5 options** (A–E).
+        - Each MCQ includes a stem, options, correct answer, learning gap, explanation, and 10 buzzword facts.
       requestBody:
         required: true
         content:
@@ -823,13 +825,13 @@ paths:
                 raw_mcq_text:
                   type: string
                   example: |
-                    What is the origin of the left intercostal artery?
-                    A. Pulmonary trunk
-                    B. Thymus
-                    C. Left intercostal artery
-                    D. Arch of aorta
-                    E. None of the above
-                    Answer: C
+                    44. A 60-year-old female with renal disease was admitted for pyelolithotomy.
+                    Postoperative analgesic of choice in this patient is:
+                    A. Diclofenac
+                    B. Indomethacin
+                    C. Naproxen
+                    D. Acetaminophen
+                    Answer: D
                 exam_id:
                   type: string
                   format: uuid
@@ -839,7 +841,7 @@ paths:
                   format: uuid
                   example: "1f3467e1-7c47-4c3a-9cc3-6ae614cd3d7e"
       responses:
-        "200":
+        '200':
           description: MCQ graph successfully created
           content:
             application/json:
@@ -860,9 +862,9 @@ paths:
                         items:
                           type: string
                           format: uuid
-        "400":
+        '400':
           description: Missing or invalid input
-        "500":
+        '500':
           description: GPT or Supabase error
 
   /api/mcqs/insert-from-json:

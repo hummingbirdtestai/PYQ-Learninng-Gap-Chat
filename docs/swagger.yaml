@@ -975,6 +975,83 @@ paths:
         '500':
           description: Server error
 
+  /mcqs/graph/save-draft:
+    post:
+      tags:
+        - MCQs
+      summary: Generate and save MCQ graph from raw input text
+      description: >
+        Accepts raw MCQ input text (doesn't require specifying "Correct Answer: D").
+        Uses ChatGPT to generate a recursive MCQ graph and saves it in the database as a draft.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - raw_text
+                - subject_id
+              properties:
+                raw_text:
+                  type: string
+                  example: "A 60-year-old man presents with chest pain radiating to the left arm. Which of the following is the most likely diagnosis?"
+                subject_id:
+                  type: string
+                  example: "d0bfa1a1-1234-4cbb-9a9d-a5f04102d903"
+      responses:
+        '200':
+          description: Draft graph saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "✅ Draft graph saved successfully."
+        '400':
+          description: Missing raw_text or subject_id
+        '500':
+          description: GPT or Supabase error
+
+  /mcqs/graph/process/{graphId}:
+    post:
+      tags:
+        - MCQs
+      summary: Process MCQ graph into individual MCQs
+      description: >
+        Parses a saved MCQ graph from the mcq_graphs table by graphId,
+        extracts all levels (primary + recursive), inserts them into the mcqs table,
+        and marks the graph as processed.
+      parameters:
+        - in: path
+          name: graphId
+          required: true
+          schema:
+            type: string
+          description: UUID of the graph to process
+      responses:
+        '200':
+          description: Successfully processed MCQs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "✅ Processed 11 MCQs from graph."
+                  mcqs_inserted:
+                    type: integer
+                    example: 11
+        '400':
+          description: Bad input or already processed
+        '404':
+          description: Graph not found
+        '500':
+          description: Internal server or database error
+
 components:
   schemas:
     User:

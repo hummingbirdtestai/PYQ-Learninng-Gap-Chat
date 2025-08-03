@@ -870,6 +870,10 @@ paths:
       summary: Insert manually created MCQ graph JSON
       tags:
         - MCQs
+      description: |
+        Inserts a full MCQ graph directly into the database.
+        - Primary MCQ can have **4 or 5 options**.
+        - Each of the 10 recursive MCQs must have **exactly 5 options (A–E)**.
       requestBody:
         required: true
         content:
@@ -884,13 +888,86 @@ paths:
                 graph_json:
                   type: object
                   description: Full MCQ graph JSON (primary + 10 recursive levels)
+                  properties:
+                    primary_mcq:
+                      type: object
+                      description: Primary MCQ
+                      properties:
+                        stem:
+                          type: string
+                        options:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        correct_answer:
+                          type: string
+                        explanation:
+                          type: string
+                        learning_gap:
+                          type: string
+                        buzzwords:
+                          type: array
+                          items:
+                            type: string
+                    recursive_levels:
+                      type: array
+                      description: Recursive MCQs (each must have 5 options A–E)
+                      items:
+                        type: object
+                        properties:
+                          stem:
+                            type: string
+                          options:
+                            type: object
+                            properties:
+                              A:
+                                type: string
+                              B:
+                                type: string
+                              C:
+                                type: string
+                              D:
+                                type: string
+                              E:
+                                type: string
+                          correct_answer:
+                            type: string
+                          explanation:
+                            type: string
+                          learning_gap:
+                            type: string
+                          buzzwords:
+                            type: array
+                            items:
+                              type: string
                 exam_id:
                   type: string
+                  format: uuid
                 subject_id:
                   type: string
+                  format: uuid
       responses:
         '200':
           description: MCQ graph inserted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: ✅ MCQ graph inserted successfully
+                  graph:
+                    type: object
+                    properties:
+                      primary_mcq:
+                        type: string
+                        format: uuid
+                      recursive_levels:
+                        type: array
+                        items:
+                          type: string
+                          format: uuid
         '400':
           description: Bad request or validation failed
         '500':

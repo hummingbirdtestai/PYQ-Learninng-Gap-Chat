@@ -10,16 +10,16 @@ const {
   processMCQGraph                 // POST /mcqs/graph/process/:graphId
 } = require('../controllers/mcq.controller');
 
-// ✅ Route to auto-generate MCQ graph from raw input using GPT
+// ✅ Route: Auto-generate MCQ graph from raw MCQ text using GPT
 router.post('/mcqs/generate-from-input', generateMCQGraphFromInput);
 
-// ✅ Route to insert a pre-generated graph JSON manually
+// ✅ Route: Insert a full pre-generated MCQ graph JSON directly into DB
 router.post('/mcqs/insert-from-json', insertMCQGraphFromJson);
 
-// ✅ Route to save a GPT-generated graph as draft (no parsing yet)
+// ✅ Route: Save GPT-generated graph as draft (raw JSON, no parsing yet)
 router.post('/mcqs/graph/save-draft', saveDraftGraph);
 
-// ✅ Route to process a saved graph and insert individual MCQs
+// ✅ Route: Parse + process a saved graph into individual MCQs
 router.post('/mcqs/graph/process/:graphId', processMCQGraph);
 
 module.exports = router;

@@ -60,7 +60,9 @@ const validateRecursiveMCQ = (mcq) => {
     typeof mcq.stem === 'string' &&
     typeof mcq.correct_answer === 'string' &&
     mcq?.options &&
-    requiredKeys.every((key) => typeof mcq.options?.[key] === 'string' && mcq.options[key].trim() !== '')
+    requiredKeys.every(
+      (key) => typeof mcq.options?.[key] === 'string' && mcq.options[key].trim().length > 0
+    )
   );
 };
 

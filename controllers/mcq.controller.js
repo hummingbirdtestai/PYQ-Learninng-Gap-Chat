@@ -45,11 +45,22 @@ All "stem" and "learning_gap" values must contain 2 or more <strong>...</strong>
 If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slide), describe it logically in sentence 5 of the MCQ stem.
 All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.`;
 
-const validateMCQ = (mcq) => {
+// ✅ Validates primary MCQ — flexible number of options (4 or 5)
+const validatePrimaryMCQ = (mcq) => {
+  if (!mcq?.stem || typeof mcq.stem !== 'string' || !mcq?.correct_answer || typeof mcq.correct_answer !== 'string') return false;
+  const optionKeys = Object.keys(mcq.options || {});
+  return optionKeys.length >= 4 && optionKeys.length <= 5;
+};
+
+// ✅ Validates recursive MCQs — must have 5 full options A–E
+const validateRecursiveMCQ = (mcq) => {
+  const requiredKeys = ['A', 'B', 'C', 'D', 'E'];
   return (
-    mcq?.stem && typeof mcq.stem === 'string' &&
-    mcq?.options && typeof mcq.options === 'object' &&
-    mcq?.correct_answer && typeof mcq.correct_answer === 'string'
+    mcq?.stem &&
+    typeof mcq.stem === 'string' &&
+    typeof mcq.correct_answer === 'string' &&
+    mcq?.options &&
+    requiredKeys.every((key) => typeof mcq.options?.[key] === 'string' && mcq.options[key].trim() !== '')
   );
 };
 
@@ -78,14 +89,11 @@ ${raw_mcq_text}
     });
 
     const raw = gptResponse.choices?.[0]?.message?.content;
-
-    console.log("📥 GPT raw output:\n", raw);
-
     let parsed;
+
     try {
       parsed = JSON.parse(raw);
     } catch (parseError) {
-      console.error("❌ JSON Parse Error:", parseError.message);
       return res.status(500).json({
         error: 'Failed to parse GPT response as JSON',
         details: parseError.message,
@@ -93,24 +101,23 @@ ${raw_mcq_text}
       });
     }
 
-    const insertMCQ = async (mcq, level = null) => {
-      if (!validateMCQ(mcq)) {
+    const insertMCQ = async (mcq, level = null, validateFn) => {
+      if (!validateFn(mcq)) {
         console.error(`❌ MCQ at level ${level} failed validation:\n`, JSON.stringify(mcq, null, 2));
         throw new Error(`MCQ at level ${level} failed validation`);
       }
 
       const id = uuidv4();
-
       const { error } = await supabase.from('mcqs').insert({
         id,
         exam_id,
         subject_id,
         stem: mcq.stem,
-        option_a: mcq.options?.A,
-        option_b: mcq.options?.B,
-        option_c: mcq.options?.C,
-        option_d: mcq.options?.D,
-        option_e: mcq.options?.E,
+        option_a: mcq.options?.A || null,
+        option_b: mcq.options?.B || null,
+        option_c: mcq.options?.C || null,
+        option_d: mcq.options?.D || null,
+        option_e: mcq.options?.E || null,
         correct_answer: mcq.correct_answer,
         explanation: mcq.explanation || '',
         learning_gap: mcq.learning_gap || '',
@@ -122,7 +129,8 @@ ${raw_mcq_text}
       return id;
     };
 
-    const primaryId = await insertMCQ(parsed.primary_mcq, 0);
+    // ✅ Insert primary MCQ (4 or 5 options allowed)
+    const primaryId = await insertMCQ(parsed.primary_mcq, 0, validatePrimaryMCQ);
     const recursiveIds = [];
 
     if (!Array.isArray(parsed.recursive_levels)) {
@@ -134,94 +142,30 @@ ${raw_mcq_text}
     }
 
     for (let i = 0; i < parsed.recursive_levels.length; i++) {
-      const id = await insertMCQ(parsed.recursive_levels[i], i + 1);
+      const id = await insertMCQ(parsed.recursive_levels[i], i + 1, validateRecursiveMCQ);
       recursiveIds.push(id);
     }
-
-    const graph = { primary_mcq: primaryId, recursive_levels: recursiveIds };
 
     await supabase.from('mcq_graphs').insert({
       raw_mcq_id: null,
       exam_id,
       subject_id,
-      graph,
+      graph: {
+        primary_mcq: primaryId,
+        recursive_levels: recursiveIds
+      },
       generated: true
     });
 
-    return res.status(200).json({ message: '✅ MCQ Graph generated', graph });
+    return res.status(200).json({
+      message: '✅ MCQ Graph generated',
+      graph: {
+        primary_mcq: primaryId,
+        recursive_levels: recursiveIds
+      }
+    });
   } catch (err) {
-    console.error('❌ Error generating MCQ Graph:', err.message || err);
+    console.error('❌ Error generating MCQ Graph:', err.message);
     return res.status(500).json({ error: 'Failed to generate MCQ graph', details: err.message });
-  }
-};
-
-exports.insertMCQGraphFromJson = async (req, res) => {
-  const { graph_json, exam_id, subject_id } = req.body;
-
-  if (!graph_json || !exam_id || !subject_id) {
-    return res.status(400).json({ error: 'Missing graph_json or exam/subject ID' });
-  }
-
-  const parsed = graph_json;
-
-  const insertMCQ = async (mcq, level = null) => {
-    if (!validateMCQ(mcq)) {
-      console.error(`❌ MCQ at level ${level} failed validation:\n`, JSON.stringify(mcq, null, 2));
-      throw new Error(`MCQ at level ${level} failed validation`);
-    }
-
-    const id = uuidv4();
-
-    const { error } = await supabase.from('mcqs').insert({
-      id,
-      exam_id,
-      subject_id,
-      stem: mcq.stem,
-      option_a: mcq.options?.A,
-      option_b: mcq.options?.B,
-      option_c: mcq.options?.C,
-      option_d: mcq.options?.D,
-      option_e: mcq.options?.E,
-      correct_answer: mcq.correct_answer,
-      explanation: mcq.explanation || '',
-      learning_gap: mcq.learning_gap || '',
-      level,
-      mcq_json: mcq
-    });
-
-    if (error) throw error;
-    return id;
-  };
-
-  try {
-    const primaryId = await insertMCQ(parsed.primary_mcq, 0);
-    const recursiveIds = [];
-
-    if (!Array.isArray(parsed.recursive_levels)) {
-      return res.status(400).json({ error: 'recursive_levels must be an array' });
-    }
-
-    for (let i = 0; i < parsed.recursive_levels.length; i++) {
-      const id = await insertMCQ(parsed.recursive_levels[i], i + 1);
-      recursiveIds.push(id);
-    }
-
-    const graph = {
-      primary_mcq: primaryId,
-      recursive_levels: recursiveIds
-    };
-
-    await supabase.from('mcq_graphs').insert({
-      raw_mcq_id: null,
-      exam_id,
-      subject_id,
-      graph,
-      generated: false // manually inserted
-    });
-
-    return res.status(200).json({ message: '✅ MCQ graph inserted successfully', graph });
-  } catch (err) {
-    console.error('❌ Insertion Error:', err.message || err);
-    return res.status(500).json({ error: 'Failed to insert MCQ graph', details: err.message });
   }
 };

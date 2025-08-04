@@ -975,7 +975,7 @@ paths:
         '500':
           description: Server error
 
-  /mcqs/graph/save-draft:
+  /api/mcqs/graph/save-draft:
     post:
       tags:
         - MCQs
@@ -1015,7 +1015,7 @@ paths:
         '500':
           description: GPT or Supabase error
 
-  /mcqs/graph/process/{graphId}:
+  /api/mcqs/graph/process/{graphId}:
     post:
       tags:
         - MCQs

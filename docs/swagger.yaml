@@ -868,7 +868,7 @@ paths:
                   error:
                     type: string
                     example: Missing required fields
-        '500':
+        500:
           description: GPT or Supabase error
           content:
             application/json:
@@ -881,6 +881,12 @@ paths:
                   details:
                     type: string
                     example: MCQ at level 1 failed validation
+                  level:
+                    type: integer
+                    example: 1
+                  mcq:
+                    type: object
+                    description: Raw MCQ that failed
 
   /api/mcqs/insert-from-json:
     post:

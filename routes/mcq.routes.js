@@ -4,22 +4,20 @@ const express = require('express');
 const router = express.Router();
 
 const {
-  generateMCQGraphFromInput,      // POST /mcqs/generate-from-input
-  insertMCQGraphFromJson,         // POST /mcqs/insert-from-json
-  saveDraftGraph,                 // POST /mcqs/graph/save-draft
-  processMCQGraph                 // POST /mcqs/graph/process/:graphId
+  generateMCQGraphFromInput,       // Optional legacy API — not required if not using
+  insertMCQGraphFromJson,          // Optional legacy API — not required if not using
+  generateAndSaveGraphDraft,       // ✅ NEW: Save draft graph from raw_text + subject_id
+  processGraphById                 // ✅ NEW: Process graph and insert MCQs
 } = require('../controllers/mcq.controller');
 
-// ✅ Auto-generate MCQ graph from raw input using GPT
+// ⚠️ Optional legacy routes (comment out if not used)
 router.post('/mcqs/generate-from-input', generateMCQGraphFromInput);
-
-// ✅ Insert a pre-generated graph JSON manually
 router.post('/mcqs/insert-from-json', insertMCQGraphFromJson);
 
-// ✅ Save a GPT-generated graph as draft (no parsing yet)
-router.post('/mcqs/graph/save-draft', saveDraftGraph);
+// ✅ Save GPT-generated MCQ graph draft (raw_text + subject_id)
+router.post('/mcqs/graph/save-draft', generateAndSaveGraphDraft);
 
-// ✅ Process a saved graph and insert individual MCQs
-router.post('/mcqs/graph/process/:graphId', processMCQGraph);
+// ✅ Process the draft graph and insert MCQs into `mcqs` table
+router.post('/mcqs/graph/process/:graphId', processGraphById);
 
 module.exports = router;

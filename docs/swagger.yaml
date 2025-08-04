@@ -811,6 +811,7 @@ paths:
         - Primary MCQ can have **4 or 5 options** based on the input.
         - All recursive MCQs must have **exactly 5 options** (A–E).
         - Each MCQ includes a stem, options, correct answer, learning gap, explanation, and 10 buzzword facts.
+        - The subject_id is sufficient as exam_id is auto-inferred from subject.
       requestBody:
         required: true
         content:
@@ -819,7 +820,6 @@ paths:
               type: object
               required:
                 - raw_mcq_text
-                - exam_id
                 - subject_id
               properties:
                 raw_mcq_text:
@@ -832,10 +832,6 @@ paths:
                     C. Naproxen
                     D. Acetaminophen
                     Answer: D
-                exam_id:
-                  type: string
-                  format: uuid
-                  example: "bf488a73-9f75-4bd9-9b94-6a9a93efeb3b"
                 subject_id:
                   type: string
                   format: uuid
@@ -864,8 +860,27 @@ paths:
                           format: uuid
         '400':
           description: Missing or invalid input
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Missing required fields
         '500':
           description: GPT or Supabase error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Failed to generate MCQ graph
+                  details:
+                    type: string
+                    example: MCQ at level 1 failed validation
 
   /api/mcqs/insert-from-json:
     post:

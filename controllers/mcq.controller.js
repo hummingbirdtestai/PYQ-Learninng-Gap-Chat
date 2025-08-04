@@ -106,45 +106,75 @@ exports.generateMCQGraphFromInput = async (req, res) => {
   const fullPrompt = `${PROMPT_TEMPLATE}
 
 Here is the MCQ:
-
 ${raw_mcq_text}
 
 - The above contains the full MCQ as entered by a teacher.
 - You must identify the question, extract options A–E, and detect the correct answer if present.
 - Then follow all previous instructions to reframe it into the required JSON output.`;
 
-  try {
-    const gptResponse = await openai.chat.completions.create({
-      model: 'gpt-4-0613',
-      messages: [{ role: 'user', content: fullPrompt }],
-      temperature: 0.7
-    });
+  const maxAttempts = 3;
+  let parsed = null;
+  let lastRawOutput = '';
 
-    const raw = gptResponse.choices?.[0]?.message?.content;
-    let parsed;
-
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      parsed = JSON.parse(raw);
-    } catch (parseError) {
-      return res.status(500).json({
-        error: 'Failed to parse GPT response as JSON',
-        details: parseError.message,
-        raw_output: raw
+      const gptResponse = await openai.chat.completions.create({
+        model: 'gpt-4-0613',
+        messages: [{ role: 'user', content: fullPrompt }],
+        temperature: 0.7
       });
-    }
 
+      lastRawOutput = gptResponse.choices?.[0]?.message?.content || '';
+
+      try {
+        parsed = JSON.parse(lastRawOutput);
+        if (!parsed.primary_mcq || !Array.isArray(parsed.recursive_levels)) {
+          throw new Error('Missing required fields in GPT response');
+        }
+        break; // ✅ Parsed successfully
+      } catch (err) {
+        console.warn(`⚠️ Attempt ${attempt}: Failed to parse GPT output`);
+        if (attempt === maxAttempts) {
+          await supabase.from('mcq_generation_errors').insert({
+            raw_input: raw_mcq_text,
+            raw_output: lastRawOutput,
+            reason: 'Invalid JSON or missing fields',
+            subject_id
+          });
+          return res.status(500).json({
+            error: 'Failed to parse GPT response as JSON',
+            details: err.message,
+            raw_output: lastRawOutput
+          });
+        }
+      }
+    } catch (gptErr) {
+      console.warn(`❌ GPT API failed on attempt ${attempt}: ${gptErr.message}`);
+      if (attempt === maxAttempts) {
+        return res.status(500).json({
+          error: 'GPT API failed after 3 attempts',
+          details: gptErr.message
+        });
+      }
+    }
+  }
+
+  try {
     const primaryId = await insertMCQ(parsed.primary_mcq, 0, validatePrimaryMCQ, subject_id);
     const recursiveIds = [];
-
-    if (!Array.isArray(parsed.recursive_levels)) {
-      return res.status(400).json({ error: 'Invalid GPT response: recursive_levels is not an array' });
-    }
 
     for (let i = 0; i < parsed.recursive_levels.length; i++) {
       try {
         const id = await insertMCQ(parsed.recursive_levels[i], i + 1, validateRecursiveMCQ, subject_id);
         recursiveIds.push(id);
       } catch (mcqErr) {
+        await supabase.from('mcq_generation_errors').insert({
+          raw_input: raw_mcq_text,
+          raw_output: lastRawOutput,
+          reason: `Validation failed at level ${i + 1}: ${mcqErr.message}`,
+          subject_id
+        });
+
         return res.status(500).json({
           error: 'Failed to generate MCQ graph',
           details: mcqErr.message,
@@ -172,7 +202,10 @@ ${raw_mcq_text}
     });
   } catch (err) {
     console.error('❌ Error generating MCQ Graph:', err.message);
-    return res.status(500).json({ error: 'Failed to generate MCQ graph', details: err.message });
+    return res.status(500).json({
+      error: 'Failed to generate MCQ graph',
+      details: err.message
+    });
   }
 };
 

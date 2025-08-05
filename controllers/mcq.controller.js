@@ -137,37 +137,60 @@ exports.generateMCQGraphFromInput = async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  const fullPrompt = `${PROMPT_TEMPLATE}
+  const fullPrompt = `🚨 OUTPUT RULES:
+Your entire output must be a single valid JSON object.
+- DO NOT include \`\`\`json or any markdown syntax.
+- DO NOT add explanations, comments, or headings.
+- DO NOT return <strong>, <em>, or any HTML tags.
+- DO NOT return a teacher-student discussion.
+- DO NOT return a clinical vignette or case discussion.
+- Your output MUST start with { and end with }.
+- It must be directly parsable by JSON.parse().
+
+🧠 GOAL:
+You are generating a recursive MCQ graph for NEETPG/USMLE/INICET based on one raw MCQ.
+
+🎯 Follow this exact structure:
+{
+  "primary_mcq": {
+    "stem": "...",
+    "options": {
+      "A": "...",
+      "B": "...",
+      "C": "...",
+      "D": "...",
+      "E": "..."
+    },
+    "correct_answer": "B"
+  },
+  "recursive_levels": [
+    {
+      "stem": "...",
+      "options": {
+        "A": "...",
+        "B": "...",
+        "C": "...",
+        "D": "...",
+        "E": "..."
+      },
+      "correct_answer": "D"
+    },
+    ...
+  ]
+}
+
+Return only the above JSON object and nothing else.
 
 Here is the MCQ:
 ${raw_mcq_text}
 
 - The above contains the full MCQ as entered by a teacher.
 - You must identify the question, extract options A–E, and detect the correct answer if present.
-- Then follow all previous instructions to reframe it into the required JSON output.
-- ⚠️ DO NOT return the object as a string.
-- ❌ NO markdown, no headings, no \`\`\`json, no HTML wrapping.
-🚫 DO NOT return a conversation, a discussion, or a teacher-student dialogue.
-✅ ONLY return the JSON object: { "primary_mcq": ..., "recursive_levels": [...] }`;
+- Then follow all previous instructions to reframe it into the required JSON output.`;
 
   const maxAttempts = 3;
   let parsed = null;
   let lastRawOutput = '';
-
-  const sanitizeJSON = (text) => {
-    let cleaned = text.trim()
-      .replace(/^```(json)?/i, '')
-      .replace(/```$/, '')
-      .replace(/^"({[\s\S]*})"$/, '$1')
-      .replace(/\\"/g, '"')
-      .replace(/,\s*}/g, '}')
-      .replace(/,\s*]/g, ']')
-      .replace(/\\n/g, '')
-      .replace(/\n/g, '')
-      .replace(/\\t/g, '')
-      .replace(/\\r/g, '');
-    return cleaned;
-  };
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -178,18 +201,26 @@ ${raw_mcq_text}
       });
 
       lastRawOutput = gptResponse.choices?.[0]?.message?.content || '';
-      let cleanedOutput = sanitizeJSON(lastRawOutput);
+      console.log(`🧾 Attempt ${attempt} - Raw GPT Output:`, lastRawOutput);
+
+      // Early check for HTML corruption
+      if (
+        lastRawOutput.includes('<strong>') ||
+        lastRawOutput.includes('<html>') ||
+        lastRawOutput.includes('<body>') ||
+        lastRawOutput.includes('<div>')
+      ) {
+        throw new Error('HTML tags detected in GPT response');
+      }
 
       try {
-        parsed = JSON.parse(cleanedOutput);
-        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+        parsed = JSON.parse(lastRawOutput);
 
         if (!isValidMCQGraph(parsed)) {
           throw new Error("GPT response failed structural validation");
         }
 
-        break; // ✅ Success
-
+        break; // ✅ Valid output
       } catch (err) {
         console.warn(`⚠️ Attempt ${attempt}: GPT output invalid - ${err.message}`);
         if (attempt === maxAttempts) {
@@ -207,9 +238,8 @@ ${raw_mcq_text}
           });
         }
       }
-
     } catch (gptErr) {
-      console.warn(`❌ GPT API failed on attempt ${attempt}: ${gptErr.message}`);
+      console.error(`❌ GPT API failed on attempt ${attempt}: ${gptErr.message}`);
       if (attempt === maxAttempts) {
         return res.status(500).json({
           error: 'GPT API failed after 3 attempts',
@@ -247,13 +277,14 @@ ${raw_mcq_text}
       }
     });
   } catch (err) {
-    console.error('❌ Error generating MCQ Graph:', err.message);
+    console.error('❌ Error saving MCQ Graph:', err.message);
     return res.status(500).json({
       error: 'Failed to generate MCQ graph',
       details: err.message
     });
   }
 };
+
 
 // 🛠️ Manual insertion endpoint
 exports.insertMCQGraphFromJson = async (req, res) => {

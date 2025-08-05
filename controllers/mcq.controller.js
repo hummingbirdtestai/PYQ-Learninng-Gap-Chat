@@ -1,6 +1,6 @@
 // 🎯 Final Prompt Template
 const { v4: uuidv4 } = require('uuid');
-const { supabase } = require('../config/supabaseClient');
+const supabase = require('../config/supabaseClient');
 const openai = require('../config/openaiClient');
 
 const PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
@@ -26,6 +26,52 @@ You will be given a **Previous Year Question (PYQ)** MCQ that a student got wron
   "primary_mcq": { ... },
   "recursive_levels": [ { ... }, { ... }, { ... } ]
 }`;
+
+const validatePrimaryMCQ = (mcq) => {
+  if (!mcq?.stem || typeof mcq.stem !== 'string') throw new Error("Primary MCQ: Missing or invalid 'stem'");
+  if (!mcq?.correct_answer || typeof mcq.correct_answer !== 'string') throw new Error("Primary MCQ: Missing or invalid 'correct_answer'");
+  const optionKeys = Object.keys(mcq.options || {});
+  if (optionKeys.length < 4 || optionKeys.length > 5) {
+    throw new Error(`Primary MCQ: Must have 4 or 5 options, found ${optionKeys.length}`);
+  }
+  return true;
+};
+
+const validateRecursiveMCQ = (mcq) => {
+  const requiredKeys = ['A', 'B', 'C', 'D', 'E'];
+  if (!mcq?.stem || typeof mcq.stem !== 'string') throw new Error("Recursive MCQ: Missing or invalid 'stem'");
+  if (!mcq?.correct_answer || typeof mcq.correct_answer !== 'string') throw new Error("Recursive MCQ: Missing or invalid 'correct_answer'");
+  if (!mcq?.options || typeof mcq.options !== 'object') throw new Error("Recursive MCQ: Missing or invalid 'options'");
+  for (const key of requiredKeys) {
+    const val = mcq.options[key];
+    if (!val || typeof val !== 'string' || val.trim().length === 0) {
+      throw new Error(`Recursive MCQ: Option '${key}' is missing or empty`);
+    }
+  }
+  return true;
+};
+
+const insertMCQ = async (mcq, level, validateFn, subject_id) => {
+  if (!validateFn(mcq)) throw new Error(`MCQ at level ${level} failed validation`);
+  const id = uuidv4();
+  const { error } = await supabase.from('mcqs').insert({
+    id,
+    subject_id,
+    stem: mcq.stem,
+    option_a: mcq.options?.A || null,
+    option_b: mcq.options?.B || null,
+    option_c: mcq.options?.C || null,
+    option_d: mcq.options?.D || null,
+    option_e: mcq.options?.E || null,
+    correct_answer: mcq.correct_answer,
+    explanation: mcq.explanation || '',
+    learning_gap: mcq.learning_gap || '',
+    level,
+    mcq_json: mcq
+  });
+  if (error) throw error;
+  return id;
+};
 
 exports.generateMCQGraphFromInput = async (req, res) => {
   const { raw_mcq_text, subject_id } = req.body;

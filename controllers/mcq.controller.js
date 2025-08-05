@@ -98,6 +98,38 @@ const insertMCQ = async (mcq, level, validateFn, subject_id) => {
   return id;
 };
 
+// ✅ NEW: Structural validator
+const isValidMCQGraph = (parsed) => {
+  if (!parsed || typeof parsed !== 'object') return false;
+
+  const { primary_mcq, recursive_levels } = parsed;
+  if (!primary_mcq || typeof primary_mcq !== 'object') return false;
+  if (!primary_mcq.stem || typeof primary_mcq.stem !== 'string') return false;
+  if (!primary_mcq.options || typeof primary_mcq.options !== 'object') return false;
+  if (!primary_mcq.correct_answer || typeof primary_mcq.correct_answer !== 'string') return false;
+
+  const optionKeys = Object.keys(primary_mcq.options);
+  if (optionKeys.length < 4 || optionKeys.length > 5) return false;
+
+  if (!Array.isArray(recursive_levels) || recursive_levels.length !== 10) return false;
+
+  for (const mcq of recursive_levels) {
+    if (
+      !mcq?.stem ||
+      !mcq?.correct_answer ||
+      typeof mcq.stem !== 'string' ||
+      typeof mcq.correct_answer !== 'string' ||
+      !mcq.options ||
+      typeof mcq.options !== 'object' ||
+      Object.keys(mcq.options).length !== 5
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 exports.generateMCQGraphFromInput = async (req, res) => {
   const { raw_mcq_text, subject_id } = req.body;
 
@@ -131,27 +163,13 @@ ${raw_mcq_text}
       try {
         parsed = JSON.parse(lastRawOutput);
 
-        // ✅ Strict validation
-        const recursive = parsed?.recursive_levels;
-        const primary = parsed?.primary_mcq;
-
-        if (!primary || typeof primary !== 'object') {
-          throw new Error("Missing or invalid 'primary_mcq'");
+        if (!isValidMCQGraph(parsed)) {
+          throw new Error("GPT response failed structural validation");
         }
 
-        if (!Array.isArray(recursive)) {
-          throw new Error("'recursive_levels' must be an array");
-        }
-
-        if (recursive.length !== 10) {
-          throw new Error(`'recursive_levels' must contain exactly 10 items. Found: ${recursive.length}`);
-        }
-
-        break; // ✅ All good, break out of retry loop
-
+        break; // ✅ Success
       } catch (err) {
-        console.warn(`⚠️ Attempt ${attempt}: GPT response invalid - ${err.message}`);
-
+        console.warn(`⚠️ Attempt ${attempt}: GPT output invalid - ${err.message}`);
         if (attempt === maxAttempts) {
           await supabase.from('mcq_generation_errors').insert({
             raw_input: raw_mcq_text,
@@ -179,11 +197,9 @@ ${raw_mcq_text}
   }
 
   try {
-    // ✅ Insert primary MCQ
     const primaryId = await insertMCQ(parsed.primary_mcq, 0, validatePrimaryMCQ, subject_id);
-
-    // ✅ Insert recursive MCQs
     const recursiveIds = [];
+
     for (let i = 0; i < parsed.recursive_levels.length; i++) {
       const level = i + 1;
       const mcq = parsed.recursive_levels[i];
@@ -191,7 +207,6 @@ ${raw_mcq_text}
       recursiveIds.push(id);
     }
 
-    // ✅ Insert graph only after full success
     await supabase.from('mcq_graphs').insert({
       subject_id,
       graph: {
@@ -216,7 +231,6 @@ ${raw_mcq_text}
     });
   }
 };
-
 
 // 🛠️ Manual insertion endpoint
 exports.insertMCQGraphFromJson = async (req, res) => {

@@ -805,11 +805,12 @@ paths:
     post:
       tags:
         - MCQs
-      summary: Generate MCQ Graph from Raw Input
+      summary: Generate MCQ Graph from Raw Input (1 primary + up to 3 recursive)
       description: |
-        Generates a primary MCQ and up to 3 recursive MCQs based on learning gaps.
-        GPT-generated output is parsed as a JSON object. Each MCQ is validated and inserted.
-        If any recursive MCQ is invalid, it will be skipped without breaking the request.
+        Accepts a raw MCQ text and subject_id. GPT is used to generate a clinical vignette-based
+        primary MCQ and up to 3 recursive MCQs based on learning gaps.
+        Each MCQ is validated individually. If any recursive MCQ is invalid, it is skipped.
+        GPT output failures are logged. Valid MCQs are saved in the `mcqs` table and linked in `mcq_graphs`.
       requestBody:
         required: true
         content:
@@ -822,15 +823,56 @@ paths:
               properties:
                 raw_mcq_text:
                   type: string
+                  example: "Which artery is most commonly involved in anterior myocardial infarction? A. RCA B. PDA C. OM D. LAD E. LCX"
                 subject_id:
                   type: string
+                  format: uuid
+                  example: "6de7d5ec-2b71-4a9d-84f1-cd3c1fcf3a99"
       responses:
         '200':
           description: MCQ graph generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: ✅ MCQ Graph generated
+                  graph:
+                    type: object
+                    properties:
+                      primary_mcq:
+                        type: string
+                        format: uuid
+                      recursive_levels:
+                        type: array
+                        items:
+                          type: string
+                          format: uuid
         '400':
-          description: Bad request
+          description: Bad request (missing required fields)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Missing required fields
         '500':
           description: GPT error or insertion failure
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Failed to save MCQ graph
+                  details:
+                    type: string
+                    example: insertMCQ is not defined
 
   /api/mcqs/insert-from-json:
     post:

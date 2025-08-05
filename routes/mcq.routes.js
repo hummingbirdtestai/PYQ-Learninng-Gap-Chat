@@ -1,9 +1,11 @@
+// routes/mcq.routes.js
+
 const express = require('express');
 const router = express.Router();
 
 const {
-  generateAndSaveGraphDraft,   // ✅ NEW: Save draft graph from raw_text + subject_id
-  processGraphById             // ✅ NEW: Process graph and insert MCQs
+  generateAndSaveGraphDraft,       // ✅ Save draft graph from raw_text + subject_id
+  processGraphById                 // ✅ Process draft graph and insert MCQs
 } = require('../controllers/mcq.controller');
 
 // ✅ Save GPT-generated MCQ graph draft (raw_text + subject_id)

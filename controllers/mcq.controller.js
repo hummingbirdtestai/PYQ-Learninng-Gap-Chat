@@ -145,13 +145,29 @@ ${raw_mcq_text}
 - The above contains the full MCQ as entered by a teacher.
 - You must identify the question, extract options A–E, and detect the correct answer if present.
 - Then follow all previous instructions to reframe it into the required JSON output.
-- ⚠️ DO NOT return the JSON wrapped inside quotes.
-- ⚠️ DO NOT return the object as a string — return only raw valid JSON.
-- ❌ NO markdown, no headings, no code block.`;
+- ⚠️ DO NOT return the object as a string.
+- ❌ NO markdown, no headings, no \`\`\`json, no HTML wrapping.`;
 
   const maxAttempts = 3;
   let parsed = null;
   let lastRawOutput = '';
+
+  const sanitizeJSON = (text) => {
+    // remove code block markers, leading/trailing quotes, markdown artifacts
+    let cleaned = text.trim()
+      .replace(/^```(json)?/i, '')
+      .replace(/```$/, '')
+      .replace(/^"({[\s\S]*})"$/, '$1') // remove quotes around JSON
+      .replace(/\\"/g, '"') // unescape quotes
+      .replace(/,\s*}/g, '}') // remove trailing commas
+      .replace(/,\s*]/g, ']')
+      .replace(/\\n/g, '') // remove escaped newlines
+      .replace(/\n/g, '') // remove raw newlines
+      .replace(/\\t/g, '') // remove tabs
+      .replace(/\\r/g, ''); // remove carriage returns
+
+    return cleaned;
+  };
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -162,23 +178,19 @@ ${raw_mcq_text}
       });
 
       lastRawOutput = gptResponse.choices?.[0]?.message?.content || '';
+      let cleanedOutput = sanitizeJSON(lastRawOutput);
 
       try {
-        parsed = JSON.parse(lastRawOutput);
-
-        // 🧠 Handle stringified JSON
-        if (typeof parsed === 'string') {
-          parsed = JSON.parse(parsed); // second parse
-        }
+        parsed = JSON.parse(cleanedOutput);
+        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
 
         if (!isValidMCQGraph(parsed)) {
           throw new Error("GPT response failed structural validation");
         }
 
-        break; // ✅ Valid and parsed successfully
-
+        break; // ✅ Success
       } catch (err) {
-        console.warn(`⚠️ Attempt ${attempt}: GPT response invalid - ${err.message}`);
+        console.warn(`⚠️ Attempt ${attempt}: GPT output invalid - ${err.message}`);
         if (attempt === maxAttempts) {
           await supabase.from('mcq_generation_errors').insert({
             raw_input: raw_mcq_text,
@@ -194,7 +206,6 @@ ${raw_mcq_text}
           });
         }
       }
-
     } catch (gptErr) {
       console.warn(`❌ GPT API failed on attempt ${attempt}: ${gptErr.message}`);
       if (attempt === maxAttempts) {

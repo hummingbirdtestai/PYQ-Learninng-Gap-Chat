@@ -98,6 +98,12 @@ const insertMCQ = async (mcq, level, validateFn, subject_id) => {
   return id;
 };
 
+const { v4: uuidv4 } = require('uuid');
+const { supabase } = require('../config/supabaseClient');
+const openai = require('../config/openaiClient');
+
+// ...PROMPT_TEMPLATE, validatePrimaryMCQ, validateRecursiveMCQ, insertMCQ already defined above
+
 exports.generateMCQGraphFromInput = async (req, res) => {
   const { raw_mcq_text, subject_id } = req.body;
 
@@ -131,24 +137,37 @@ ${raw_mcq_text}
       try {
         parsed = JSON.parse(lastRawOutput);
 
-        if (!parsed.primary_mcq || !Array.isArray(parsed.recursive_levels) || parsed.recursive_levels.length !== 10) {
-          throw new Error(`Missing or incomplete recursive_levels array. Found ${parsed.recursive_levels?.length || 0}`);
+        // ✅ Strict validation
+        const recursive = parsed?.recursive_levels;
+        const primary = parsed?.primary_mcq;
+
+        if (!primary || typeof primary !== 'object') {
+          throw new Error("Missing or invalid 'primary_mcq'");
         }
 
-        break;
+        if (!Array.isArray(recursive)) {
+          throw new Error("'recursive_levels' must be an array");
+        }
+
+        if (recursive.length !== 10) {
+          throw new Error(`'recursive_levels' must contain exactly 10 items. Found: ${recursive.length}`);
+        }
+
+        break; // ✅ All good, break out of retry loop
+
       } catch (err) {
-        console.warn(`⚠️ Attempt ${attempt}: GPT response invalid or incomplete`);
+        console.warn(`⚠️ Attempt ${attempt}: GPT response invalid - ${err.message}`);
 
         if (attempt === maxAttempts) {
           await supabase.from('mcq_generation_errors').insert({
             raw_input: raw_mcq_text,
             raw_output: lastRawOutput,
-            reason: 'Invalid JSON or missing required fields',
+            reason: err.message,
             subject_id
           });
 
           return res.status(500).json({
-            error: 'Failed to parse GPT response',
+            error: '❌ GPT output invalid',
             details: err.message,
             raw_output: lastRawOutput
           });
@@ -166,9 +185,11 @@ ${raw_mcq_text}
   }
 
   try {
+    // ✅ Insert primary MCQ
     const primaryId = await insertMCQ(parsed.primary_mcq, 0, validatePrimaryMCQ, subject_id);
-    const recursiveIds = [];
 
+    // ✅ Insert recursive MCQs
+    const recursiveIds = [];
     for (let i = 0; i < parsed.recursive_levels.length; i++) {
       const level = i + 1;
       const mcq = parsed.recursive_levels[i];
@@ -176,6 +197,7 @@ ${raw_mcq_text}
       recursiveIds.push(id);
     }
 
+    // ✅ Insert graph only after full success
     await supabase.from('mcq_graphs').insert({
       subject_id,
       graph: {
@@ -200,6 +222,7 @@ ${raw_mcq_text}
     });
   }
 };
+
 
 // 🛠️ Manual insertion endpoint
 exports.insertMCQGraphFromJson = async (req, res) => {

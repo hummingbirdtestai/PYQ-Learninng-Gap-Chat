@@ -204,19 +204,14 @@ ${raw_mcq_text}
         const id = await insertMCQ(parsed.recursive_levels[i], i + 1, validateRecursiveMCQ, subject_id);
         recursiveIds.push(id);
       } catch (mcqErr) {
+        console.warn(`⚠️ Skipping recursive level ${i + 1}: ${mcqErr.message}`);
         await supabase.from('mcq_generation_errors').insert({
           raw_input: raw_mcq_text,
           raw_output: lastRawOutput,
-          reason: `Validation failed at level ${i + 1}: ${mcqErr.message}`,
+          reason: `Skipped level ${i + 1}: ${mcqErr.message}`,
           subject_id
         });
-
-        return res.status(500).json({
-          error: 'Failed to generate MCQ graph',
-          details: mcqErr.message,
-          level: i + 1,
-          mcq: parsed.recursive_levels[i]
-        });
+        continue;
       }
     }
 
@@ -244,6 +239,7 @@ ${raw_mcq_text}
     });
   }
 };
+
 
 // 🛠️ Manual insertion endpoint
 exports.insertMCQGraphFromJson = async (req, res) => {

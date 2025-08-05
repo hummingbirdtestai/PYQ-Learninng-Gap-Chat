@@ -3,6 +3,10 @@ const { supabase } = require('../config/supabaseClient');
 const openai = require('../config/openaiClient');
 
 // 🎯 Final Prompt Template
+const { v4: uuidv4 } = require('uuid');
+const { supabase } = require('../config/supabaseClient');
+const openai = require('../config/openaiClient');
+
 const PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
 Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
@@ -46,16 +50,9 @@ All "stem" and "learning_gap" values must contain 2 or more <strong>...</strong>
 If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slide), describe it logically in sentence 5 of the MCQ stem.
 All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.`;
 
-// ✅ Primary MCQ Validation (flexible 4–5 options)
-// ✅ Updated Primary MCQ Validator with Error
 const validatePrimaryMCQ = (mcq) => {
-  if (!mcq?.stem || typeof mcq.stem !== 'string') {
-    throw new Error("Primary MCQ: Missing or invalid 'stem'");
-  }
-
-  if (!mcq?.correct_answer || typeof mcq.correct_answer !== 'string') {
-    throw new Error("Primary MCQ: Missing or invalid 'correct_answer'");
-  }
+  if (!mcq?.stem || typeof mcq.stem !== 'string') throw new Error("Primary MCQ: Missing or invalid 'stem'");
+  if (!mcq?.correct_answer || typeof mcq.correct_answer !== 'string') throw new Error("Primary MCQ: Missing or invalid 'correct_answer'");
 
   const optionKeys = Object.keys(mcq.options || {});
   if (optionKeys.length < 4 || optionKeys.length > 5) {
@@ -65,22 +62,11 @@ const validatePrimaryMCQ = (mcq) => {
   return true;
 };
 
-
-// ✅ Updated Recursive MCQ Validator with Error
 const validateRecursiveMCQ = (mcq) => {
   const requiredKeys = ['A', 'B', 'C', 'D', 'E'];
-
-  if (!mcq?.stem || typeof mcq.stem !== 'string') {
-    throw new Error("Recursive MCQ: Missing or invalid 'stem'");
-  }
-
-  if (!mcq?.correct_answer || typeof mcq.correct_answer !== 'string') {
-    throw new Error("Recursive MCQ: Missing or invalid 'correct_answer'");
-  }
-
-  if (!mcq?.options || typeof mcq.options !== 'object') {
-    throw new Error("Recursive MCQ: Missing or invalid 'options'");
-  }
+  if (!mcq?.stem || typeof mcq.stem !== 'string') throw new Error("Recursive MCQ: Missing or invalid 'stem'");
+  if (!mcq?.correct_answer || typeof mcq.correct_answer !== 'string') throw new Error("Recursive MCQ: Missing or invalid 'correct_answer'");
+  if (!mcq?.options || typeof mcq.options !== 'object') throw new Error("Recursive MCQ: Missing or invalid 'options'");
 
   for (const key of requiredKeys) {
     const val = mcq.options[key];
@@ -92,13 +78,8 @@ const validateRecursiveMCQ = (mcq) => {
   return true;
 };
 
-
-// ✅ Insert MCQ into Supabase
 const insertMCQ = async (mcq, level, validateFn, subject_id) => {
-  if (!validateFn(mcq)) {
-    console.error(`❌ MCQ at level ${level} failed validation:\n`, JSON.stringify(mcq, null, 2));
-    throw new Error(`MCQ at level ${level} failed validation`);
-  }
+  if (!validateFn(mcq)) throw new Error(`MCQ at level ${level} failed validation`);
 
   const id = uuidv4();
   const { error } = await supabase.from('mcqs').insert({
@@ -121,19 +102,11 @@ const insertMCQ = async (mcq, level, validateFn, subject_id) => {
   return id;
 };
 
-// 🚀 Main API Export
 exports.generateMCQGraphFromInput = async (req, res) => {
   const { raw_mcq_text, subject_id } = req.body;
 
   if (!raw_mcq_text || !subject_id) {
     return res.status(400).json({ error: 'Missing required fields' });
-  }
-
-  if (!supabase?.from) {
-    return res.status(500).json({
-      error: 'Supabase client is not initialized correctly.',
-      details: 'Missing .from method on Supabase client'
-    });
   }
 
   const fullPrompt = `${PROMPT_TEMPLATE}
@@ -161,23 +134,25 @@ ${raw_mcq_text}
 
       try {
         parsed = JSON.parse(lastRawOutput);
-        if (!parsed.primary_mcq || !Array.isArray(parsed.recursive_levels)) {
-          throw new Error('Missing required fields in GPT response');
+
+        if (!parsed.primary_mcq || !Array.isArray(parsed.recursive_levels) || parsed.recursive_levels.length !== 10) {
+          throw new Error(`Missing or incomplete recursive_levels array. Found ${parsed.recursive_levels?.length || 0}`);
         }
-        break; // ✅ Successfully parsed
+
+        break;
       } catch (err) {
-        console.warn(`⚠️ Attempt ${attempt}: Failed to parse GPT output`);
+        console.warn(`⚠️ Attempt ${attempt}: GPT response invalid or incomplete`);
 
         if (attempt === maxAttempts) {
           await supabase.from('mcq_generation_errors').insert({
             raw_input: raw_mcq_text,
             raw_output: lastRawOutput,
-            reason: 'Invalid JSON or missing fields',
+            reason: 'Invalid JSON or missing required fields',
             subject_id
           });
 
           return res.status(500).json({
-            error: 'Failed to parse GPT response as JSON',
+            error: 'Failed to parse GPT response',
             details: err.message,
             raw_output: lastRawOutput
           });
@@ -185,7 +160,6 @@ ${raw_mcq_text}
       }
     } catch (gptErr) {
       console.warn(`❌ GPT API failed on attempt ${attempt}: ${gptErr.message}`);
-
       if (attempt === maxAttempts) {
         return res.status(500).json({
           error: 'GPT API failed after 3 attempts',
@@ -200,19 +174,10 @@ ${raw_mcq_text}
     const recursiveIds = [];
 
     for (let i = 0; i < parsed.recursive_levels.length; i++) {
-      try {
-        const id = await insertMCQ(parsed.recursive_levels[i], i + 1, validateRecursiveMCQ, subject_id);
-        recursiveIds.push(id);
-      } catch (mcqErr) {
-        console.warn(`⚠️ Skipping recursive level ${i + 1}: ${mcqErr.message}`);
-        await supabase.from('mcq_generation_errors').insert({
-          raw_input: raw_mcq_text,
-          raw_output: lastRawOutput,
-          reason: `Skipped level ${i + 1}: ${mcqErr.message}`,
-          subject_id
-        });
-        continue;
-      }
+      const level = i + 1;
+      const mcq = parsed.recursive_levels[i];
+      const id = await insertMCQ(mcq, level, validateRecursiveMCQ, subject_id);
+      recursiveIds.push(id);
     }
 
     await supabase.from('mcq_graphs').insert({
@@ -239,7 +204,6 @@ ${raw_mcq_text}
     });
   }
 };
-
 
 // 🛠️ Manual insertion endpoint
 exports.insertMCQGraphFromJson = async (req, res) => {

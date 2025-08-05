@@ -801,17 +801,15 @@ paths:
         '500':
           description: GPT or Supabase error
 
-  /api/mcqs/generate-from-input:
+  /mcqs/generate-from-input:
     post:
       tags:
         - MCQs
-      summary: Generate MCQ graph from raw MCQ input using GPT
+      summary: Generate MCQ Graph from Raw Input
       description: |
-        Accepts a raw MCQ string and generates a primary + 10-level recursive MCQ graph using ChatGPT.
-        - Primary MCQ can have **4 or 5 options** based on the input.
-        - All recursive MCQs must have **exactly 5 options** (A–E).
-        - Each MCQ includes a stem, options, correct answer, learning gap, explanation, and 10 buzzword facts.
-        - The subject_id is sufficient as exam_id is auto-inferred from subject.
+        Generates a primary MCQ and up to 3 recursive MCQs based on learning gaps.
+        GPT-generated output is parsed as a JSON object. Each MCQ is validated and inserted.
+        If any recursive MCQ is invalid, it will be skipped without breaking the request.
       requestBody:
         required: true
         content:
@@ -824,69 +822,15 @@ paths:
               properties:
                 raw_mcq_text:
                   type: string
-                  example: |
-                    44. A 60-year-old female with renal disease was admitted for pyelolithotomy.
-                    Postoperative analgesic of choice in this patient is:
-                    A. Diclofenac
-                    B. Indomethacin
-                    C. Naproxen
-                    D. Acetaminophen
-                    Answer: D
                 subject_id:
                   type: string
-                  format: uuid
-                  example: "1f3467e1-7c47-4c3a-9cc3-6ae614cd3d7e"
       responses:
         '200':
-          description: MCQ graph successfully created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: ✅ MCQ Graph generated
-                  graph:
-                    type: object
-                    properties:
-                      primary_mcq:
-                        type: string
-                        format: uuid
-                      recursive_levels:
-                        type: array
-                        items:
-                          type: string
-                          format: uuid
+          description: MCQ graph generated successfully
         '400':
-          description: Missing or invalid input
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: Missing required fields
-        500:
-          description: GPT or Supabase error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: Failed to generate MCQ graph
-                  details:
-                    type: string
-                    example: MCQ at level 1 failed validation
-                  level:
-                    type: integer
-                    example: 1
-                  mcq:
-                    type: object
-                    description: Raw MCQ that failed
+          description: Bad request
+        '500':
+          description: GPT error or insertion failure
 
   /api/mcqs/insert-from-json:
     post:

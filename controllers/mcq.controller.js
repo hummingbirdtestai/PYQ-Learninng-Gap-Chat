@@ -16,119 +16,16 @@ Your entire output must be a single valid JSON object.
 You will be given a **Previous Year Question (PYQ)** MCQ that a student got wrong. Your task is to:
 
 1. Reframe the MCQ as a clinical vignette with **exactly 5 full sentences**, USMLE-style.  
-   - The MCQ stem must resemble Amboss/NBME/USMLE-level difficulty.  
-   - Bold all **high-yield keywords** using <strong>...</strong>.  
-   - If an image is mentioned or implied but not provided, imagine a **relevant clinical/anatomical image** and incorporate its findings logically into the stem.
-
 2. Provide 5 answer options (A–E), with one correct answer clearly marked.
+3. Identify the **key learning gap** in one sentence with <strong>bolded keywords</strong>.
+4. Give 10 concise **buzzword-style facts** with <strong>bolded terms</strong> and emoji prefixes.
+5. Then generate a chain of **3 recursive MCQs** (Level 1 → Level 3), each based on the previous level’s learning gap.
 
-3. Identify the **key learning gap** if the MCQ was answered wrong.
-   - The learning gap statement must be **one sentence**, and include <strong>bolded keywords</strong> for the missed concept.
-
-4. Provide 10 **high-quality, laser-sharp, buzzword-style facts** related to the concept of the current MCQ:
-   - Each fact must be **8 to 12 words long**, maximum of one sentence.
-   - Start with a relevant **emoji**.
-   - Bold key terms using <strong>...</strong>.
-   - Format as flat strings in a "buzzwords": [] array.
-   - Style should match Amboss/NBME/USMLE exam revision quality — **concise, specific, exam-sure**.
-
-5. Based on the identified learning gap, generate a new MCQ that tests **only that gap**.
-   - Use the same format: 5 full sentences, A–E options, correct answer, learning gap, and 10 buzzword facts.
-   - Each new level (Level 1 → Level 10) must recursively target the previous level’s learning gap.
-   - Each MCQ must be meaningfully distinct and clinically rich, but directly tied to the chain of gaps.
-
-6. Output a single JSON object:
-   - "primary_mcq" → for the initial MCQ
-   - "recursive_levels" → an array of 10 objects, Level 1 to Level 10
-
-💡 Notes:
-All "stem" and "learning_gap" values must contain 2 or more <strong>...</strong> terms.
-If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slide), describe it logically in sentence 5 of the MCQ stem.
-All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.`;
-
-const validatePrimaryMCQ = (mcq) => {
-  if (!mcq?.stem || typeof mcq.stem !== 'string') throw new Error("Primary MCQ: Missing or invalid 'stem'");
-  if (!mcq?.correct_answer || typeof mcq.correct_answer !== 'string') throw new Error("Primary MCQ: Missing or invalid 'correct_answer'");
-
-  const optionKeys = Object.keys(mcq.options || {});
-  if (optionKeys.length < 4 || optionKeys.length > 5) {
-    throw new Error(`Primary MCQ: Must have 4 or 5 options, found ${optionKeys.length}`);
-  }
-
-  return true;
-};
-
-const validateRecursiveMCQ = (mcq) => {
-  const requiredKeys = ['A', 'B', 'C', 'D', 'E'];
-  if (!mcq?.stem || typeof mcq.stem !== 'string') throw new Error("Recursive MCQ: Missing or invalid 'stem'");
-  if (!mcq?.correct_answer || typeof mcq.correct_answer !== 'string') throw new Error("Recursive MCQ: Missing or invalid 'correct_answer'");
-  if (!mcq?.options || typeof mcq.options !== 'object') throw new Error("Recursive MCQ: Missing or invalid 'options'");
-
-  for (const key of requiredKeys) {
-    const val = mcq.options[key];
-    if (!val || typeof val !== 'string' || val.trim().length === 0) {
-      throw new Error(`Recursive MCQ: Option '${key}' is missing or empty`);
-    }
-  }
-
-  return true;
-};
-
-const insertMCQ = async (mcq, level, validateFn, subject_id) => {
-  if (!validateFn(mcq)) throw new Error(`MCQ at level ${level} failed validation`);
-
-  const id = uuidv4();
-  const { error } = await supabase.from('mcqs').insert({
-    id,
-    subject_id,
-    stem: mcq.stem,
-    option_a: mcq.options?.A || null,
-    option_b: mcq.options?.B || null,
-    option_c: mcq.options?.C || null,
-    option_d: mcq.options?.D || null,
-    option_e: mcq.options?.E || null,
-    correct_answer: mcq.correct_answer,
-    explanation: mcq.explanation || '',
-    learning_gap: mcq.learning_gap || '',
-    level,
-    mcq_json: mcq
-  });
-
-  if (error) throw error;
-  return id;
-};
-
-// ✅ NEW: Structural validator
-const isValidMCQGraph = (parsed) => {
-  if (!parsed || typeof parsed !== 'object') return false;
-
-  const { primary_mcq, recursive_levels } = parsed;
-  if (!primary_mcq || typeof primary_mcq !== 'object') return false;
-  if (!primary_mcq.stem || typeof primary_mcq.stem !== 'string') return false;
-  if (!primary_mcq.options || typeof primary_mcq.options !== 'object') return false;
-  if (!primary_mcq.correct_answer || typeof primary_mcq.correct_answer !== 'string') return false;
-
-  const optionKeys = Object.keys(primary_mcq.options);
-  if (optionKeys.length < 4 || optionKeys.length > 5) return false;
-
-  if (!Array.isArray(recursive_levels) || recursive_levels.length !== 10) return false;
-
-  for (const mcq of recursive_levels) {
-    if (
-      !mcq?.stem ||
-      !mcq?.correct_answer ||
-      typeof mcq.stem !== 'string' ||
-      typeof mcq.correct_answer !== 'string' ||
-      !mcq.options ||
-      typeof mcq.options !== 'object' ||
-      Object.keys(mcq.options).length !== 5
-    ) {
-      return false;
-    }
-  }
-
-  return true;
-};
+📤 Final Output Format:
+{
+  "primary_mcq": { ... },
+  "recursive_levels": [ { ... }, { ... }, { ... } ]
+}`;
 
 exports.generateMCQGraphFromInput = async (req, res) => {
   const { raw_mcq_text, subject_id } = req.body;
@@ -153,20 +50,17 @@ ${raw_mcq_text}
   let lastRawOutput = '';
 
   const sanitizeJSON = (text) => {
-    // remove code block markers, leading/trailing quotes, markdown artifacts
-    let cleaned = text.trim()
+    return text.trim()
       .replace(/^```(json)?/i, '')
       .replace(/```$/, '')
-      .replace(/^"({[\s\S]*})"$/, '$1') // remove quotes around JSON
-      .replace(/\\"/g, '"') // unescape quotes
-      .replace(/,\s*}/g, '}') // remove trailing commas
+      .replace(/^"({[\s\S]*})"$/, '$1')
+      .replace(/\\"/g, '"')
+      .replace(/,\s*}/g, '}')
       .replace(/,\s*]/g, ']')
-      .replace(/\\n/g, '') // remove escaped newlines
-      .replace(/\n/g, '') // remove raw newlines
-      .replace(/\\t/g, '') // remove tabs
-      .replace(/\\r/g, ''); // remove carriage returns
-
-    return cleaned;
+      .replace(/\\n/g, '')
+      .replace(/\n/g, '')
+      .replace(/\\t/g, '')
+      .replace(/\\r/g, '');
   };
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -178,19 +72,13 @@ ${raw_mcq_text}
       });
 
       lastRawOutput = gptResponse.choices?.[0]?.message?.content || '';
-      let cleanedOutput = sanitizeJSON(lastRawOutput);
+      const cleanedOutput = sanitizeJSON(lastRawOutput);
 
       try {
         parsed = JSON.parse(cleanedOutput);
         if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-
-        if (!isValidMCQGraph(parsed)) {
-          throw new Error("GPT response failed structural validation");
-        }
-
-        break; // ✅ Success
+        break;
       } catch (err) {
-        console.warn(`⚠️ Attempt ${attempt}: GPT output invalid - ${err.message}`);
         if (attempt === maxAttempts) {
           await supabase.from('mcq_generation_errors').insert({
             raw_input: raw_mcq_text,
@@ -198,7 +86,6 @@ ${raw_mcq_text}
             reason: err.message,
             subject_id
           });
-
           return res.status(500).json({
             error: '❌ GPT output invalid',
             details: err.message,
@@ -207,7 +94,6 @@ ${raw_mcq_text}
         }
       }
     } catch (gptErr) {
-      console.warn(`❌ GPT API failed on attempt ${attempt}: ${gptErr.message}`);
       if (attempt === maxAttempts) {
         return res.status(500).json({
           error: 'GPT API failed after 3 attempts',
@@ -218,14 +104,23 @@ ${raw_mcq_text}
   }
 
   try {
-    const primaryId = await insertMCQ(parsed.primary_mcq, 0, validatePrimaryMCQ, subject_id);
+    const { primary_mcq, recursive_levels } = parsed;
+    if (!primary_mcq) throw new Error("Missing 'primary_mcq' in GPT response");
+
+    const primaryId = await insertMCQ(primary_mcq, 0, validatePrimaryMCQ, subject_id);
     const recursiveIds = [];
 
-    for (let i = 0; i < parsed.recursive_levels.length; i++) {
-      const level = i + 1;
-      const mcq = parsed.recursive_levels[i];
-      const id = await insertMCQ(mcq, level, validateRecursiveMCQ, subject_id);
-      recursiveIds.push(id);
+    if (Array.isArray(recursive_levels)) {
+      for (let i = 0; i < Math.min(3, recursive_levels.length); i++) {
+        const level = i + 1;
+        const mcq = recursive_levels[i];
+        try {
+          const id = await insertMCQ(mcq, level, validateRecursiveMCQ, subject_id);
+          recursiveIds.push(id);
+        } catch (err) {
+          console.warn(`⚠️ Skipping recursive level ${level}: ${err.message}`);
+        }
+      }
     }
 
     await supabase.from('mcq_graphs').insert({
@@ -245,9 +140,9 @@ ${raw_mcq_text}
       }
     });
   } catch (err) {
-    console.error('❌ Error generating MCQ Graph:', err.message);
+    console.error('❌ Error saving MCQs:', err.message);
     return res.status(500).json({
-      error: 'Failed to generate MCQ graph',
+      error: 'Failed to save MCQ graph',
       details: err.message
     });
   }

@@ -146,26 +146,26 @@ ${raw_mcq_text}
 - You must identify the question, extract options A–E, and detect the correct answer if present.
 - Then follow all previous instructions to reframe it into the required JSON output.
 - ⚠️ DO NOT return the object as a string.
-- ❌ NO markdown, no headings, no \`\`\`json, no HTML wrapping.`;
+- ❌ NO markdown, no headings, no \`\`\`json, no HTML wrapping.
+🚫 DO NOT return a conversation, a discussion, or a teacher-student dialogue.
+✅ ONLY return the JSON object: { "primary_mcq": ..., "recursive_levels": [...] }`;
 
   const maxAttempts = 3;
   let parsed = null;
   let lastRawOutput = '';
 
   const sanitizeJSON = (text) => {
-    // remove code block markers, leading/trailing quotes, markdown artifacts
     let cleaned = text.trim()
       .replace(/^```(json)?/i, '')
       .replace(/```$/, '')
-      .replace(/^"({[\s\S]*})"$/, '$1') // remove quotes around JSON
-      .replace(/\\"/g, '"') // unescape quotes
-      .replace(/,\s*}/g, '}') // remove trailing commas
+      .replace(/^"({[\s\S]*})"$/, '$1')
+      .replace(/\\"/g, '"')
+      .replace(/,\s*}/g, '}')
       .replace(/,\s*]/g, ']')
-      .replace(/\\n/g, '') // remove escaped newlines
-      .replace(/\n/g, '') // remove raw newlines
-      .replace(/\\t/g, '') // remove tabs
-      .replace(/\\r/g, ''); // remove carriage returns
-
+      .replace(/\\n/g, '')
+      .replace(/\n/g, '')
+      .replace(/\\t/g, '')
+      .replace(/\\r/g, '');
     return cleaned;
   };
 
@@ -189,6 +189,7 @@ ${raw_mcq_text}
         }
 
         break; // ✅ Success
+
       } catch (err) {
         console.warn(`⚠️ Attempt ${attempt}: GPT output invalid - ${err.message}`);
         if (attempt === maxAttempts) {
@@ -206,6 +207,7 @@ ${raw_mcq_text}
           });
         }
       }
+
     } catch (gptErr) {
       console.warn(`❌ GPT API failed on attempt ${attempt}: ${gptErr.message}`);
       if (attempt === maxAttempts) {

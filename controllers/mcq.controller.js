@@ -98,10 +98,6 @@ const insertMCQ = async (mcq, level, validateFn, subject_id) => {
   return id;
 };
 
-// ✅ NEW: Structural validator
-const { supabase } = require('../config/supabaseClient');
-const openai = require('../config/openaiClient');
-
 const isValidMCQGraph = (graph) => {
   const { primary_mcq, recursive_levels } = graph || {};
   if (!primary_mcq || typeof primary_mcq !== 'object') return false;

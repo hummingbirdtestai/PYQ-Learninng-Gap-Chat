@@ -23,6 +23,6 @@ router.post('/mcqs/graph/save-draft', generateAndSaveGraphDraft);
 router.post('/mcqs/graph/process/:graphId', processGraphById);
 
 // ✅ New: Classify untagged MCQs into MBBS subjects using GPT
-router.post('/api/classify-subjects', mcqController.classifySubjects);
+router.post('/classify-subjects', mcqController.classifySubjects);
 
 module.exports = router;

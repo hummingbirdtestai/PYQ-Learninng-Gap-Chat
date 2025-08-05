@@ -98,12 +98,6 @@ const insertMCQ = async (mcq, level, validateFn, subject_id) => {
   return id;
 };
 
-const { v4: uuidv4 } = require('uuid');
-const { supabase } = require('../config/supabaseClient');
-const openai = require('../config/openaiClient');
-
-// ...PROMPT_TEMPLATE, validatePrimaryMCQ, validateRecursiveMCQ, insertMCQ already defined above
-
 exports.generateMCQGraphFromInput = async (req, res) => {
   const { raw_mcq_text, subject_id } = req.body;
 

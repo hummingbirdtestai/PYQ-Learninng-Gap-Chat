@@ -144,7 +144,10 @@ ${raw_mcq_text}
 
 - The above contains the full MCQ as entered by a teacher.
 - You must identify the question, extract options A–E, and detect the correct answer if present.
-- Then follow all previous instructions to reframe it into the required JSON output.`;
+- Then follow all previous instructions to reframe it into the required JSON output.
+- ⚠️ DO NOT return the JSON wrapped inside quotes.
+- ⚠️ DO NOT return the object as a string — return only raw valid JSON.
+- ❌ NO markdown, no headings, no code block.`;
 
   const maxAttempts = 3;
   let parsed = null;
@@ -163,13 +166,19 @@ ${raw_mcq_text}
       try {
         parsed = JSON.parse(lastRawOutput);
 
+        // 🧠 Handle stringified JSON
+        if (typeof parsed === 'string') {
+          parsed = JSON.parse(parsed); // second parse
+        }
+
         if (!isValidMCQGraph(parsed)) {
           throw new Error("GPT response failed structural validation");
         }
 
-        break; // ✅ Success
+        break; // ✅ Valid and parsed successfully
+
       } catch (err) {
-        console.warn(`⚠️ Attempt ${attempt}: GPT output invalid - ${err.message}`);
+        console.warn(`⚠️ Attempt ${attempt}: GPT response invalid - ${err.message}`);
         if (attempt === maxAttempts) {
           await supabase.from('mcq_generation_errors').insert({
             raw_input: raw_mcq_text,
@@ -185,6 +194,7 @@ ${raw_mcq_text}
           });
         }
       }
+
     } catch (gptErr) {
       console.warn(`❌ GPT API failed on attempt ${attempt}: ${gptErr.message}`);
       if (attempt === maxAttempts) {

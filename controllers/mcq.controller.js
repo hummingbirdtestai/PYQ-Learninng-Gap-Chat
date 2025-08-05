@@ -409,3 +409,46 @@ exports.processGraphById = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+const CLASSIFICATION_PROMPT = `
+These are pyqS, Classify the question in each cell into one of the following MBBS subjects:
+Anatomy, Physiology, Biochemistry, Pathology, Pharmacology, Microbiology, Forensic Medicine, Community Medicine, ENT, Ophthalmology, General Medicine, Pediatrics, Dermatology, Psychiatry, General Surgery, Orthopedics, Anesthesia, Radiology, Obstetrics and Gynaecology.
+Only return the subject name (e.g., "Pharmacology")
+`;
+
+exports.classifySubjects = async (req, res) => {
+  try {
+    // Fetch 10 unclassified MCQs
+    const { data: rows, error: fetchError } = await supabase
+      .from('mcq_bank')
+      .select('id, mcq')
+      .is('subject', null)
+      .limit(10);
+
+    if (fetchError) throw fetchError;
+    if (!rows || rows.length === 0) return res.json({ message: '✅ No unclassified MCQs found.' });
+
+    for (const row of rows) {
+      const prompt = `${CLASSIFICATION_PROMPT}\n\nMCQ: ${row.mcq}`;
+
+      const chatResponse = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0,
+      });
+
+      const subject = chatResponse.choices?.[0]?.message?.content?.trim() || 'Unclassified';
+
+      await supabase
+        .from('mcq_bank')
+        .update({ subject })
+        .eq('id', row.id);
+    }
+
+    res.json({ message: `✅ Classified ${rows.length} MCQs.` });
+  } catch (err) {
+    console.error('❌ Error classifying MCQs:', err);
+    res.status(500).json({ error: 'Internal Server Error', details: err.message });
+  }
+};
+

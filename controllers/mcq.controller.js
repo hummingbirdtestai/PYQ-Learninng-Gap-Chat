@@ -47,25 +47,51 @@ If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slid
 All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.`;
 
 // ✅ Primary MCQ Validation (flexible 4–5 options)
+// ✅ Updated Primary MCQ Validator with Error
 const validatePrimaryMCQ = (mcq) => {
-  if (!mcq?.stem || typeof mcq.stem !== 'string' || !mcq?.correct_answer || typeof mcq.correct_answer !== 'string') return false;
+  if (!mcq?.stem || typeof mcq.stem !== 'string') {
+    throw new Error("Primary MCQ: Missing or invalid 'stem'");
+  }
+
+  if (!mcq?.correct_answer || typeof mcq.correct_answer !== 'string') {
+    throw new Error("Primary MCQ: Missing or invalid 'correct_answer'");
+  }
+
   const optionKeys = Object.keys(mcq.options || {});
-  return optionKeys.length >= 4 && optionKeys.length <= 5;
+  if (optionKeys.length < 4 || optionKeys.length > 5) {
+    throw new Error(`Primary MCQ: Must have 4 or 5 options, found ${optionKeys.length}`);
+  }
+
+  return true;
 };
 
-// ✅ Recursive MCQ Validation (must have A–E)
+
+// ✅ Updated Recursive MCQ Validator with Error
 const validateRecursiveMCQ = (mcq) => {
   const requiredKeys = ['A', 'B', 'C', 'D', 'E'];
-  return (
-    mcq?.stem &&
-    typeof mcq.stem === 'string' &&
-    typeof mcq.correct_answer === 'string' &&
-    mcq?.options &&
-    requiredKeys.every(
-      (key) => typeof mcq.options?.[key] === 'string' && mcq.options[key].trim().length > 0
-    )
-  );
+
+  if (!mcq?.stem || typeof mcq.stem !== 'string') {
+    throw new Error("Recursive MCQ: Missing or invalid 'stem'");
+  }
+
+  if (!mcq?.correct_answer || typeof mcq.correct_answer !== 'string') {
+    throw new Error("Recursive MCQ: Missing or invalid 'correct_answer'");
+  }
+
+  if (!mcq?.options || typeof mcq.options !== 'object') {
+    throw new Error("Recursive MCQ: Missing or invalid 'options'");
+  }
+
+  for (const key of requiredKeys) {
+    const val = mcq.options[key];
+    if (!val || typeof val !== 'string' || val.trim().length === 0) {
+      throw new Error(`Recursive MCQ: Option '${key}' is missing or empty`);
+    }
+  }
+
+  return true;
 };
+
 
 // ✅ Insert MCQ into Supabase
 const insertMCQ = async (mcq, level, validateFn, subject_id) => {

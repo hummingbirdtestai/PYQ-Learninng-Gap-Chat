@@ -423,7 +423,7 @@ exports.classifySubjects = async (req, res) => {
       .from('mcq_bank')
       .select('id, mcq')
       .is('subject', null)
-      .limit(10);
+      .limit(100);
 
     if (fetchError) throw fetchError;
     if (!rows || rows.length === 0) return res.json({ message: '✅ No unclassified MCQs found.' });

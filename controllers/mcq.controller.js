@@ -103,6 +103,13 @@ exports.generateMCQGraphFromInput = async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
+  if (!supabase?.from) {
+    return res.status(500).json({
+      error: 'Supabase client is not initialized correctly.',
+      details: 'Missing .from method on Supabase client'
+    });
+  }
+
   const fullPrompt = `${PROMPT_TEMPLATE}
 
 Here is the MCQ:
@@ -131,9 +138,10 @@ ${raw_mcq_text}
         if (!parsed.primary_mcq || !Array.isArray(parsed.recursive_levels)) {
           throw new Error('Missing required fields in GPT response');
         }
-        break; // ✅ Parsed successfully
+        break; // ✅ Successfully parsed
       } catch (err) {
         console.warn(`⚠️ Attempt ${attempt}: Failed to parse GPT output`);
+
         if (attempt === maxAttempts) {
           await supabase.from('mcq_generation_errors').insert({
             raw_input: raw_mcq_text,
@@ -141,6 +149,7 @@ ${raw_mcq_text}
             reason: 'Invalid JSON or missing fields',
             subject_id
           });
+
           return res.status(500).json({
             error: 'Failed to parse GPT response as JSON',
             details: err.message,
@@ -150,6 +159,7 @@ ${raw_mcq_text}
       }
     } catch (gptErr) {
       console.warn(`❌ GPT API failed on attempt ${attempt}: ${gptErr.message}`);
+
       if (attempt === maxAttempts) {
         return res.status(500).json({
           error: 'GPT API failed after 3 attempts',

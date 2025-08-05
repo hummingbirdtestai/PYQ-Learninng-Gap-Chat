@@ -99,192 +99,134 @@ const insertMCQ = async (mcq, level, validateFn, subject_id) => {
 };
 
 // ✅ NEW: Structural validator
-const isValidMCQGraph = (parsed) => {
-  if (!parsed || typeof parsed !== 'object') return false;
+const { supabase } = require('../config/supabaseClient');
+const openai = require('../config/openaiClient');
 
-  const { primary_mcq, recursive_levels } = parsed;
+const isValidMCQGraph = (graph) => {
+  const { primary_mcq, recursive_levels } = graph || {};
   if (!primary_mcq || typeof primary_mcq !== 'object') return false;
-  if (!primary_mcq.stem || typeof primary_mcq.stem !== 'string') return false;
-  if (!primary_mcq.options || typeof primary_mcq.options !== 'object') return false;
-  if (!primary_mcq.correct_answer || typeof primary_mcq.correct_answer !== 'string') return false;
-
-  const optionKeys = Object.keys(primary_mcq.options);
-  if (optionKeys.length < 4 || optionKeys.length > 5) return false;
-
   if (!Array.isArray(recursive_levels) || recursive_levels.length !== 10) return false;
 
-  for (const mcq of recursive_levels) {
-    if (
-      !mcq?.stem ||
-      !mcq?.correct_answer ||
-      typeof mcq.stem !== 'string' ||
-      typeof mcq.correct_answer !== 'string' ||
-      !mcq.options ||
-      typeof mcq.options !== 'object' ||
-      Object.keys(mcq.options).length !== 5
-    ) {
-      return false;
-    }
+  const hasValidStem = (mcq) => typeof mcq.stem === 'string' && mcq.stem.trim() !== '';
+  const hasValidOptions = (mcq) => {
+    const options = Object.keys(mcq.options || {});
+    return options.length >= 4 && options.length <= 5;
+  };
+  const hasCorrectAnswer = (mcq) => typeof mcq.correct_answer === 'string';
+
+  if (!hasValidStem(primary_mcq) || !hasValidOptions(primary_mcq) || !hasCorrectAnswer(primary_mcq)) return false;
+
+  for (const level of recursive_levels) {
+    if (!hasValidStem(level) || !hasValidOptions(level) || !hasCorrectAnswer(level)) return false;
   }
 
   return true;
 };
 
-exports.generateMCQGraphFromInput = async (req, res) => {
+exports.generateFromInput = async (req, res) => {
   const { raw_mcq_text, subject_id } = req.body;
-
   if (!raw_mcq_text || !subject_id) {
-    return res.status(400).json({ error: 'Missing required fields' });
+    return res.status(400).json({ error: 'Missing raw_mcq_text or subject_id' });
   }
 
-  const fullPrompt = `🚨 OUTPUT RULES:
+  const PROMPT = `🚨 OUTPUT RULES:
 Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
 - DO NOT add explanations, comments, or headings.
-- DO NOT return <strong>, <em>, or any HTML tags.
-- DO NOT return a teacher-student discussion.
-- DO NOT return a clinical vignette or case discussion.
 - Your output MUST start with { and end with }.
 - It must be directly parsable by JSON.parse().
 
-🧠 GOAL:
-You are generating a recursive MCQ graph for NEETPG/USMLE/INICET based on one raw MCQ.
+🔬 You are an expert medical educator and exam learning strategist.
+🎯 Your role is to act as a **Learning Gap Diagnostician** for MBBS/MD aspirants preparing for FMGE, NEETPG, INICET, or USMLE.
 
-🎯 Follow this exact structure:
+🧠 OBJECTIVE:
+You will be given a **Previous Year Question (PYQ)** MCQ that a student got wrong. Your task is to:
+1. Reframe the MCQ as a clinical vignette with exactly 5 full sentences, USMLE-style.
+2. Provide 5 options labeled A–E.
+3. Mark the correct answer with the key: "correct_answer"
+4. Add 10 high-yield buzzword facts related to the concept.
+
+Then, recursively generate 10 such MCQs where each one targets the most likely learning gap from the previous.
+
+Format:
 {
   "primary_mcq": {
     "stem": "...",
-    "options": {
-      "A": "...",
-      "B": "...",
-      "C": "...",
-      "D": "...",
-      "E": "..."
-    },
+    "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
     "correct_answer": "B"
   },
   "recursive_levels": [
     {
       "stem": "...",
-      "options": {
-        "A": "...",
-        "B": "...",
-        "C": "...",
-        "D": "...",
-        "E": "..."
-      },
-      "correct_answer": "D"
+      "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
+      "correct_answer": "D",
+      "learning_gap": "..."
     },
     ...
   ]
 }
 
-Return only the above JSON object and nothing else.
+Now here is the PYQ: ${raw_mcq_text}
+`;
 
-Here is the MCQ:
-${raw_mcq_text}
-
-- The above contains the full MCQ as entered by a teacher.
-- You must identify the question, extract options A–E, and detect the correct answer if present.
-- Then follow all previous instructions to reframe it into the required JSON output.`;
-
-  const maxAttempts = 3;
   let parsed = null;
   let lastRawOutput = '';
+  const maxAttempts = 2;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const gptResponse = await openai.chat.completions.create({
+      const completion = await openai.chat.completions.create({
         model: 'gpt-4-0613',
-        messages: [{ role: 'user', content: fullPrompt }],
-        temperature: 0.7
+        messages: [
+          { role: 'system', content: 'You are an expert in generating recursive MCQ graphs.' },
+          { role: 'user', content: PROMPT }
+        ],
+        temperature: 0.4
       });
 
-      lastRawOutput = gptResponse.choices?.[0]?.message?.content || '';
-      console.log(`🧾 Attempt ${attempt} - Raw GPT Output:`, lastRawOutput);
+      lastRawOutput = completion.choices[0]?.message?.content?.trim();
 
-      // Early check for HTML corruption
-      if (
-        lastRawOutput.includes('<strong>') ||
-        lastRawOutput.includes('<html>') ||
-        lastRawOutput.includes('<body>') ||
-        lastRawOutput.includes('<div>')
-      ) {
-        throw new Error('HTML tags detected in GPT response');
+      // 👇 Unescape nested stringified JSON if needed
+      parsed = JSON.parse(lastRawOutput);
+      if (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed);
       }
 
-      try {
-        parsed = JSON.parse(lastRawOutput);
-
-        if (!isValidMCQGraph(parsed)) {
-          throw new Error("GPT response failed structural validation");
-        }
-
-        break; // ✅ Valid output
-      } catch (err) {
-        console.warn(`⚠️ Attempt ${attempt}: GPT output invalid - ${err.message}`);
-        if (attempt === maxAttempts) {
-          await supabase.from('mcq_generation_errors').insert({
-            raw_input: raw_mcq_text,
-            raw_output: lastRawOutput,
-            reason: err.message,
-            subject_id
-          });
-
-          return res.status(500).json({
-            error: '❌ GPT output invalid',
-            details: err.message,
-            raw_output: lastRawOutput
-          });
-        }
+      // ✅ Structural Validation
+      if (!isValidMCQGraph(parsed)) {
+        throw new Error('GPT response failed structural validation');
       }
-    } catch (gptErr) {
-      console.error(`❌ GPT API failed on attempt ${attempt}: ${gptErr.message}`);
+
+      // ✅ Store to Supabase
+      const { error } = await supabase.from('mcq_graphs').insert({
+        subject_id,
+        graph: parsed,
+        status: 'generated'
+      });
+
+      if (error) throw error;
+
+      return res.json({ message: '✅ MCQ graph generated successfully', graph: parsed });
+    } catch (err) {
+      console.warn(`⚠️ Attempt ${attempt} failed: ${err.message}`);
+
       if (attempt === maxAttempts) {
+        await supabase.from('mcq_generation_errors').insert({
+          raw_input: raw_mcq_text,
+          raw_output: lastRawOutput,
+          reason: err.message,
+          subject_id
+        });
+
         return res.status(500).json({
-          error: 'GPT API failed after 3 attempts',
-          details: gptErr.message
+          error: '❌ GPT output invalid',
+          details: err.message,
+          raw_output: lastRawOutput
         });
       }
     }
   }
-
-  try {
-    const primaryId = await insertMCQ(parsed.primary_mcq, 0, validatePrimaryMCQ, subject_id);
-    const recursiveIds = [];
-
-    for (let i = 0; i < parsed.recursive_levels.length; i++) {
-      const level = i + 1;
-      const mcq = parsed.recursive_levels[i];
-      const id = await insertMCQ(mcq, level, validateRecursiveMCQ, subject_id);
-      recursiveIds.push(id);
-    }
-
-    await supabase.from('mcq_graphs').insert({
-      subject_id,
-      graph: {
-        primary_mcq: primaryId,
-        recursive_levels: recursiveIds
-      },
-      generated: true
-    });
-
-    return res.status(200).json({
-      message: '✅ MCQ Graph generated',
-      graph: {
-        primary_mcq: primaryId,
-        recursive_levels: recursiveIds
-      }
-    });
-  } catch (err) {
-    console.error('❌ Error saving MCQ Graph:', err.message);
-    return res.status(500).json({
-      error: 'Failed to generate MCQ graph',
-      details: err.message
-    });
-  }
 };
-
 
 // 🛠️ Manual insertion endpoint
 exports.insertMCQGraphFromJson = async (req, res) => {

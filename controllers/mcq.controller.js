@@ -1,7 +1,3 @@
-const { v4: uuidv4 } = require('uuid');
-const { supabase } = require('../config/supabaseClient');
-const openai = require('../config/openaiClient');
-
 // 🎯 Final Prompt Template
 const { v4: uuidv4 } = require('uuid');
 const { supabase } = require('../config/supabaseClient');

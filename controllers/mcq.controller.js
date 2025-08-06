@@ -456,133 +456,93 @@ exports.classifySubjects = async (req, res) => {
   }
 };
 
-const LEVEL_1_PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
-Your entire output must be a single valid JSON object.
+// ✅ Final Prompt (Unedited)
+const PROMPT_TEMPLATE = `🚨 OUTPUT RULES: Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
 - DO NOT add explanations, comments, or headings.
 - Your output MUST start with { and end with }.
 - It must be directly parsable by JSON.parse().
 
 🔬 You are an expert medical educator and exam learning strategist.
-
-🎯 Your role is to act as a **Learning Gap Diagnostician** for MBBS/MD aspirants preparing for FMGE, NEETPG, INICET, or USMLE.
-
+🎯 Your role is to act as a *Learning Gap Diagnostician* for MBBS/MD aspirants preparing for FMGE, NEETPG, INICET, or USMLE.
 🧠 OBJECTIVE:
-You will be given a MCQ in the following JSON format:
+You will be given a *Previous Year Question (PYQ)* MCQ that a student got wrong. Your task is to:
 
-{
-  "buzzwords": [...],
-  "primary_mcq": {
-    "stem": "...",
-    "options": {
-      "A": "...",
-      "B": "...",
-      "C": "...",
-      "D": "...",
-      "E": "..."
-    },
-    "correct_answer": "..."
-  },
-  "learning_gap": "..."
-}
+1. Reframe the MCQ as a clinical vignette with *exactly 5 full sentences*, USMLE-style.  
+   - The MCQ stem must resemble Amboss/NBME/USMLE-level difficulty.  
+   - Bold all *high-yield keywords* using <strong>...</strong>.  
+   - If an image is mentioned or implied but not provided, imagine a *relevant clinical/anatomical image* and incorporate its findings logically into the stem.
 
-Your task is to:
+2. Provide 4 answer options (A–D), with one correct answer clearly marked.
 
-1. Do NOT create an MCQ testing the same learning_gap verbatim.
-2. Analyze the learning_gap and identify the deeper root cause or conceptual gap.
-3. Create a Level 1 MCQ that tests this **prior concept**, using:
-   - Exactly 5 full USMLE-style clinical sentences.
-   - Bold at least 2 high-yield terms using <strong>...</strong> in the stem.
-   - Use realistic data or findings, including imagined clinical image findings if needed.
-4. Provide 5 options (A–E), clearly marking one as correct.
-5. Provide a new learning_gap (different from original), 1 sentence, with 2+ <strong>...</strong> bolded keywords.
-6. List 10 high-yield facts (buzzwords):
-   - Each 8–12 words long
-   - Start with an emoji
-   - Bold all high-yield terms using <strong>...</strong>
-7. Output must follow this format:
+3. Identify the *key learning gap* if the MCQ was answered wrong.
+   - The learning gap statement must be *one sentence*, and include <strong>bolded keywords</strong> for the missed concept.
 
-{
-  "level_1": {
-    "stem": "...",
-    "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
-    "correct_answer": "B",
-    "learning_gap": "...",
-    "buzzwords": ["...", "...", ...]
-  }
-}`;
+4. Provide 10 *high-quality, laser-sharp, buzzword-style facts* related to the concept of the current MCQ:
+   - Each fact must be *8 to 12 words long*, maximum of one sentence.
+   - Start with a relevant *emoji*.
+   - Bold key terms using <strong>...</strong>.
+   - Format as flat strings in a "buzzwords": [] array.
+   - Style should match Amboss/NBME/USMLE exam revision quality — *concise, specific, exam-sure*.
 
-// ✅ MAIN FUNCTION TO GENERATE LEVEL 1
-exports.generateLevel1ForMCQBank = async (req, res) => {
+5. Output a single JSON object:
+   - "primary_mcq" → for the initial MCQ
+
+💡 Notes:
+All "stem" and "learning_gap" values must contain 2 or more <strong>...</strong> terms.
+If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slide), describe it logically in sentence 5 of the MCQ stem.
+All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.
+`;
+
+exports.generatePrimaryMCQs = async (req, res) => {
   try {
-    const { data: rows, error: fetchError } = await supabase
+    // Fetch 5 rows where primary_mcq is null
+    const { data: mcqs, error: fetchError } = await supabase
       .from('mcq_bank')
-      .select('id, primary_mcq, learning_gap')
-      .is('level_1', null)
-      .not('primary_mcq', 'is', null)
-      .not('learning_gap', 'is', null)
-      .limit(5); // or 100 based on usage
+      .select('id, mcq, correct_answer')
+      .is('primary_mcq', null)
+      .limit(5);
 
     if (fetchError) throw fetchError;
-    if (!rows || rows.length === 0) {
-      return res.json({ message: 'No eligible MCQs found without Level 1.' });
-    }
 
     const results = [];
 
-    for (const row of rows) {
-      const promptInput = {
-        buzzwords: row.primary_mcq?.buzzwords || [],
-        primary_mcq: row.primary_mcq,
-        learning_gap: row.learning_gap
-      };
+    for (const row of mcqs) {
+      const fullPrompt = `${PROMPT_TEMPLATE}\n\nMCQ: ${row.mcq}\nCorrect Answer: ${row.correct_answer}`;
+      let parsed = null;
+      let rawOutput = '';
 
-      const prompt = `${LEVEL_1_PROMPT_TEMPLATE}\n\n${JSON.stringify(promptInput)}`;
-
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4-0613',
-        messages: [
-          { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.5
-      });
-
-      const outputText = completion.choices[0].message.content.trim();
-
-      let parsed;
       try {
-        parsed = JSON.parse(outputText);
-        if (!parsed.level_1 || !parsed.level_1.stem || !parsed.level_1.correct_answer || !parsed.level_1.buzzwords) {
-          throw new Error('❌ Incomplete or invalid structure in level_1');
-        }
+        const gptResponse = await openai.chat.completions.create({
+          model: 'gpt-4-0613',
+          messages: [{ role: 'user', content: fullPrompt }],
+          temperature: 0.7
+        });
+
+        rawOutput = gptResponse.choices?.[0]?.message?.content || '';
+        const cleaned = rawOutput.trim().replace(/^```json|```$/g, '');
+        parsed = JSON.parse(cleaned);
       } catch (err) {
-        console.error('❌ Invalid JSON from GPT:', err.message, '\nRaw Output:', outputText);
-        results.push({ id: row.id, status: '❌ GPT JSON Parse Error' });
+        console.warn(`❌ GPT failed for mcq_id ${row.id}:`, err.message);
         continue;
       }
 
       const { error: updateError } = await supabase
         .from('mcq_bank')
-        .update({ level_1: parsed.level_1 })
+        .update({ primary_mcq: parsed })
         .eq('id', row.id);
 
       if (updateError) {
-        console.error('❌ Supabase update error:', updateError);
-        results.push({ id: row.id, status: '❌ DB Update Failed' });
+        console.error(`❌ Failed to update row ${row.id}`, updateError);
         continue;
       }
 
-      results.push({ id: row.id, status: '✅ Level 1 Saved' });
+      results.push({ id: row.id, status: '✅ Inserted', preview: parsed.primary_mcq?.stem || 'N/A' });
     }
 
-    return res.json({
-      message: `${results.length} Level 1 MCQs processed.`,
-      updated: results
-    });
-
+    return res.status(200).json({ message: '✅ Processed', count: results.length, results });
   } catch (err) {
-    console.error('❌ Fatal Error in Level 1 Generator:', err.message || err);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error('❌ Error generating primary MCQs:', err.message);
+    return res.status(500).json({ error: 'Internal Server Error', details: err.message });
   }
 };

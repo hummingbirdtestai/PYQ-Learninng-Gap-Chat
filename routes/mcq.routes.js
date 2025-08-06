@@ -4,30 +4,47 @@ const router = express.Router();
 const mcqController = require('../controllers/mcq.controller');
 
 const {
-  generateMCQGraphFromInput,       // Legacy (optional)
-  insertMCQGraphFromJson,          // Legacy (optional)
-  generateAndSaveGraphDraft,       // ✅ Save draft graph from raw_text + subject_id
-  processGraphById,                // ✅ Process graph and insert MCQs
-  classifySubjects,                // ✅ Classify MCQs using GPT
-  generatePrimaryMCQs,             // ✅ Generate primary MCQs and store in primary_mcq
-  generateLevel1ForMCQBank         // ✅ Generate Level 1 MCQ based on learning gap
+  // Legacy or optional routes — use only if needed
+  generateMCQGraphFromInput,       // 🔁 Convert raw MCQ text into full MCQ graph using GPT
+  insertMCQGraphFromJson,          // 🔁 Insert full MCQ graph manually via JSON
+
+  // GPT-based MCQ Generation and Processing
+  generateAndSaveGraphDraft,       // ✅ Save raw MCQ graph draft (unprocessed)
+  processGraphById,                // ✅ Process graph: insert all MCQs into database
+
+  // Subject Classification
+  classifySubjects,                // ✅ Auto-classify MCQs into 19 MBBS subjects
+
+  // Primary MCQ Generation
+  generatePrimaryMCQs,             // ✅ Generate formatted primary_mcq from raw input
+
+  // Recursive Learning Gap Remediation
+  generateLevel1ForMCQBank         // ✅ Generate Level 1 MCQ for each primary MCQ
 } = mcqController;
 
-// ⚠️ Optional legacy routes — only enable if used
+// -----------------------------------------
+// 🧠 GPT-BASED MCQ FLOW ROUTES
+// -----------------------------------------
+
+// 🧠 GPT: Generate MCQ graph from raw text
 router.post('/mcqs/generate-from-input', generateMCQGraphFromInput);
+
+// 🧠 GPT: Insert MCQ graph via JSON
 router.post('/mcqs/insert-from-json', insertMCQGraphFromJson);
 
-// ✅ GPT-based MCQ generation and processing
+// 🧠 GPT: Save raw graph as draft
 router.post('/mcqs/graph/save-draft', generateAndSaveGraphDraft);
+
+// 🧠 GPT: Process graph by ID and insert MCQs
 router.post('/mcqs/graph/process/:graphId', processGraphById);
 
-// ✅ Auto-classify MCQs by subject using GPT
+// 🧠 GPT: Auto-classify MCQs by subject
 router.post('/classify-subjects', classifySubjects);
 
-// ✅ Generate Primary MCQs (Step 1 of recursion)
+// 🧠 GPT: Generate primary_mcq from unstructured text
 router.post('/mcqs/generate-primary', generatePrimaryMCQs);
 
-// ✅ Generate Recursive Level 1 MCQs from learning_gap of primary_mcq
+// 🧠 GPT: Generate Level 1 MCQ from learning_gap (Recursive)
 router.post('/mcqs/generate-level1', generateLevel1ForMCQBank);
 
 module.exports = router;

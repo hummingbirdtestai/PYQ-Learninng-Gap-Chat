@@ -1072,6 +1072,20 @@ paths:
           description: Classification completed successfully
         '500':
           description: Server error during classification
+  
+  /api/mcqs/generate-primary:
+    post:
+      summary: Generate primary MCQs using ChatGPT for rows in mcq_bank
+      tags:
+        - MCQs
+      description: |
+        Picks 5 rows from `mcq_bank` where `primary_mcq` is NULL, uses GPT-4 to create structured JSON, and inserts it into the `primary_mcq` column.
+      responses:
+        '200':
+          description: Primary MCQs generated and stored successfully
+        '500':
+          description: Server error
+
 
 components:
   schemas:

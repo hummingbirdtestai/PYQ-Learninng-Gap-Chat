@@ -566,10 +566,71 @@ exports.generatePrimaryMCQs = async (req, res) => {
 };
 
 
-const LEVEL_1_PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
+
+
+exports.generateLevel1ForMCQBank = async (req, res) => {
+  try {
+    // 1. Fetch 5 rows where level_1 is NULL
+    const { data: rows, error: fetchError } = await supabase
+      .from('mcq_bank')
+      .select('id, primary_mcq, buzzwords, learning_gap')
+      .is('level_1', null)
+      .limit(5);
+
+    if (fetchError) throw fetchError;
+    if (!rows.length) return res.json({ message: '✅ All MCQs have Level 1 content.' });
+
+    const updated = [];
+
+    for (const row of rows) {
+      const prompt = buildPrompt(row);
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+      });
+
+      let gptResponse = completion.choices[0].message.content.trim();
+
+      // Parse and validate output
+      let parsed;
+      try {
+        parsed = JSON.parse(gptResponse);
+        if (!parsed.level_1 || !parsed.level_1.stem || !parsed.level_1.options || !parsed.level_1.correct_answer || !parsed.level_1.learning_gap || !Array.isArray(parsed.level_1.buzzwords)) {
+          throw new Error('Invalid level_1 structure');
+        }
+      } catch (err) {
+        console.error('❌ Invalid GPT output for row ID:', row.id);
+        continue; // Skip this row
+      }
+
+      // 3. Update row
+      const { error: updateError } = await supabase
+        .from('mcq_bank')
+        .update({ level_1: parsed })
+        .eq('id', row.id);
+
+      if (updateError) {
+        console.error('❌ Update failed for ID:', row.id);
+        continue;
+      }
+
+      updated.push(row.id);
+    }
+
+    res.json({ message: `✅ Level 1 MCQs generated for ${updated.length} rows`, updated });
+
+  } catch (err) {
+    console.error('❌ Internal error in generateLevel1ForMCQBank:', err.message);
+    res.status(500).json({ error: 'Server error while generating level_1 MCQs' });
+  }
+};
+
+function buildPrompt({ primary_mcq, buzzwords, learning_gap }) {
+  return `🚨 OUTPUT RULES:
 Your entire output must be a single valid JSON object.
-- DO NOT include 
-json or any markdown syntax.
+- DO NOT include \`\`\`json or any markdown syntax.
 - DO NOT add explanations, comments, or headings.
 - Your output MUST start with { and end with }.
 - It must be directly parsable by JSON.parse().
@@ -582,13 +643,9 @@ json or any markdown syntax.
 You will be given a MCQ in the following JSON format:
 
 {
-  "buzzwords": [...],
-  "primary_mcq": {
-    "stem": "...",
-    "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
-    "correct_answer": "..."
-  },
-  "learning_gap": "..."
+  "buzzwords": ${JSON.stringify(buzzwords)},
+  "primary_mcq": ${JSON.stringify(primary_mcq)},
+  "learning_gap": ${JSON.stringify(learning_gap)}
 }
 
 Your task is to:
@@ -612,70 +669,14 @@ Your task is to:
    - Each must be 8–12 words long, **max one sentence**.
    - Start each with a relevant **emoji**.
    - Bold all key terms using \`<strong>...</strong>\`.
-   - List them inside a flat "buzzwords": [] array.
+   - List them inside a flat \`"buzzwords": []\` array.
 
 6. Output format:
-Return a single JSON object with the key "level_1", and include all the above elements inside.
+Return a single JSON object with the key \`"level_1"\`, and include all the above elements inside.
 
 💡 Format Rules:
 - The "stem" and "learning_gap" must each contain **at least two \`<strong>...</strong>\` terms**.
 - Do NOT restate the original MCQ's learning gap or answer directly.
 - Ensure this is truly **recursive** — testing the **prior step** in reasoning.
 `;
-
-exports.generateLevel1ForMCQBank = async (req, res) => {
-  try {
-    const { data: rows, error: fetchError } = await supabase
-      .from('mcq_bank')
-      .select('id, primary_mcq')
-      .is('level_1', null)
-      .not('primary_mcq', 'is', null)
-      .limit(5);
-
-    if (fetchError) throw fetchError;
-    if (!rows || rows.length === 0) {
-      return res.json({ message: 'No eligible MCQs found without Level 1.' });
-    }
-
-    const results = [];
-
-    for (const row of rows) {
-      const prompt = `${LEVEL_1_PROMPT_TEMPLATE}\n\nPrimary MCQ:\n${JSON.stringify(row.primary_mcq)}`;
-
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4-0613',
-        messages: [
-          { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.5
-      });
-
-      const outputText = completion.choices[0].message.content.trim();
-
-      let parsed;
-      try {
-        parsed = JSON.parse(outputText);
-        if (!parsed.level_1) throw new Error('Missing level_1 key');
-      } catch (err) {
-        console.error('❌ Invalid JSON from GPT:', err.message);
-        continue;
-      }
-
-      const { error: updateError } = await supabase
-        .from('mcq_bank')
-        .update({ level_1: parsed.level_1 })
-        .eq('id', row.id);
-
-      if (updateError) throw updateError;
-
-      results.push({ id: row.id, status: '✅ Inserted Level 1' });
-    }
-
-    return res.json({ message: `${results.length} Level 1 MCQs generated and saved.`, details: results });
-  } catch (err) {
-    console.error('❌ Error generating Level 1 MCQs:', err.message || err);
-    return res.status(500).json({ error: 'Internal Server Error' });
-  }
-};
-
+}

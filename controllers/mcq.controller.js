@@ -503,7 +503,7 @@ exports.generatePrimaryMCQs = async (req, res) => {
       .from('mcq_bank')
       .select('id, mcq, correct_answer')
       .is('primary_mcq', null)
-      .limit(50);
+      .limit(5);
 
     if (fetchError) throw fetchError;
 

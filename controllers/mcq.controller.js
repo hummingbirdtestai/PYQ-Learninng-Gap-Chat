@@ -457,7 +457,7 @@ exports.classifySubjects = async (req, res) => {
 };
 
 
-// ✅ Final Prompt (Unedited)
+// ✅ Final Prompt Template
 const PROMPT_TEMPLATE = `🚨 OUTPUT RULES: Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
 - DO NOT add explanations, comments, or headings.
@@ -488,6 +488,8 @@ You will be given a *Previous Year Question (PYQ)* MCQ that a student got wrong.
 
 5. Output a single JSON object:
    - "primary_mcq" → for the initial MCQ
+   - "learning_gap" → for the missed concept
+   - "buzzwords" → for revision
 
 💡 Notes:
 All "stem" and "learning_gap" values must contain 2 or more <strong>...</strong> terms.
@@ -497,7 +499,6 @@ All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each st
 
 exports.generatePrimaryMCQs = async (req, res) => {
   try {
-    // Fetch 5 rows where primary_mcq is null
     const { data: mcqs, error: fetchError } = await supabase
       .from('mcq_bank')
       .select('id, mcq, correct_answer')
@@ -523,6 +524,11 @@ exports.generatePrimaryMCQs = async (req, res) => {
         rawOutput = gptResponse.choices?.[0]?.message?.content || '';
         const cleaned = rawOutput.trim().replace(/^```json|```$/g, '');
         parsed = JSON.parse(cleaned);
+
+        // ✅ Validate required structure
+        if (!parsed.primary_mcq || !parsed.learning_gap || !parsed.buzzwords) {
+          throw new Error('Missing one or more required fields: primary_mcq, learning_gap, buzzwords');
+        }
       } catch (err) {
         console.warn(`❌ GPT failed for mcq_id ${row.id}:`, err.message);
         continue;
@@ -538,12 +544,23 @@ exports.generatePrimaryMCQs = async (req, res) => {
         continue;
       }
 
-      results.push({ id: row.id, status: '✅ Inserted', preview: parsed.primary_mcq?.stem || 'N/A' });
+      results.push({
+        id: row.id,
+        status: '✅ Inserted',
+        preview: parsed.primary_mcq?.stem || 'N/A'
+      });
     }
 
-    return res.status(200).json({ message: '✅ Processed', count: results.length, results });
+    return res.status(200).json({
+      message: '✅ GPT-based primary MCQ generation complete',
+      count: results.length,
+      results
+    });
   } catch (err) {
-    console.error('❌ Error generating primary MCQs:', err.message);
-    return res.status(500).json({ error: 'Internal Server Error', details: err.message });
+    console.error('❌ Error in generatePrimaryMCQs:', err.message);
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      details: err.message
+    });
   }
 };

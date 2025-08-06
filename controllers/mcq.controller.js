@@ -456,6 +456,9 @@ exports.classifySubjects = async (req, res) => {
   }
 };
 
+const { supabase } = require('../config/supabaseClient');
+const openai = require('../config/openaiClient');
+
 const LEVEL_1_PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
 Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
@@ -474,7 +477,13 @@ You will be given a MCQ in the following JSON format:
   "buzzwords": [...],
   "primary_mcq": {
     "stem": "...",
-    "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
+    "options": {
+      "A": "...",
+      "B": "...",
+      "C": "...",
+      "D": "...",
+      "E": "..."
+    },
     "correct_answer": "..."
   },
   "learning_gap": "..."
@@ -483,51 +492,55 @@ You will be given a MCQ in the following JSON format:
 Your task is to:
 
 1. Do NOT create an MCQ testing the same learning_gap verbatim.
-   - Analyze the learning_gap and identify a deeper root concept.
-   - Create a Level 1 MCQ that tests this prior concept.
+2. Analyze the learning_gap and identify the deeper root cause or conceptual gap.
+3. Create a Level 1 MCQ that tests this **prior concept**, using:
+   - Exactly 5 full USMLE-style clinical sentences.
+   - Bold at least 2 high-yield terms using <strong>...</strong> in the stem.
+   - Use realistic data or findings, including imagined clinical image findings if needed.
+4. Provide 5 options (A–E), clearly marking one as correct.
+5. Provide a new learning_gap (different from original), 1 sentence, with 2+ <strong>...</strong> bolded keywords.
+6. List 10 high-yield facts (buzzwords):
+   - Each 8–12 words long
+   - Start with an emoji
+   - Bold all high-yield terms using <strong>...</strong>
+7. Output must follow this format:
 
-2. Write the MCQ as a USMLE-style clinical vignette with exactly 5 full sentences.
-   - Use <strong>...</strong> to bold at least 2 high-yield terms in the stem.
-   - In sentence 5, describe an imagined image (CT, histo, etc.) if relevant.
-
-3. Provide:
-   - options (A–E)
-   - correct_answer (must be one of A–E)
-   - learning_gap (with at least 2 <strong>...</strong> terms)
-   - buzzwords: 10 items, emoji-prefixed, 8–12 words, <strong> terms bolded
-
-6. Format the output like:
 {
   "level_1": {
     "stem": "...",
     "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
-    "correct_answer": "...",
+    "correct_answer": "B",
     "learning_gap": "...",
-    "buzzwords": ["..."]
+    "buzzwords": ["...", "...", ...]
   }
-}
-`;
+}`;
 
+// ✅ MAIN FUNCTION TO GENERATE LEVEL 1
 exports.generateLevel1ForMCQBank = async (req, res) => {
   try {
     const { data: rows, error: fetchError } = await supabase
       .from('mcq_bank')
-      .select('id, primary_mcq, buzzwords, learning_gap')
+      .select('id, primary_mcq, learning_gap')
       .is('level_1', null)
       .not('primary_mcq', 'is', null)
-      .limit(5);
+      .not('learning_gap', 'is', null)
+      .limit(5); // or 100 based on usage
 
     if (fetchError) throw fetchError;
-    if (!rows?.length) return res.json({ message: '✅ No eligible MCQs found.' });
+    if (!rows || rows.length === 0) {
+      return res.json({ message: 'No eligible MCQs found without Level 1.' });
+    }
 
     const results = [];
 
     for (const row of rows) {
-      const prompt = `${LEVEL_1_PROMPT_TEMPLATE}\n\n{
-  "buzzwords": ${JSON.stringify(row.buzzwords || [])},
-  "primary_mcq": ${JSON.stringify(row.primary_mcq)},
-  "learning_gap": "${row.learning_gap || ''}"
-}`;
+      const promptInput = {
+        buzzwords: row.primary_mcq?.buzzwords || [],
+        primary_mcq: row.primary_mcq,
+        learning_gap: row.learning_gap
+      };
+
+      const prompt = `${LEVEL_1_PROMPT_TEMPLATE}\n\n${JSON.stringify(promptInput)}`;
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4-0613',
@@ -538,65 +551,41 @@ exports.generateLevel1ForMCQBank = async (req, res) => {
         temperature: 0.5
       });
 
-      const raw = completion.choices?.[0]?.message?.content?.trim();
-      if (!raw) {
-        results.push({ id: row.id, status: '❌ Empty GPT response' });
-        continue;
-      }
+      const outputText = completion.choices[0].message.content.trim();
 
       let parsed;
       try {
-        parsed = JSON.parse(raw);
-        const l1 = parsed.level_1;
-
-        // Validation rules
-        if (!l1 || typeof l1 !== 'object') throw new Error('Missing level_1 object');
-
-        const requiredKeys = ['stem', 'options', 'correct_answer', 'learning_gap', 'buzzwords'];
-        for (const key of requiredKeys) {
-          if (!(key in l1)) throw new Error(`Missing ${key}`);
+        parsed = JSON.parse(outputText);
+        if (!parsed.level_1 || !parsed.level_1.stem || !parsed.level_1.correct_answer || !parsed.level_1.buzzwords) {
+          throw new Error('❌ Incomplete or invalid structure in level_1');
         }
-
-        if (!['A', 'B', 'C', 'D', 'E'].includes(l1.correct_answer))
-          throw new Error('Invalid correct_answer (must be A–E)');
-
-        const optionKeys = Object.keys(l1.options || {});
-        if (optionKeys.length !== 5) throw new Error('Options must include A–E');
-
-        const boldStem = (l1.stem.match(/<strong>/g) || []).length;
-        const boldGap = (l1.learning_gap.match(/<strong>/g) || []).length;
-        if (boldStem < 2 || boldGap < 2) throw new Error('Missing bolded keywords');
-
-        if (!Array.isArray(l1.buzzwords) || l1.buzzwords.length !== 10)
-          throw new Error('Buzzwords must be array of 10 items');
-
-        // Optional: Each buzzword should have emoji and <strong>
-        const buzzwordValid = l1.buzzwords.every(
-          (b) => typeof b === 'string' && b.match(/^.{0,2}.*<strong>.*<\/strong>/)
-        );
-        if (!buzzwordValid) throw new Error('One or more buzzwords invalid');
-
-        // Save to Supabase
-        const { error: updateError } = await supabase
-          .from('mcq_bank')
-          .update({ level_1: l1 })
-          .eq('id', row.id);
-
-        if (updateError) throw updateError;
-
-        results.push({ id: row.id, status: '✅ Level 1 saved' });
       } catch (err) {
-        console.error(`❌ Error parsing/saving for ID ${row.id}:`, err.message);
-        results.push({ id: row.id, status: `❌ ${err.message}` });
+        console.error('❌ Invalid JSON from GPT:', err.message, '\nRaw Output:', outputText);
+        results.push({ id: row.id, status: '❌ GPT JSON Parse Error' });
+        continue;
       }
+
+      const { error: updateError } = await supabase
+        .from('mcq_bank')
+        .update({ level_1: parsed.level_1 })
+        .eq('id', row.id);
+
+      if (updateError) {
+        console.error('❌ Supabase update error:', updateError);
+        results.push({ id: row.id, status: '❌ DB Update Failed' });
+        continue;
+      }
+
+      results.push({ id: row.id, status: '✅ Level 1 Saved' });
     }
 
     return res.json({
-      message: `🎯 ${results.filter((r) => r.status.startsWith('✅')).length} Level 1 MCQs saved.`,
-      results
+      message: `${results.length} Level 1 MCQs processed.`,
+      updated: results
     });
+
   } catch (err) {
-    console.error('❌ Fatal error in generateLevel1ForMCQBank:', err.message);
+    console.error('❌ Fatal Error in Level 1 Generator:', err.message || err);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 };

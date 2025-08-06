@@ -456,9 +456,6 @@ exports.classifySubjects = async (req, res) => {
   }
 };
 
-const { supabase } = require('../config/supabaseClient');
-const openai = require('../config/openaiClient');
-
 const LEVEL_1_PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
 Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.

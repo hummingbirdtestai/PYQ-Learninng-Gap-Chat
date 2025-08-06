@@ -566,11 +566,6 @@ exports.generatePrimaryMCQs = async (req, res) => {
 };
 
 
-
-
-const { supabase } = require('../config/supabaseClient');
-const openai = require('../config/openaiClient');
-
 exports.generateLevel1ForMCQBank = async (req, res) => {
   try {
     // 1. Fetch 5 rows where level_1 is NULL

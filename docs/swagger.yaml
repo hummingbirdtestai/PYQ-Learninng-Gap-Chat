@@ -1075,17 +1075,46 @@ paths:
   
   /api/mcqs/generate-primary:
     post:
-      summary: Generate primary MCQs using ChatGPT for rows in mcq_bank
+      summary: Generate Primary MCQs from existing raw questions
       tags:
         - MCQs
-      description: |
-        Picks 5 rows from `mcq_bank` where `primary_mcq` is NULL, uses GPT-4 to create structured JSON, and inserts it into the `primary_mcq` column.
+      description: >
+        Uses GPT to generate a structured primary MCQ from raw MCQ and correct answer.
+        Output includes:
+        - primary_mcq: structured clinical vignette MCQ
+        - learning_gap: short bolded explanation of key missed concept
+        - buzzwords: 10 concise, exam-focused revision points
       responses:
         '200':
-          description: Primary MCQs generated and stored successfully
+          description: GPT-generated MCQs inserted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: ✅ GPT-based primary MCQ generation complete
+                  count:
+                    type: integer
+                    example: 5
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          example: 123e4567-e89b-12d3-a456-426614174000
+                        status:
+                          type: string
+                          example: ✅ Inserted
+                        preview:
+                          type: string
+                          example: A 40-year-old man presents with <strong>palpitations</strong> and ...
         '500':
-          description: Server error
-
+          description: Internal server error
 
 components:
   schemas:

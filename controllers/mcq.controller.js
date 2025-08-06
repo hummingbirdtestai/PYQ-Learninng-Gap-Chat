@@ -568,6 +568,9 @@ exports.generatePrimaryMCQs = async (req, res) => {
 
 
 
+const { supabase } = require('../config/supabaseClient');
+const openai = require('../config/openaiClient');
+
 exports.generateLevel1ForMCQBank = async (req, res) => {
   try {
     // 1. Fetch 5 rows where level_1 is NULL
@@ -597,18 +600,25 @@ exports.generateLevel1ForMCQBank = async (req, res) => {
       let parsed;
       try {
         parsed = JSON.parse(gptResponse);
-        if (!parsed.level_1 || !parsed.level_1.stem || !parsed.level_1.options || !parsed.level_1.correct_answer || !parsed.level_1.learning_gap || !Array.isArray(parsed.level_1.buzzwords)) {
+        if (
+          !parsed.level_1 ||
+          !parsed.level_1.stem ||
+          !parsed.level_1.options ||
+          !parsed.level_1.correct_answer ||
+          !parsed.level_1.learning_gap ||
+          !Array.isArray(parsed.level_1.buzzwords)
+        ) {
           throw new Error('Invalid level_1 structure');
         }
       } catch (err) {
-        console.error('❌ Invalid GPT output for row ID:', row.id);
-        continue; // Skip this row
+        console.error('❌ Invalid GPT output for row ID:', row.id, '\n', gptResponse);
+        continue;
       }
 
       // 3. Update row
       const { error: updateError } = await supabase
         .from('mcq_bank')
-        .update({ level_1: parsed })
+        .update({ level_1: parsed.level_1 }) // ⚠️ Store only the nested `level_1` object
         .eq('id', row.id);
 
       if (updateError) {
@@ -645,7 +655,7 @@ You will be given a MCQ in the following JSON format:
 {
   "buzzwords": ${JSON.stringify(buzzwords)},
   "primary_mcq": ${JSON.stringify(primary_mcq)},
-  "learning_gap": ${JSON.stringify(learning_gap)}
+  "learning_gap": "${learning_gap}"
 }
 
 Your task is to:

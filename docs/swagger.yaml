@@ -1116,22 +1116,34 @@ paths:
         '500':
           description: Internal server error
           
-/api/mcqs/generate-primary:
+/api/mcqs/generate-level1:
     post:
-      summary: Generate primary MCQs using ChatGPT for rows in mcq_bank
+      summary: Generate recursive Level 1 MCQ based on learning gap in primary_mcq
       tags:
         - MCQs
-      description: |
-        Picks 5 rows from `mcq_bank` where `primary_mcq` is NULL, uses GPT-4 to create structured JSON, and inserts it into the `primary_mcq` column.
       responses:
         '200':
-          description: Primary MCQs generated and stored successfully
-        '500':
-          description: Server error
-
-
-
-
+          description: Successfully generated and stored Level 1 MCQs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        status:
+                          type: string
+      description: |
+        Picks 5 MCQs from `mcq_bank` where `primary_mcq` is present and `level_1` is null.
+        Sends them to ChatGPT to generate a recursive MCQ based on learning gap using the defined prompt.
+        Updates the `level_1` column with valid JSON output.
 
 components:
   schemas:

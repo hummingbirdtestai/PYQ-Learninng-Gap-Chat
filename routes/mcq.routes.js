@@ -4,28 +4,30 @@ const router = express.Router();
 const mcqController = require('../controllers/mcq.controller');
 
 const {
-  generateMCQGraphFromInput,       // Optional legacy API — not required if not using
-  insertMCQGraphFromJson,          // Optional legacy API — not required if not using
+  generateMCQGraphFromInput,       // Legacy (optional)
+  insertMCQGraphFromJson,          // Legacy (optional)
   generateAndSaveGraphDraft,       // ✅ Save draft graph from raw_text + subject_id
   processGraphById,                // ✅ Process graph and insert MCQs
-  classifySubjects,                // ✅ Classify MCQs to MBBS subjects using GPT
-  generatePrimaryMCQs              // ✅ NEW: Generate primary MCQs via GPT and store in `primary_mcq` column
+  classifySubjects,                // ✅ Classify MCQs using GPT
+  generatePrimaryMCQs,             // ✅ Generate primary MCQs and store in primary_mcq
+  generateLevel1ForMCQBank         // ✅ Generate Level 1 MCQ based on learning gap
 } = mcqController;
 
-// ⚠️ Optional legacy routes (comment out if not used)
+// ⚠️ Optional legacy routes — only enable if used
 router.post('/mcqs/generate-from-input', generateMCQGraphFromInput);
 router.post('/mcqs/insert-from-json', insertMCQGraphFromJson);
 
-// ✅ Save GPT-generated MCQ graph draft (raw_text + subject_id)
+// ✅ GPT-based MCQ generation and processing
 router.post('/mcqs/graph/save-draft', generateAndSaveGraphDraft);
-
-// ✅ Process the draft graph and insert MCQs into `mcqs` table
 router.post('/mcqs/graph/process/:graphId', processGraphById);
 
-// ✅ Classify untagged MCQs into MBBS subjects using GPT
+// ✅ Auto-classify MCQs by subject using GPT
 router.post('/classify-subjects', classifySubjects);
 
-// ✅ NEW: Generate primary MCQs and store in `primary_mcq` column (based on prompt)
+// ✅ Generate Primary MCQs (Step 1 of recursion)
 router.post('/mcqs/generate-primary', generatePrimaryMCQs);
+
+// ✅ Generate Recursive Level 1 MCQs from learning_gap of primary_mcq
+router.post('/mcqs/generate-level1', generateLevel1ForMCQBank);
 
 module.exports = router;

@@ -564,3 +564,118 @@ exports.generatePrimaryMCQs = async (req, res) => {
     });
   }
 };
+
+
+const LEVEL_1_PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
+Your entire output must be a single valid JSON object.
+- DO NOT include 
+json or any markdown syntax.
+- DO NOT add explanations, comments, or headings.
+- Your output MUST start with { and end with }.
+- It must be directly parsable by JSON.parse().
+
+🔬 You are an expert medical educator and exam learning strategist.
+
+🎯 Your role is to act as a **Learning Gap Diagnostician** for MBBS/MD aspirants preparing for FMGE, NEETPG, INICET, or USMLE.
+
+🧠 OBJECTIVE:
+You will be given a MCQ in the following JSON format:
+
+{
+  "buzzwords": [...],
+  "primary_mcq": {
+    "stem": "...",
+    "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
+    "correct_answer": "..."
+  },
+  "learning_gap": "..."
+}
+
+Your task is to:
+
+1. **Do NOT create an MCQ testing the same learning_gap verbatim.**
+   - Instead, analyze the **learning_gap** field and identify the most likely **prior foundational concept or misconception** that, if misunderstood, would lead a student to miss this primary MCQ.
+   - Based on this **root cause**, generate a **Level 1 MCQ** that recursively tests this **upstream concept**.
+
+2. Write the Level 1 MCQ as a **USMLE-style clinical vignette** with **exactly 5 full sentences**.
+   - It must reflect **Amboss/NBME/USMLE-level reasoning difficulty**.
+   - Bold all high-yield keywords using \`<strong>...</strong>\`.
+   - If an image is implied but not shown (e.g., CT, fundus, histo), **imagine the finding and describe it logically in sentence 5.**
+
+3. Provide 5 answer options (A–E), with one clearly correct answer marked.
+
+4. Include the **new learning gap** this recursive MCQ is testing.
+   - This must be **a different, deeper root-level gap** than the original.
+   - Write it as **one sentence**, with **at least two bolded keywords** using \`<strong>...</strong>\`.
+
+5. Provide a list of 10 **buzzword-style high-yield facts** related to this new MCQ’s concept:
+   - Each must be 8–12 words long, **max one sentence**.
+   - Start each with a relevant **emoji**.
+   - Bold all key terms using \`<strong>...</strong>\`.
+   - List them inside a flat "buzzwords": [] array.
+
+6. Output format:
+Return a single JSON object with the key "level_1", and include all the above elements inside.
+
+💡 Format Rules:
+- The "stem" and "learning_gap" must each contain **at least two \`<strong>...</strong>\` terms**.
+- Do NOT restate the original MCQ's learning gap or answer directly.
+- Ensure this is truly **recursive** — testing the **prior step** in reasoning.
+`;
+
+exports.generateLevel1ForMCQBank = async (req, res) => {
+  try {
+    const { data: rows, error: fetchError } = await supabase
+      .from('mcq_bank')
+      .select('id, primary_mcq')
+      .is('level_1', null)
+      .not('primary_mcq', 'is', null)
+      .limit(5);
+
+    if (fetchError) throw fetchError;
+    if (!rows || rows.length === 0) {
+      return res.json({ message: 'No eligible MCQs found without Level 1.' });
+    }
+
+    const results = [];
+
+    for (const row of rows) {
+      const prompt = `${LEVEL_1_PROMPT_TEMPLATE}\n\nPrimary MCQ:\n${JSON.stringify(row.primary_mcq)}`;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4-0613',
+        messages: [
+          { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.5
+      });
+
+      const outputText = completion.choices[0].message.content.trim();
+
+      let parsed;
+      try {
+        parsed = JSON.parse(outputText);
+        if (!parsed.level_1) throw new Error('Missing level_1 key');
+      } catch (err) {
+        console.error('❌ Invalid JSON from GPT:', err.message);
+        continue;
+      }
+
+      const { error: updateError } = await supabase
+        .from('mcq_bank')
+        .update({ level_1: parsed.level_1 })
+        .eq('id', row.id);
+
+      if (updateError) throw updateError;
+
+      results.push({ id: row.id, status: '✅ Inserted Level 1' });
+    }
+
+    return res.json({ message: `${results.length} Level 1 MCQs generated and saved.`, details: results });
+  } catch (err) {
+    console.error('❌ Error generating Level 1 MCQs:', err.message || err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+

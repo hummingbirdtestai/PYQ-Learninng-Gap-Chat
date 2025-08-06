@@ -1118,12 +1118,12 @@ paths:
           
   /api/mcqs/generate-level1:
     post:
-      summary: Generate recursive Level 1 MCQ based on learning gap in primary_mcq
+      summary: Generate Level 1 MCQ based on existing primary_mcq and learning_gap
       tags:
         - MCQs
       responses:
         '200':
-          description: Successfully generated and stored Level 1 MCQs
+          description: Successfully generated Level 1 MCQs
           content:
             application/json:
               schema:
@@ -1131,19 +1131,13 @@ paths:
                 properties:
                   message:
                     type: string
-                  details:
+                  updated:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                        status:
-                          type: string
-      description: |
-        Picks 5 MCQs from `mcq_bank` where `primary_mcq` is present and `level_1` is null.
-        Sends them to ChatGPT to generate a recursive MCQ based on learning gap using the defined prompt.
-        Updates the `level_1` column with valid JSON output.
+                      type: integer
+        '500':
+          description: Server error
+
 
 
 components:

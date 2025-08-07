@@ -738,14 +738,15 @@ Your task is to:
 7. Return in this format:
 
 {
-  "level_2": {
+  "level_2":{
+  "mcq": {
     "stem": "...",
     "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
-    "correct_answer": "...",
-    "explanation": "...",
-    "learning_gap": "...",
-    "buzzwords": [...]
-  }
+    "correct_answer": "..."
+  },
+  "buzzwords": [...],
+  "learning_gap": "..."
+}
 }
 `;
 

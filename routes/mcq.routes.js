@@ -11,7 +11,8 @@ const {
   classifySubjects,                // ✅ Classify MCQs using GPT
   generatePrimaryMCQs,             // ✅ Generate primary MCQs and store in primary_mcq
   generateLevel1ForMCQBank,
-  generateLevel2ForMCQBank
+  generateLevel2ForMCQBank,
+  generateLevel3ForMCQBank
 } = mcqController;
 
 // ⚠️ Optional legacy routes — only enable if used
@@ -32,6 +33,10 @@ router.post('/mcqs/generate-primary', generatePrimaryMCQs);
 router.post('/mcqs/generate-level1-from-bank', generateLevel1ForMCQBank);
 
 router.post('/mcqs/generate-level2', generateLevel2ForMCQBank);
+
+// ✅ Generate Recursive Level 3 MCQs from level_2's learning gap
+router.post('/mcqs/generate-level3', generateLevel3ForMCQBank);
+
 
 
 module.exports = router;

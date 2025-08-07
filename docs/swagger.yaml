@@ -1322,7 +1322,7 @@ paths:
     post:
       summary: Generate Level 8 MCQs from Level 7 entries
       tags:
-        - MCQ Generation
+        - MCQs
       description: |
         Generates a deeper Level 8 MCQ using the learning gap from Level 7. Only runs for mcq_bank rows where `level_7` is not null and `level_8` is null.
       responses:

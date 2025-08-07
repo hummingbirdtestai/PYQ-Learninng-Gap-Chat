@@ -1235,3 +1235,124 @@ exports.generateLevel5ForMCQBank = async (req, res) => {
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+
+const LEVEL_6_PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
+Your entire output must be a single valid JSON object.
+- DO NOT include \`\`\`json or any markdown syntax.
+- DO NOT add explanations, comments, or headings.
+- Your output MUST start with { and end with }.
+- It must be directly parsable by JSON.parse().
+
+🎓 You are an expert medical educator and learning gap diagnostician.
+
+🎯 GOAL:
+Given a Level 5 MCQ, generate a deeper Level 6 MCQ targeting the **foundational conceptual root** behind the previous learning gap.
+
+📦 INPUT FORMAT:
+{
+  "mcq": {
+    "stem": "...",
+    "options": {
+      "A": "...", "B": "...", "C": "...", "D": "...", "E": "..."
+    },
+    "correct_answer": "..."
+  },
+  "learning_gap": "..."
+}
+
+📤 OUTPUT FORMAT:
+{
+  "level_6": {
+    "mcq": {
+      "stem": "...",
+      "options": { ... },
+      "correct_answer": "..."
+    },
+    "explanation": "...",
+    "buzzwords": [ "...", "...", ... ],
+    "learning_gap": "..."
+  }
+}`;
+exports.generateLevel6ForMCQBank = async (req, res) => {
+  try {
+    const { data: rows, error: fetchError } = await supabase
+      .from('mcq_bank')
+      .select('id, level_5')
+      .not('level_5', 'is', null)
+      .is('level_6', null)
+      .limit(5);
+
+    if (fetchError) throw fetchError;
+    if (!rows || rows.length === 0) {
+      return res.json({ message: 'No eligible MCQs found for Level 6.' });
+    }
+
+    const results = [];
+
+    for (const row of rows) {
+      const prompt = `${LEVEL_6_PROMPT_TEMPLATE}\n\nLevel 5 MCQ:\n${JSON.stringify(row.level_5)}`;
+      let parsed = null;
+      let attempt = 0;
+
+      while (attempt < 3) {
+        attempt++;
+        try {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4-0613',
+            messages: [
+              { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.5
+          });
+
+          const outputText = completion.choices[0].message.content.trim();
+          parsed = JSON.parse(outputText);
+
+          if (
+            !parsed.level_6 ||
+            !parsed.level_6.mcq?.stem ||
+            !parsed.level_6.mcq?.options ||
+            !parsed.level_6.mcq?.correct_answer ||
+            !parsed.level_6.explanation ||
+            !parsed.level_6.learning_gap ||
+            !Array.isArray(parsed.level_6.buzzwords)
+          ) {
+            throw new Error('Invalid schema in GPT response');
+          }
+
+          break;
+        } catch (err) {
+          console.warn(`⚠️ Attempt ${attempt} failed for ID ${row.id}:`, err.message);
+        }
+      }
+
+      if (!parsed) {
+        results.push({ id: row.id, status: '❌ GPT response invalid after 3 attempts' });
+        continue;
+      }
+
+      const { error: updateError } = await supabase
+        .from('mcq_bank')
+        .update({ level_6: parsed.level_6 })
+        .eq('id', row.id);
+
+      if (updateError) {
+        console.error('❌ Supabase update error:', updateError.message);
+        results.push({ id: row.id, status: '❌ Supabase update failed' });
+        continue;
+      }
+
+      results.push({ id: row.id, status: '✅ Level 6 saved' });
+    }
+
+    return res.json({
+      message: `${results.length} Level 6 MCQs processed.`,
+      updated: results
+    });
+  } catch (err) {
+    console.error('❌ Fatal error in Level 6 generation:', err.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+

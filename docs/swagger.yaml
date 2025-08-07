@@ -1176,35 +1176,35 @@ paths:
         '500':
           description: Internal server error
           
-      /api/mcqs/generate-level3:
-        post:
-          tags:
-            - MCQ Generation
-          summary: Generate Level 3 MCQs for unprocessed entries in mcq_bank
-          description: >
-            Uses ChatGPT to recursively generate a level_3 MCQ for each row in mcq_bank
-            where level_2 is available and level_3 is null.
-          responses:
-            '200':
-              description: Successfully generated and saved level 3 MCQs
-              content:
-                application/json:
-                  schema:
-                    type: object
-                    properties:
-                      message:
-                        type: string
-                      updated:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            id:
-                              type: string
-                            status:
-                              type: string
-            '500':
-              description: Internal Server Error
+  /api/mcqs/generate-level3:
+    post:
+      tags:
+        - MCQ Generation
+      summary: Generate Level 3 MCQs for unprocessed entries in mcq_bank
+      description: >
+        Uses ChatGPT to recursively generate a Level 3 MCQ for each row in `mcq_bank`
+        where `level_2` is available and `level_3` is null. Saves the result to the `level_3` column.
+      responses:
+        '200':
+          description: Successfully generated and saved Level 3 MCQs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  updated:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        status:
+                          type: string
+        '500':
+          description: Internal Server Error
 
 
 components:

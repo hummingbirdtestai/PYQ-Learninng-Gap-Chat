@@ -28,6 +28,6 @@ router.post('/classify-subjects', classifySubjects);
 router.post('/mcqs/generate-primary', generatePrimaryMCQs);
 
 // ✅ Generate Recursive Level 1 MCQs from learning_gap of primary_mcq
-router.post('/mcqs/generate-level1', generateLevel1ForMCQBank);
+router.post('/mcqs/generate-level1-from-bank', generateLevel1ForMCQBank);
 
 module.exports = router;

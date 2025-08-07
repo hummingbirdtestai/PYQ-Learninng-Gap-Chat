@@ -1234,6 +1234,34 @@ paths:
                           type: string
         '500':
           description: Internal Server Error
+  /api/mcqs/generate-level5:
+    post:
+      summary: Generate Level 5 MCQs from Level 4 entries
+      tags:
+        - MCQs
+      description: |
+        Generates a deeper Level 5 MCQ by using the learning gap from Level 4. Only runs for mcq_bank rows where `level_4` is not null and `level_5` is null.
+      responses:
+        '200':
+          description: Level 5 generation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  updated:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        status:
+                          type: string
+        '500':
+          description: Internal Server Error
 
 
 components:

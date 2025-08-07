@@ -18,7 +18,8 @@ const {
   generateLevel6ForMCQBank,
   generateLevel7ForMCQBank,
   generateLevel8ForMCQBank,
-  generateLevel9ForMCQBank
+  generateLevel9ForMCQBank,
+  generateLevel10ForMCQBank
 } = mcqController;
 
 // ⚠️ Optional legacy routes — only enable if used
@@ -54,6 +55,8 @@ router.post('/mcqs/generate-level7', generateLevel7ForMCQBank);
 router.post('/mcqs/generate-level8', generateLevel8ForMCQBank);
 
 router.post('/mcqs/generate-level9', generateLevel9ForMCQBank);
+
+router.post('/mcqs/generate-level10', generateLevel10ForMCQBank);
 
 
 module.exports = router;

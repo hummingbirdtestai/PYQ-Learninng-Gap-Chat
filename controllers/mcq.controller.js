@@ -568,8 +568,7 @@ exports.generatePrimaryMCQs = async (req, res) => {
 
 const LEVEL_1_PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
 Your entire output must be a single valid JSON object.
-- DO NOT include 
-json or any markdown syntax.
+- DO NOT include \`\`\`json or any markdown syntax.
 - DO NOT add explanations, comments, or headings.
 - Your output MUST start with { and end with }.
 - It must be directly parsable by JSON.parse().
@@ -593,34 +592,25 @@ You will be given a MCQ in the following JSON format:
 
 Your task is to:
 
-1. **Do NOT create an MCQ testing the same learning_gap verbatim.**
-   - Instead, analyze the **learning_gap** field and identify the most likely **prior foundational concept or misconception** that, if misunderstood, would lead a student to miss this primary MCQ.
-   - Based on this **root cause**, generate a **Level 1 MCQ** that recursively tests this **upstream concept**.
+1. Do NOT create an MCQ testing the same learning_gap verbatim.
+2. Generate a new **Level 1 MCQ** on the **prior conceptual gap**.
+3. Write a 5-sentence USMLE-style clinical vignette with bolded keywords.
+4. Include 5 options (A–E), mark the correct answer.
+5. Provide a new learning gap with 2+ <strong> keywords.
+6. Include 10 high-yield buzzwords with emoji prefix and bold terms.
+7. Return in this format:
 
-2. Write the Level 1 MCQ as a **USMLE-style clinical vignette** with **exactly 5 full sentences**.
-   - It must reflect **Amboss/NBME/USMLE-level reasoning difficulty**.
-   - Bold all high-yield keywords using \`<strong>...</strong>\`.
-   - If an image is implied but not shown (e.g., CT, fundus, histo), **imagine the finding and describe it logically in sentence 5.**
-
-3. Provide 5 answer options (A–E), with one clearly correct answer marked.
-
-4. Include the **new learning gap** this recursive MCQ is testing.
-   - This must be **a different, deeper root-level gap** than the original.
-   - Write it as **one sentence**, with **at least two bolded keywords** using \`<strong>...</strong>\`.
-
-5. Provide a list of 10 **buzzword-style high-yield facts** related to this new MCQ’s concept:
-   - Each must be 8–12 words long, **max one sentence**.
-   - Start each with a relevant **emoji**.
-   - Bold all key terms using \`<strong>...</strong>\`.
-   - List them inside a flat "buzzwords": [] array.
-
-6. Output format:
-Return a single JSON object with the key "level_1", and include all the above elements inside.
-
-💡 Format Rules:
-- The "stem" and "learning_gap" must each contain **at least two \`<strong>...</strong>\` terms**.
-- Do NOT restate the original MCQ's learning gap or answer directly.
-- Ensure this is truly **recursive** — testing the **prior step** in reasoning.
+{
+  "level_1": {
+    "mcq": {
+      "stem": "...",
+      "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
+      "correct_answer": "..."
+    },
+    "buzzwords": [...],
+    "learning_gap": "..."
+  }
+}
 `;
 
 exports.generateLevel1ForMCQBank = async (req, res) => {
@@ -642,39 +632,73 @@ exports.generateLevel1ForMCQBank = async (req, res) => {
     for (const row of rows) {
       const prompt = `${LEVEL_1_PROMPT_TEMPLATE}\n\nPrimary MCQ:\n${JSON.stringify(row.primary_mcq)}`;
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4-0613',
-        messages: [
-          { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.5
-      });
+      let parsed = null;
+      let attempt = 0;
 
-      const outputText = completion.choices[0].message.content.trim();
+      while (attempt < 3) {
+        attempt++;
+        try {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4-0613',
+            messages: [
+              { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.5
+          });
 
-      let parsed;
-      try {
-        parsed = JSON.parse(outputText);
-        if (!parsed.level_1) throw new Error('Missing level_1 key');
-      } catch (err) {
-        console.error('❌ Invalid JSON from GPT:', err.message);
+          const outputText = completion.choices[0].message.content.trim();
+
+          // Attempt to parse output
+          parsed = JSON.parse(outputText);
+
+          // Validate structure
+          if (
+            !parsed.level_1 ||
+            !parsed.level_1.mcq ||
+            !parsed.level_1.mcq.stem ||
+            !parsed.level_1.mcq.options ||
+            !parsed.level_1.mcq.correct_answer ||
+            !Array.isArray(parsed.level_1.buzzwords) ||
+            !parsed.level_1.learning_gap
+          ) {
+            throw new Error('Invalid schema in GPT response');
+          }
+
+          // Schema validated
+          break;
+        } catch (err) {
+          console.warn(`⚠️ Attempt ${attempt} failed to generate valid JSON:`, err.message);
+          parsed = null;
+        }
+      }
+
+      if (!parsed) {
+        results.push({ id: row.id, status: '❌ GPT response invalid after 3 attempts' });
         continue;
       }
 
+      // Save to Supabase
       const { error: updateError } = await supabase
         .from('mcq_bank')
         .update({ level_1: parsed.level_1 })
         .eq('id', row.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('❌ Supabase update error:', updateError.message);
+        results.push({ id: row.id, status: '❌ Supabase error' });
+        continue;
+      }
 
-      results.push({ id: row.id, status: '✅ Inserted Level 1' });
+      results.push({ id: row.id, status: '✅ Level 1 saved' });
     }
 
-    return res.json({ message: `${results.length} Level 1 MCQs generated and saved.`, details: results });
+    return res.json({
+      message: `${results.length} Level 1 MCQs processed.`,
+      updated: results
+    });
   } catch (err) {
-    console.error('❌ Error generating Level 1 MCQs:', err.message || err);
+    console.error('❌ Fatal error:', err.message);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 };

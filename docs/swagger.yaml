@@ -1205,6 +1205,35 @@ paths:
                           type: string
         '500':
           description: Internal Server Error
+  /api/mcqs/generate-level4:
+    post:
+      tags:
+        - MCQs
+      summary: Generate Level 4 MCQs for unprocessed entries in mcq_bank
+      description: >
+        Uses ChatGPT to recursively generate a Level 4 MCQ for each row in `mcq_bank`
+        where `level_3` is available and `level_4` is null.
+      responses:
+        '200':
+          description: Successfully generated and saved Level 4 MCQs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  updated:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        status:
+                          type: string
+        '500':
+          description: Internal Server Error
 
 
 components:

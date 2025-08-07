@@ -1022,16 +1022,14 @@ Given a Level 3 MCQ, generate a deeper Level 4 MCQ targeting the conceptual root
 📤 OUTPUT FORMAT:
 {
   "level_4": {
-    "stem": "...",
-    "options": {
-      "A": "...", "B": "...", "C": "...", "D": "...", "E": "..."
+    "mcq": {
+      "stem": "...",
+      "options": {...},
+      "correct_answer": "..."
     },
-    "correct_answer": "...",
     "explanation": "...",
-    "learning_gap": "...",
-    "buzzwords": [
-      "💡 ...", "📍 ...", ...
-    ]
+    "buzzwords": [...],
+    "learning_gap": "..."
   }
 }`;
 

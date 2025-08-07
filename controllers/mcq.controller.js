@@ -702,3 +702,139 @@ exports.generateLevel1ForMCQBank = async (req, res) => {
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+
+const LEVEL_2_PROMPT_TEMPLATE = `🚨 OUTPUT RULES: 
+Your entire output must be a single valid JSON object.
+- DO NOT include \`\`\`json or any markdown syntax.
+- DO NOT add explanations, comments, or headings.
+- Your output MUST start with { and end with }.
+- It must be directly parsable by JSON.parse().
+
+🔬 You are an expert medical educator and exam learning strategist.
+
+🎯 Your role is to act as a **Learning Gap Diagnostician** for MBBS/MD aspirants preparing for FMGE, NEETPG, INICET, or USMLE.
+
+🧠 OBJECTIVE:
+You will be given a Level 1 MCQ in the following JSON format:
+
+{
+  "mcq": {
+    "stem": "...",
+    "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
+    "correct_answer": "..."
+  },
+  "buzzwords": [...],
+  "learning_gap": "..."
+}
+
+Your task is to:
+
+1. Do NOT create an MCQ testing the same learning_gap again.
+2. Generate a new **Level 2 MCQ** testing a **deeper conceptual gap**.
+3. Write a 5-sentence USMLE-style clinical vignette with bolded keywords.
+4. Include 5 options (A–E), mark the correct answer.
+5. Provide a new learning gap with 2+ <strong> keywords.
+6. Include 10 high-yield buzzwords with emoji prefix and bold terms.
+7. Return in this format:
+
+{
+  "level_2": {
+    "stem": "...",
+    "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
+    "correct_answer": "...",
+    "explanation": "...",
+    "learning_gap": "...",
+    "buzzwords": [...]
+  }
+}
+`;
+
+exports.generateLevel2ForMCQBank = async (req, res) => {
+  try {
+    const { data: rows, error: fetchError } = await supabase
+      .from('mcq_bank')
+      .select('id, level_1')
+      .is('level_2', null)
+      .not('level_1', 'is', null)
+      .limit(5); // Can increase to 20 or more later
+
+    if (fetchError) throw fetchError;
+    if (!rows || rows.length === 0) {
+      return res.json({ message: 'No eligible MCQs found without Level 2.' });
+    }
+
+    const results = [];
+
+    for (const row of rows) {
+      const prompt = `${LEVEL_2_PROMPT_TEMPLATE}\n\nLevel 1 MCQ:\n${JSON.stringify(row.level_1)}`;
+      let parsed = null;
+      let attempt = 0;
+
+      while (attempt < 3) {
+        attempt++;
+        try {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4-0613',
+            messages: [
+              { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.5
+          });
+
+          const outputText = completion.choices[0].message.content.trim();
+
+          // Attempt to parse output
+          parsed = JSON.parse(outputText);
+
+          // Validate structure
+          if (
+            !parsed.level_2 ||
+            !parsed.level_2.stem ||
+            !parsed.level_2.options ||
+            !parsed.level_2.correct_answer ||
+            !parsed.level_2.explanation ||
+            !Array.isArray(parsed.level_2.buzzwords) ||
+            !parsed.level_2.learning_gap
+          ) {
+            throw new Error('Invalid schema in GPT response');
+          }
+
+          // Schema validated
+          break;
+        } catch (err) {
+          console.warn(`⚠️ Attempt ${attempt} failed to generate valid JSON:`, err.message);
+          parsed = null;
+        }
+      }
+
+      if (!parsed) {
+        results.push({ id: row.id, status: '❌ GPT response invalid after 3 attempts' });
+        continue;
+      }
+
+      // Save to Supabase
+      const { error: updateError } = await supabase
+        .from('mcq_bank')
+        .update({ level_2: parsed.level_2 })
+        .eq('id', row.id);
+
+      if (updateError) {
+        console.error('❌ Supabase update error:', updateError.message);
+        results.push({ id: row.id, status: '❌ Supabase error' });
+        continue;
+      }
+
+      results.push({ id: row.id, status: '✅ Level 2 saved' });
+    }
+
+    return res.json({
+      message: `${results.length} Level 2 MCQs processed.`,
+      updated: results
+    });
+  } catch (err) {
+    console.error('❌ Fatal error:', err.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
+

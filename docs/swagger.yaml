@@ -1175,7 +1175,6 @@ paths:
                           type: string
         '500':
           description: Internal server error
-          
     /api/mcqs/generate-level3:
       post:
         tags:

@@ -757,7 +757,7 @@ exports.generateLevel2ForMCQBank = async (req, res) => {
       .select('id, level_1')
       .is('level_2', null)
       .not('level_1', 'is', null)
-      .limit(20);
+      .limit(10);
 
     if (fetchError) throw fetchError;
     if (!rows || rows.length === 0) {
@@ -906,7 +906,7 @@ exports.generateLevel3ForMCQBank = async (req, res) => {
       .select('id, level_2')
       .is('level_3', null)
       .not('level_2', 'is', null)
-      .limit(20);
+      .limit(10);
 
     if (fetchError) throw fetchError;
     if (!rows || rows.length === 0) {

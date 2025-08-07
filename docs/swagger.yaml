@@ -1146,6 +1146,36 @@ paths:
                           type: string
         '500':
           description: Internal Server Error
+/api/mcqs/generate-level2:
+  post:
+    tags:
+      - MCQs
+    summary: Generate Level 2 MCQs from level_1 learning_gap
+    description: >
+      Uses ChatGPT to generate a Level 2 MCQ based on the level_1 learning gap.
+      Saves the result into the `level_2` column in the `mcq_bank` table.
+    responses:
+      '200':
+        description: Level 2 MCQs generated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                updated:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      status:
+                        type: string
+      '500':
+        description: Internal server error
+
 
 components:
   schemas:

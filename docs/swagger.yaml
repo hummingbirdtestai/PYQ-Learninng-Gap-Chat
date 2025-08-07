@@ -1346,6 +1346,34 @@ paths:
                           type: string
         '500':
           description: Internal Server Error
+  /api/mcqs/generate-level9:
+    post:
+      summary: Generate Level 9 MCQs from Level 8 entries
+      tags:
+        - MCQs
+      description: |
+        Generates a deeper Level 9 MCQ using the learning gap from Level 8. Only runs for mcq_bank rows where `level_8` is not null and `level_9` is null.
+      responses:
+        '200':
+          description: Level 9 generation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  updated:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        status:
+                          type: string
+        '500':
+          description: Internal Server Error
 
 
 components:

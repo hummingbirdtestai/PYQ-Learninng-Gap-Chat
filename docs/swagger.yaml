@@ -1290,7 +1290,7 @@ paths:
                           type: string
         '500':
           description: Internal Server Error
-    /api//mcqs/generate-level7:
+    /api/mcqs/generate-level7:
       post:
         summary: Generate Level 7 MCQs from Level 6 entries
         tags:

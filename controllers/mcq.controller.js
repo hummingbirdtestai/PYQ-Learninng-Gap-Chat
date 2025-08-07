@@ -620,7 +620,7 @@ exports.generateLevel1ForMCQBank = async (req, res) => {
       .select('id, primary_mcq')
       .is('level_1', null)
       .not('primary_mcq', 'is', null)
-      .limit(5);
+      .limit(20);
 
     if (fetchError) throw fetchError;
     if (!rows || rows.length === 0) {

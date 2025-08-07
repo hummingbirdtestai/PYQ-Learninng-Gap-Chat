@@ -8,7 +8,9 @@ const {
   getResumeProgress,
   updateProgress,
   getNextMCQBatch,
-  handleNextAction
+  handleNextAction,
+  getPYQStart,
+  submitPYQResponses
 } = require('../controllers/adaptive.controller');
 
 // Routes
@@ -19,5 +21,7 @@ router.get('/adaptive/progress/:userId/:examId/:subjectId', getResumeProgress);
 router.post('/adaptive/progress/update', updateProgress);
 router.get('/adaptive-mcqs/next-batch', getNextMCQBatch);
 router.post('/adaptive/mcqs/next-action', handleNextAction);
+router.get('/adaptive/pyq/start', getPYQStart);
+router.post('/adaptive/pyq/submit',submitPYQResponses);
 
 module.exports = router;

@@ -1179,7 +1179,7 @@ paths:
   /api/mcqs/generate-level3:
     post:
       tags:
-        - MCQ Generation
+        - MCQs
       summary: Generate Level 3 MCQs for unprocessed entries in mcq_bank
       description: >
         Uses ChatGPT to recursively generate a Level 3 MCQ for each row in `mcq_bank`

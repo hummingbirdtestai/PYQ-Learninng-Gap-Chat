@@ -763,6 +763,118 @@ paths:
           description: Missing required fields
         '500':
           description: Server error
+  /api/adaptive/pyq/start:
+  get:
+    summary: Start or resume adaptive MCQ session
+    description: Returns 10 MCQs (from resume point if available), sorted by most recent year.
+    tags:
+      - Adaptive MCQs
+    parameters:
+      - name: examId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: subjectId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: userId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: List of MCQs and resume point
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                questions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      primary_mcq_id:
+                        type: string
+                      year:
+                        type: integer
+                      primary_mcq:
+                        type: object
+                      levels:
+                        type: object
+                        additionalProperties:
+                          type: object
+                resume_point:
+                  type: object
+                  properties:
+                    resume_mcq_id:
+                      type: string
+                    primary_index:
+                      type: integer
+                    level:
+                      type: string
+      '400':
+        description: Missing parameters
+      '500':
+        description: Internal server error
+
+/api/adaptive/pyq/submit:
+  post:
+    summary: Submit one or more MCQ responses
+    description: Accepts a batch of MCQ responses and updates resume tracker with last answered MCQ.
+    tags:
+      - Adaptive MCQs
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              responses:
+                type: array
+                items:
+                  type: object
+                  required:
+                    - userId
+                    - examId
+                    - subjectId
+                    - mcqId
+                    - level
+                    - selected_option
+                    - is_correct
+                  properties:
+                    userId:
+                      type: string
+                    examId:
+                      type: string
+                    subjectId:
+                      type: string
+                    mcqId:
+                      type: string
+                    level:
+                      type: string
+                    selected_option:
+                      type: string
+                    is_correct:
+                      type: boolean
+                    primary_index:
+                      type: integer
+    responses:
+      '200':
+        description: Responses saved successfully
+      '400':
+        description: Validation error
+      '500':
+        description: Internal server error
+
 
   /api/generate-mcqs/from-raw:
     post:

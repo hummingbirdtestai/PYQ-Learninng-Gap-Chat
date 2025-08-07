@@ -12,7 +12,8 @@ const {
   generatePrimaryMCQs,             // ✅ Generate primary MCQs and store in primary_mcq
   generateLevel1ForMCQBank,
   generateLevel2ForMCQBank,
-  generateLevel3ForMCQBank
+  generateLevel3ForMCQBank,
+  generateLevel4ForMCQBank 
 } = mcqController;
 
 // ⚠️ Optional legacy routes — only enable if used
@@ -37,6 +38,7 @@ router.post('/mcqs/generate-level2', generateLevel2ForMCQBank);
 // ✅ Generate Recursive Level 3 MCQs from level_2's learning gap
 router.post('/mcqs/generate-level3', generateLevel3ForMCQBank);
 
+router.post('/mcqs/generate-level4', generateLevel4ForMCQBank);
 
 
 module.exports = router;

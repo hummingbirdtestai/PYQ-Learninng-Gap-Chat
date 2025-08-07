@@ -1266,7 +1266,7 @@ paths:
     post:
       summary: Generate Level 6 MCQs from Level 5 entries
       tags:
-        - MCQ Generation
+        - MCQs
       description: |
         Generates a deeper Level 6 MCQ by using the learning gap from Level 5. Only runs for mcq_bank rows where `level_5` is not null and `level_6` is null.
       responses:

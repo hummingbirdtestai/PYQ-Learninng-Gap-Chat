@@ -729,24 +729,24 @@ You will be given a Level 1 MCQ in the following JSON format:
 
 Your task is to:
 
-1. Do NOT create an MCQ testing the same learning_gap again.
-2. Generate a new **Level 2 MCQ** testing a **deeper conceptual gap**.
-3. Write a 5-sentence USMLE-style clinical vignette with bolded keywords.
-4. Include 5 options (A–E), mark the correct answer.
-5. Provide a new learning gap with 2+ <strong> keywords.
-6. Include 10 high-yield buzzwords with emoji prefix and bold terms.
-7. Return in this format:
+1. Do NOT repeat the same learning gap or content.
+2. Generate a new **Level 2 MCQ** targeting the **previous conceptual prerequisite**.
+3. Use 5-sentence USMLE-style clinical vignette with bolded keywords.
+4. Provide 5 options (A–E) with one correct answer.
+5. Add a new learning gap (with at least 2 bolded keywords).
+6. Include 10 exam-relevant buzzwords (emoji prefixed, bold terms).
+7. Format output as:
 
 {
-  "level_2":{
-  "mcq": {
-    "stem": "...",
-    "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
-    "correct_answer": "..."
-  },
-  "buzzwords": [...],
-  "learning_gap": "..."
-}
+  "level_2": {
+    "mcq": {
+      "stem": "...",
+      "options": { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." },
+      "correct_answer": "..."
+    },
+    "buzzwords": [...],
+    "learning_gap": "..."
+  }
 }
 `;
 
@@ -757,7 +757,7 @@ exports.generateLevel2ForMCQBank = async (req, res) => {
       .select('id, level_1')
       .is('level_2', null)
       .not('level_1', 'is', null)
-      .limit(5); // Can increase to 20 or more later
+      .limit(20);
 
     if (fetchError) throw fetchError;
     if (!rows || rows.length === 0) {
@@ -767,7 +767,20 @@ exports.generateLevel2ForMCQBank = async (req, res) => {
     const results = [];
 
     for (const row of rows) {
-      const prompt = `${LEVEL_2_PROMPT_TEMPLATE}\n\nLevel 1 MCQ:\n${JSON.stringify(row.level_1)}`;
+      const level1 = row.level_1;
+
+      // ✅ Validate level_1 content before GPT prompt
+      if (
+        !level1?.mcq?.stem ||
+        !level1?.mcq?.options ||
+        !level1?.mcq?.correct_answer ||
+        !level1?.learning_gap
+      ) {
+        results.push({ id: row.id, status: '❌ Invalid or incomplete level_1 MCQ' });
+        continue;
+      }
+
+      const prompt = `${LEVEL_2_PROMPT_TEMPLATE}\n\nLevel 1 MCQ:\n${JSON.stringify(level1)}`;
       let parsed = null;
       let attempt = 0;
 
@@ -788,13 +801,13 @@ exports.generateLevel2ForMCQBank = async (req, res) => {
           // Attempt to parse output
           parsed = JSON.parse(outputText);
 
-          // Validate structure
+          // Validate schema
           if (
             !parsed.level_2 ||
-            !parsed.level_2.stem ||
-            !parsed.level_2.options ||
-            !parsed.level_2.correct_answer ||
-            !parsed.level_2.explanation ||
+            !parsed.level_2.mcq ||
+            !parsed.level_2.mcq.stem ||
+            !parsed.level_2.mcq.options ||
+            !parsed.level_2.mcq.correct_answer ||
             !Array.isArray(parsed.level_2.buzzwords) ||
             !parsed.level_2.learning_gap
           ) {
@@ -804,7 +817,7 @@ exports.generateLevel2ForMCQBank = async (req, res) => {
           // Schema validated
           break;
         } catch (err) {
-          console.warn(`⚠️ Attempt ${attempt} failed to generate valid JSON:`, err.message);
+          console.warn(`⚠️ Attempt ${attempt} failed for ID ${row.id}:`, err.message);
           parsed = null;
         }
       }
@@ -814,14 +827,14 @@ exports.generateLevel2ForMCQBank = async (req, res) => {
         continue;
       }
 
-      // Save to Supabase
+      // ✅ Save result to Supabase
       const { error: updateError } = await supabase
         .from('mcq_bank')
         .update({ level_2: parsed.level_2 })
         .eq('id', row.id);
 
       if (updateError) {
-        console.error('❌ Supabase update error:', updateError.message);
+        console.error(`❌ Supabase update error for ID ${row.id}:`, updateError.message);
         results.push({ id: row.id, status: '❌ Supabase error' });
         continue;
       }
@@ -838,4 +851,3 @@ exports.generateLevel2ForMCQBank = async (req, res) => {
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 };
-

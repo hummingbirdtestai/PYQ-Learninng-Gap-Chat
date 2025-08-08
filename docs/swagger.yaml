@@ -1176,15 +1176,87 @@ paths:
     post:
       tags:
         - MCQ Classification
-      summary: Classify MCQs into MBBS subjects
+      summary: Batch-classify unlabelled MCQs into MBBS subjects
       description: |
-        Fetches 10 unclassified MCQs from Supabase, uses ChatGPT to classify each one,
-        and updates the `subject` field. Automatically skips already-classified rows.
+        Fetches up to `limit` MCQs from `mcq_bank` where `subject` is NULL, sends them
+        in a single batched request to the LLM, and bulk-upserts `subject` (and
+        `subject_id` when configured). Safe to call repeatedly; already-classified rows
+        are skipped by selection.
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          description: Max number of MCQs to classify in this run (UUID `id` is required).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 300
+            default: 100
       responses:
         '200':
-          description: Classification completed successfully
+          description: Classification completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "✅ Classified 100 / 100 MCQs in one call"
+                  fetched:
+                    type: integer
+                    description: Number of MCQs fetched from DB for this run
+                    example: 100
+                  updated:
+                    type: integer
+                    description: Number of rows successfully updated
+                    example: 100
+                  invalidReturned:
+                    type: integer
+                    description: Items returned by the LLM that failed validation
+                    example: 0
+                  model:
+                    type: string
+                    example: gpt-4o-mini
+        '422':
+          description: LLM returned results but none passed validation (e.g., subject not in whitelist)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "No valid classifications returned"
+                  rawSample:
+                    type: string
+                    description: First ~300 chars of the LLM response for debugging
+        '502':
+          description: LLM returned invalid/non-JSON output
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "LLM returned invalid JSON"
+                  sample:
+                    type: string
+                    description: First ~400 chars of the LLM response
         '500':
           description: Server error during classification
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Internal Server Error"
+                  details:
+                    type: string
+                    example: "Database connection failed"
   
   /api/mcqs/generate-primary:
     post:

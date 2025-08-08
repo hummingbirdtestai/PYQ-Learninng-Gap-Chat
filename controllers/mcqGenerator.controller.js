@@ -71,7 +71,7 @@ Correct Answer: ${rawMCQ.correct_answer}`;
     let parsed, raw;
     for (let attempt = 0; attempt < 3; attempt++) {
       const gptRes = await openai.chat.completions.create({
-        model: 'gpt-4-0613',
+        model: 'gpt-5', // updated to GPT-5
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7
       });

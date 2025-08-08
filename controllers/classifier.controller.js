@@ -1,3 +1,5 @@
+// controllers/classifier.controller.js
+
 const { supabase } = require('../config/supabaseClient');
 const openai = require('../config/openaiClient');
 
@@ -31,12 +33,16 @@ const SUBJECT_NAME_TO_ID = {
   "Obstetrics and Gynaecology": "8c9c6b8c-bd2f-404b-8e58-d5a7a722650b"
 };
 
-// Tune safely first; then scale up.
+// ⚙️ Tunables
 const BATCH_SIZE = parseInt(process.env.CLASSIFY_BATCH_SIZE || '50', 10);     // MCQs per LLM call
 const CONCURRENCY = parseInt(process.env.CLASSIFY_CONCURRENCY || '5', 10);    // parallel LLM calls
 const PAGE_SIZE   = parseInt(process.env.CLASSIFY_PAGE_SIZE || '2000', 10);   // DB page size
-const MODEL       = process.env.CLASSIFY_MODEL || 'gpt-4o-mini';              // pick whatever you have quota for
+const MODEL       = process.env.CLASSIFY_MODEL || 'gpt-4o-mini';              // pick a model you have quota for
 
+// 🔐 UUID validator
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// 🧠 System prompt (forces UUID id as string)
 const CLASSIFICATION_PROMPT = `
 You are a meticulous classifier for MBBS exam MCQs.
 
@@ -45,12 +51,14 @@ ${SUBJECTS.map(s => `- ${s}`).join('\n')}
 
 OUTPUT RULES:
 - Return ONLY a single JSON array, parsable by JSON.parse.
-- Each item must be: {"id": <number>, "subject": "<one of the above exactly>"}.
+- Each item MUST be: {"id":"<uuid>", "subject":"<one of the above exactly>"}.
+- "id" must be the SAME uuid you received, as a string, unchanged.
 - Do not add text before or after the JSON.
 - If ambiguous, choose the most probable.
 - Never invent subjects outside the list.
 `.trim();
 
+// 🔪 helpers
 function chunk(arr, size) {
   const out = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -76,10 +84,11 @@ async function asyncPool(limit, array, iteratorFn) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// 🔥 classify a chunk via LLM, retrying on bad JSON
 async function classifyChunk(mcqs, attempt = 1) {
   const payload = {
     mcqs: mcqs.map(r => ({
-      id: r.id,
+      id: String(r.id), // ensure uuid as string
       text:
         r.mcq?.stem ||
         r.mcq?.question ||
@@ -111,22 +120,27 @@ async function classifyChunk(mcqs, attempt = 1) {
       throw new Error(`Invalid JSON from model: ${raw.slice(0, 240)}`);
     }
 
-    // Validate & map to UUID
+    // Validate: id must be UUID string; subject must be in whitelist
     const valid = parsed
-      .filter(it => typeof it?.id === 'number' && typeof it?.subject === 'string' && SUBJECTS.includes(it.subject))
+      .filter(it =>
+        typeof it?.id === 'string' &&
+        UUID_RE.test(it.id) &&
+        typeof it?.subject === 'string' &&
+        SUBJECTS.includes(it.subject)
+      )
       .map(it => ({
-        id: it.id,
+        id: it.id, // uuid
         subject: it.subject,
         subject_id: SUBJECT_NAME_TO_ID[it.subject] || null
       }))
-      .filter(it => it.subject_id); // ensure we actually have a UUID
+      .filter(it => it.subject_id); // keep only mappable subjects
 
     if (!valid.length) {
       if (attempt < 3) { await sleep(300 * attempt); return classifyChunk(mcqs, attempt + 1); }
       throw new Error('No valid classifications returned from model');
     }
 
-    // Bulk upsert id + subject + subject_id
+    // 💾 Bulk upsert (id is uuid PK/unique)
     const { error: upErr } = await supabase
       .from('mcq_bank')
       .upsert(valid, { onConflict: 'id', ignoreDuplicates: false });
@@ -153,7 +167,7 @@ exports.classifySubjectsRun = async (req, res) => {
 
   try {
     while (true) {
-      // Pull a page of unclassified rows (prefer subject_id null check)
+      // Pull a page of unclassified rows (check subject_id)
       const { data: rows, error: fetchErr } = await supabase
         .from('mcq_bank')
         .select('id, mcq')
@@ -165,8 +179,8 @@ exports.classifySubjectsRun = async (req, res) => {
       if (!rows || rows.length === 0) break;
 
       pages += 1;
-      const chunks = chunk(rows, batchSize);
 
+      const chunks = chunk(rows, batchSize);
       const results = await asyncPool(concurrency, chunks, c => classifyChunk(c));
 
       for (const r of results) {
@@ -180,7 +194,7 @@ exports.classifySubjectsRun = async (req, res) => {
         }
       }
 
-      // brief breather
+      // brief breather between pages
       await sleep(150);
     }
 

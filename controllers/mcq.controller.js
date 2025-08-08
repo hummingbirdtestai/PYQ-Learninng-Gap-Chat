@@ -416,8 +416,8 @@ exports.processGraphById = async (req, res) => {
 
 // CLASSIFY SUBJECTS
 const MODEL = process.env.CLASSIFY_MODEL || 'gpt-4o-mini';
-const MAX_LIMIT = 200;
-const DEFAULT_LIMIT = 80;
+const DEFAULT_LIMIT = 80;      // start 60–80; adjust once stable
+const MAX_LIMIT = 150;         // keep modest to avoid truncation
 
 const SUBJECTS = [
   "Anatomy","Physiology","Biochemistry","Pathology","Pharmacology","Microbiology",
@@ -426,6 +426,7 @@ const SUBJECTS = [
   "General Surgery","Orthopedics","Anesthesia","Radiology","Obstetrics and Gynaecology"
 ];
 
+// common variants → canonical
 const SUBJECT_SYNONYMS = {
   "immunology": "Microbiology",
   "genetics": "Biochemistry",
@@ -442,7 +443,6 @@ const SUBJECT_SYNONYMS = {
   "obstetrics & gynaecology": "Obstetrics and Gynaecology",
   "obstetrics and gynecology": "Obstetrics and Gynaecology",
   "gynecology": "Obstetrics and Gynaecology",
-  "gynecology & obstetrics": "Obstetrics and Gynaecology",
   "ophthal": "Ophthalmology",
   "ophthalmic": "Ophthalmology",
   "eye": "Ophthalmology",
@@ -454,75 +454,16 @@ const SUBJECT_SYNONYMS = {
   "anesthesiology": "Anesthesia",
   "micro": "Microbiology",
   "biochem": "Biochemistry",
-  "pharma": "Pharmacology",
+  "pharma": "Pharmacology"
 };
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const CLASSIFICATION_PROMPT = `
-You are a meticulous classifier for MBBS exam MCQs.
-
-Pick exactly ONE subject for each MCQ from this CLOSED LIST (case-sensitive, exact match):
-${SUBJECTS.map(s => `- ${s}`).join('\n')}
-
-If the best label in your head is:
-- "Immunology" → use "Microbiology"
-- "Genetics" → use "Biochemistry"
-- "Public Health" / "PSM" / "SPM" → use "Community Medicine"
-- "Radiodiagnosis" / "Radiodiagnostics" → use "Radiology"
-- "Internal Medicine" / "Medicine" → use "General Medicine"
-- "Surgery" (broad) → use "General Surgery"
-- "OBG" / "OB & G" / "Obstetrics & Gynecology" → use "Obstetrics and Gynaecology"
-- "Ophthal" / "Ophthalmic" / "Eye" → use "Ophthalmology"
-- "Psych" → "Psychiatry", "Derm" → "Dermatology", "Peds" → "Pediatrics", "Ortho" → "Orthopedics",
-  "Anesthesiology" → "Anesthesia", "Micro" → "Microbiology", "Biochem" → "Biochemistry", "Pharma" → "Pharmacology".
-
-STRICT OUTPUT RULES:
-- Return ONLY a single JSON array, parsable by JSON.parse.
-- Each item MUST be: {"id":"<uuid from input>", "subject":"<one of the above exactly>"}.
-- The "id" must be EXACTLY the uuid string you received for that MCQ; do not invent or renumber.
-- Do not add any text before or after the JSON.
-- Temperature = 0; be deterministic.
-`.trim();
-
-function extractText(mcq) {
-  if (!mcq) return '';
-  if (typeof mcq === 'string') return mcq;
-  if (typeof mcq === 'object') {
-    return mcq.stem || mcq.question || mcq.text || JSON.stringify(mcq).slice(0, 2000);
-  }
-  return String(mcq);
-}
-
-// Repair common bad JSON outputs and parse an array.
-function safeParseArray(raw) {
-  if (!raw) throw new Error('Empty response');
-  let t = raw.trim();
-
-  // Remove fences
-  if (t.startsWith('```')) {
-    t = t.replace(/^```(\w+)?/, '').replace(/```$/, '').trim();
-  }
-
-  // Keep only the outermost array
-  const first = t.indexOf('[');
-  const last = t.lastIndexOf(']');
-  if (first === -1) throw new Error('No array start');
-  t = last >= first ? t.slice(first, last + 1) : t.slice(first) + ']';
-
-  // Kill trailing commas
-  t = t.replace(/,\s*]/g, ']');
-
-  const parsed = JSON.parse(t);
-  if (!Array.isArray(parsed)) throw new Error('Not an array');
-  return parsed;
-}
 
 function normalizeSubject(s) {
   if (!s) return null;
+  s = String(s).trim();
   if (SUBJECTS.includes(s)) return s;
-  const key = s.toLowerCase().trim();
+  const key = s.toLowerCase();
   if (SUBJECT_SYNONYMS[key]) return SUBJECT_SYNONYMS[key];
+  // gentle cleanup for minor punctuation/spacing
   const simplified = key.replace(/[&.]/g, '').replace(/\s+/g, ' ').trim();
   for (const sub of SUBJECTS) {
     if (sub.toLowerCase() === simplified) return sub;
@@ -530,102 +471,114 @@ function normalizeSubject(s) {
   return null;
 }
 
+function extractText(mcq) {
+  if (!mcq) return '';
+  if (typeof mcq === 'string') return mcq;
+  if (typeof mcq === 'object') return mcq.stem || mcq.question || mcq.text || JSON.stringify(mcq);
+  return String(mcq);
+}
+const truncate = (s, n = 600) => (s.length > n ? s.slice(0, n) + ' …' : s);
+
+// Build a super-stable line-output prompt (no JSON, no IDs)
+function buildPrompt(items) {
+  const header = `
+You classify MBBS MCQs into subjects.
+
+Use ONLY these exact subjects:
+${SUBJECTS.map(s => `- ${s}`).join('\n')}
+
+Return format:
+- Output EXACTLY ${items.length} LINES.
+- Each line is ONE subject from the list, matching the order of the MCQs given.
+- No numbering, no IDs, no extra text before/after. Just the subject names, one per line.
+
+If you think of:
+- "Immunology" → Microbiology
+- "Genetics" → Biochemistry
+- "Public Health/PSM/SPM" → Community Medicine
+- "Radiodiagnosis/…diagnostics" → Radiology
+- "Internal Medicine/Medicine" → General Medicine
+- "Surgery" (broad) → General Surgery
+- "OBG/OB & G/Obstetrics & Gynecology" → Obstetrics and Gynaecology
+- "Ophthal/Ophthalmic/Eye" → Ophthalmology
+- "Psych" → Psychiatry, "Derm" → Dermatology, "Peds" → Pediatrics, "Ortho" → Orthopedics,
+  "Anesthesiology" → Anesthesia, "Micro" → Microbiology, "Biochem" → Biochemistry, "Pharma" → Pharmacology.
+  `.trim();
+
+  const body = items
+    .map((it, i) => `${i + 1}) ${truncate(extractText(it.mcq))}`)
+    .join('\n\n');
+
+  // We keep the MCQs in order; model must return exactly N lines in same order
+  return `${header}\n\nMCQs:\n\n${body}\n\nRemember: output exactly ${items.length} lines, one subject per line.`;
+}
+
 exports.classifySubjects = async (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit || '0', 10) || DEFAULT_LIMIT, MAX_LIMIT);
-
-  // classify a batch; fall back to index-alignment if ids are bad
-  const classifyBatch = async (rows, attempt = 1) => {
-    const payload = { mcqs: rows.map(r => ({ id: String(r.id), text: extractText(r.mcq) })) };
-
-    const completion = await openai.chat.completions.create({
-      model: MODEL,
-      temperature: 0,
-      // If you still see truncation, set a higher max_tokens (e.g., 2000–2500)
-      // max_tokens: 2200,
-      messages: [
-        { role: 'system', content: CLASSIFICATION_PROMPT },
-        { role: 'user', content: JSON.stringify(payload) }
-      ],
-    });
-
-    const raw = completion.choices?.[0]?.message?.content?.trim() || '';
-    let arr;
-    try {
-      arr = safeParseArray(raw);
-    } catch (e) {
-      // split & retry once on parse errors
-      if (attempt <= 1 && rows.length > 20) {
-        const mid = Math.floor(rows.length / 2);
-        const left = await classifyBatch(rows.slice(0, mid), attempt + 1);
-        const right = await classifyBatch(rows.slice(mid), attempt + 1);
-        return left.concat(right);
-      }
-      const err = new Error(`LLM returned invalid JSON: ${String(e.message)}`);
-      err.rawSample = raw.slice(0, 400);
-      throw err;
-    }
-
-    // Strict id validation
-    const inputIdSet = new Set(rows.map(r => String(r.id)));
-    const validByUuid = arr
-      .map(it => ({
-        id: typeof it?.id === 'string' ? it.id : null,
-        subject: normalizeSubject(it?.subject)
-      }))
-      .filter(it => it.id && UUID_RE.test(it.id) && inputIdSet.has(it.id) && !!it.subject);
-
-    // If most items have bad ids but the array length matches, fall back to index alignment
-    if (validByUuid.length < Math.floor(rows.length * 0.6) && arr.length === rows.length) {
-      const aligned = [];
-      for (let i = 0; i < rows.length; i++) {
-        const subj = normalizeSubject(arr[i]?.subject);
-        if (subj) aligned.push({ id: String(rows[i].id), subject: subj });
-      }
-      if (aligned.length) return aligned;
-    }
-
-    return validByUuid;
-  };
-
   try {
+    const limit = Math.min(parseInt(req.query.limit || '', 10) || DEFAULT_LIMIT, MAX_LIMIT);
+
+    // 1) Fetch unclassified
     const { data: rows, error: fetchError } = await supabase
       .from('mcq_bank')
       .select('id, mcq')
       .is('subject', null)
+      .order('id', { ascending: true })
       .limit(limit);
 
     if (fetchError) throw fetchError;
-    if (!rows || rows.length === 0) {
+    if (!rows?.length) {
       return res.json({ message: '✅ No unclassified MCQs found.', fetched: 0, updated: 0 });
     }
 
-    const classified = await classifyBatch(rows);
+    // 2) Build prompt & call model
+    const prompt = buildPrompt(rows);
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      temperature: 0,
+      // bump if you still see truncation
+      // max_tokens: 2200,
+      messages: [{ role: 'user', content: prompt }]
+    });
 
-    if (!classified.length) {
+    const raw = completion.choices?.[0]?.message?.content || '';
+    // 3) Parse lines, map by index
+    const lines = raw
+      .trim()
+      .replace(/^```.*?\n|\n```$/g, '') // strip fences if any
+      .split(/\r?\n/)
+      .map(l => l.replace(/^\d+[\).\s-]+/, '').trim()) // strip accidental numbering
+      .filter(l => l.length > 0)
+      .slice(0, rows.length);
+
+    // 4) Normalize subjects
+    const updates = [];
+    for (let i = 0; i < rows.length && i < lines.length; i++) {
+      const sub = normalizeSubject(lines[i]);
+      if (sub) updates.push({ id: rows[i].id, subject: sub });
+    }
+
+    if (!updates.length) {
       return res.status(422).json({ error: 'No valid classifications returned' });
     }
 
-    // subject-only update
+    // 5) Bulk upsert subject only
     const { error: upErr, data: upd } = await supabase
       .from('mcq_bank')
-      .upsert(classified, { onConflict: 'id', ignoreDuplicates: false })
+      .upsert(updates, { onConflict: 'id', ignoreDuplicates: false })
       .select('id');
 
     if (upErr) throw upErr;
 
     return res.json({
-      message: `✅ Classified ${upd?.length || classified.length} / ${rows.length} MCQs`,
+      message: `✅ Classified ${upd?.length || updates.length} / ${rows.length} MCQs`,
       fetched: rows.length,
-      updated: upd?.length || classified.length,
-      droppedForWhitelist: rows.length - (upd?.length || classified.length),
+      updated: upd?.length || updates.length,
+      droppedForWhitelist: rows.length - (upd?.length || updates.length),
       model: MODEL
     });
   } catch (err) {
-    console.error('❌ Error classifying MCQs:', err);
-    return res.status(502).json({
-      error: 'LLM returned invalid JSON',
-      sample: err.rawSample || (err.message || '').slice(0, 400)
-    });
+    console.error('❌ classifySubjects error:', err);
+    return res.status(500).json({ error: 'Internal Server Error', details: err.message });
   }
 };
 

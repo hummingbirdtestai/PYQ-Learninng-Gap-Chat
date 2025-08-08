@@ -302,3 +302,135 @@ exports.handleNextAction = async (req, res) => {
     res.status(500).json({ error: 'Server error.' });
   }
 };
+
+exports.getAdaptiveStart = async (req, res) => {
+  const { examId, subjectId, userId } = req.query;
+
+  if (!examId || !subjectId || !userId) {
+    return res.status(400).json({ error: 'Missing parameters' });
+  }
+
+  try {
+    // Step 1: Get all MCQs sorted by year DESC
+    const { data: allMcqs, error: mcqError } = await supabase
+      .from('mcq_bank')
+      .select('*')
+      .eq('exam_id', examId)
+      .eq('subject_id', subjectId)
+      .order('year_of_exam', { ascending: false });
+
+    if (mcqError) throw mcqError;
+
+    // Step 2: Get resume point
+    const { data: resumeData, error: resumeError } = await supabase
+      .from('mcq_resume_tracker')
+      .select('resume_mcq_id, primary_index, level')
+      .eq('user_id', userId)
+      .eq('exam_id', examId)
+      .eq('subject_id', subjectId)
+      .limit(1);
+
+    if (resumeError) throw resumeError;
+
+    let startIndex = 0;
+    const resume = resumeData?.[0];
+
+    // Step 3: Find resume index from resume_mcq_id
+    if (resume?.resume_mcq_id) {
+      const foundIndex = allMcqs.findIndex(
+        (mcq) => mcq.primary_mcq_id === resume.resume_mcq_id
+      );
+      if (foundIndex !== -1) startIndex = foundIndex;
+    } else if (resume?.primary_index !== undefined) {
+      startIndex = resume.primary_index;
+    }
+
+    const selected = allMcqs.slice(startIndex, startIndex + 10);
+
+    const questions = selected.map((row) => ({
+      primary_mcq_id: row.primary_mcq_id,
+      year: row.year_of_exam,
+      primary_mcq: row.primary_mcq,
+      levels: {
+        level_1: row.level_1,
+        level_2: row.level_2,
+        level_3: row.level_3,
+        level_4: row.level_4,
+        level_5: row.level_5,
+        level_6: row.level_6,
+        level_7: row.level_7,
+        level_8: row.level_8,
+        level_9: row.level_9,
+        level_10: row.level_10
+      }
+    }));
+
+    res.json({
+      questions,
+      resume_point: resume || null
+    });
+  } catch (err) {
+    console.error('❌ Error in getAdaptiveStart:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+exports.submitBatchResponses = async (req, res) => {
+  const { responses } = req.body;
+
+  if (!Array.isArray(responses) || responses.length === 0) {
+    return res.status(400).json({ error: 'No responses provided.' });
+  }
+
+  const valid = responses.every(r =>
+    r.userId && r.examId && r.subjectId &&
+    r.mcqId && r.level &&
+    r.selected_option !== undefined && r.is_correct !== undefined
+  );
+
+  if (!valid) {
+    return res.status(400).json({ error: 'One or more responses are missing required fields.' });
+  }
+
+  try {
+    // Insert into mcq_response_log
+    const { error: insertError } = await supabase
+      .from('mcq_response_log')
+      .insert(responses.map(r => ({
+        user_id: r.userId,
+        exam_id: r.examId,
+        subject_id: r.subjectId,
+        mcq_id: r.mcqId,
+        level: r.level,
+        selected_option: r.selected_option,
+        is_correct: r.is_correct,
+        answered_at: new Date(),
+      })));
+
+    if (insertError) throw insertError;
+
+    // Update resume tracker using last response
+    const latest = responses[responses.length - 1];
+
+    const { error: resumeError } = await supabase
+      .from('mcq_resume_tracker')
+      .upsert({
+        user_id: latest.userId,
+        exam_id: latest.examId,
+        subject_id: latest.subjectId,
+        primary_index: latest.primary_index || 0,
+        level: latest.level,
+        resume_mcq_id: latest.mcqId,
+        updated_at: new Date()
+      }, {
+        onConflict: ['user_id', 'exam_id', 'subject_id']
+      });
+
+    if (resumeError) throw resumeError;
+
+    res.status(200).json({ message: `✅ ${responses.length} response(s) saved.` });
+  } catch (err) {
+    console.error('❌ Error saving batch responses:', err.message);
+    res.status(500).json({ error: 'Failed to save batch responses.' });
+  }
+};
+

@@ -1,4 +1,4 @@
-const supabase = require('../config/supabaseClient');
+const {supabase} = require('../config/supabaseClient');
 
 // 1. Submit Responses in Batch
 exports.submitResponsesBatch = async (req, res) => {

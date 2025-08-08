@@ -1488,6 +1488,36 @@ paths:
         '500':
           description: Internal Server Error
 
+  /classify/subjects/run:
+    post:
+      tags: [Classification]
+      summary: Batch-classify unlabelled MCQs into MBBS subjects (with UUID mapping)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                batchSize: { type: integer, default: 50, maximum: 200 }
+                concurrency: { type: integer, default: 5, maximum: 12 }
+                pageSize: { type: integer, default: 2000, maximum: 5000 }
+      responses:
+        "200":
+          description: Classification run summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  pages: { type: integer }
+                  totalUpdated: { type: integer }
+                  totalInvalidReturned: { type: integer }
+                  batchSize: { type: integer }
+                  concurrency: { type: integer }
+                  pageSize: { type: integer }
+                  model: { type: string }
 
 components:
   schemas:

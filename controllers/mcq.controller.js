@@ -583,16 +583,16 @@ exports.classifySubjects = async (req, res) => {
 };
 
 
-// === Tunables (env or query override) ===
-const MODEL = process.env.GEN_MODEL || 'gpt-5-mini';
-const DEFAULT_LIMIT = parseInt(process.env.GEN_LIMIT || '40', 10);       // how many rows to claim per run
-const MAX_LIMIT = 100;
-const CONCURRENCY = parseInt(process.env.GEN_CONCURRENCY || '3', 10);    // parallel OpenAI calls *per worker*
-const LOCK_TTL_MIN = parseInt(process.env.GEN_LOCK_TTL_MIN || '20', 10); // reclaim stale locks
-const OPENAI_MAX_TOKENS = parseInt(process.env.GEN_MAX_TOKENS || '1800', 10); // cap output size
+// === Tunables (GEN_* so they don't clash with other controllers) ===
+const GEN_MODEL = process.env.GEN_MODEL || 'gpt-5-mini';
+const GEN_DEFAULT_LIMIT = parseInt(process.env.GEN_LIMIT || '40', 10);
+const GEN_MAX_LIMIT = 100;
+const GEN_CONCURRENCY = parseInt(process.env.GEN_CONCURRENCY || '3', 10);
+const GEN_LOCK_TTL_MIN = parseInt(process.env.GEN_LOCK_TTL_MIN || '20', 10);
+const GEN_MAX_TOKENS = parseInt(process.env.GEN_MAX_TOKENS || '1800', 10);
 
-// === Your existing prompt (kept as-is) ===
-const PROMPT_TEMPLATE = `🚨 OUTPUT RULES: Your entire output must be a single valid JSON object.
+// === Your prompt (renamed to avoid collisions) ===
+const PRIMARY_PROMPT_TEMPLATE = `🚨 OUTPUT RULES: Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
 - DO NOT add explanations, comments, or headings.
 - Your output MUST start with { and end with }.
@@ -631,9 +631,10 @@ If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slid
 All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.
 `;
 
-// ---------- helpers ----------
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-async function asyncPool(limit, items, iter) {
+// ---- helpers (all prefixed to avoid clashes) ----
+const genSleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function genAsyncPool(limit, items, iter) {
   const ret = []; const exec = [];
   for (const it of items) {
     const p = Promise.resolve().then(() => iter(it));
@@ -645,50 +646,53 @@ async function asyncPool(limit, items, iter) {
   return Promise.allSettled(ret);
 }
 
-function cleanAndParseJSON(raw) {
-  // strip fences and keep outermost { ... }
-  let t = (raw || '').trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/,'').trim();
+function genCleanAndParseJSON(raw) {
+  let t = (raw || '').trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```$/, '')
+    .trim();
   const first = t.indexOf('{'); const last = t.lastIndexOf('}');
   if (first === -1 || last === -1 || last < first) throw new Error('No JSON object found');
   t = t.slice(first, last + 1);
   return JSON.parse(t);
 }
 
-function buildPrompt(row) {
+function genBuildPrompt(row) {
   const mcqText = typeof row.mcq === 'string'
     ? row.mcq
     : (row.mcq?.stem || row.mcq?.question || row.mcq?.text || JSON.stringify(row.mcq));
-  return `${PROMPT_TEMPLATE}\n\nMCQ: ${mcqText}\nCorrect Answer: ${row.correct_answer || ''}`;
+  return `${PRIMARY_PROMPT_TEMPLATE}\n\nMCQ: ${mcqText}\nCorrect Answer: ${row.correct_answer || ''}`;
 }
 
-function isRetryable(e) {
+function genIsRetryable(e) {
   const s = String(e?.message || e);
   return /timeout|ETIMEDOUT|429|rate limit|temporar|unavailable|ECONNRESET/i.test(s);
 }
 
-async function callOpenAIWithRetry(messages, attempt = 1) {
+async function genCallOpenAIWithRetry(messages, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
-      model: MODEL,
+      model: GEN_MODEL,
       temperature: 0.6,
-      max_tokens: OPENAI_MAX_TOKENS,
+      max_tokens: GEN_MAX_TOKENS,
       messages
     });
     return resp.choices?.[0]?.message?.content || '';
   } catch (e) {
-    if (isRetryable(e) && attempt <= 3) {
-      await sleep(400 * attempt);
-      return callOpenAIWithRetry(messages, attempt + 1);
+    if (genIsRetryable(e) && attempt <= 3) {
+      await genSleep(400 * attempt);
+      return genCallOpenAIWithRetry(messages, attempt + 1);
     }
     throw e;
   }
 }
 
-// ---------- locking ----------
-async function claimRows(limit, workerId) {
-  const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
+// ---- locking ----
+async function genClaimRows(limit, workerId) {
+  const cutoff = new Date(Date.now() - GEN_LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // 1) pick candidates
+  // 1) candidates
   const { data: candidates, error: e1 } = await supabase
     .from('mcq_bank')
     .select('id')
@@ -701,21 +705,20 @@ async function claimRows(limit, workerId) {
 
   const ids = candidates.map(r => r.id);
 
-  // 2) lock a subset
+  // 2) lock & fetch rows
   const { data: locked, error: e2 } = await supabase
     .from('mcq_bank')
     .update({ primary_lock: workerId, primary_locked_at: new Date().toISOString() })
     .in('id', ids)
     .is('primary_mcq', null)
     .is('primary_lock', null)
-    .select('id, mcq, correct_answer')   // return rows we actually got
-    ;
+    .select('id, mcq, correct_answer');
   if (e2) throw e2;
 
   return (locked || []).slice(0, limit);
 }
 
-async function clearLocks(ids) {
+async function genClearLocks(ids) {
   if (!ids.length) return;
   await supabase
     .from('mcq_bank')
@@ -723,11 +726,11 @@ async function clearLocks(ids) {
     .in('id', ids);
 }
 
-// ---------- main worker per request ----------
-async function processRow(row) {
-  const prompt = buildPrompt(row);
-  const raw = await callOpenAIWithRetry([{ role: 'user', content: prompt }]);
-  const parsed = cleanAndParseJSON(raw);
+// ---- per-row processor ----
+async function genProcessRow(row) {
+  const prompt = genBuildPrompt(row);
+  const raw = await genCallOpenAIWithRetry([{ role: 'user', content: prompt }]);
+  const parsed = genCleanAndParseJSON(raw);
 
   if (!parsed.primary_mcq || !parsed.learning_gap || !Array.isArray(parsed.buzzwords)) {
     throw new Error('Missing required fields in JSON');
@@ -742,40 +745,37 @@ async function processRow(row) {
   return { id: row.id, ok: true };
 }
 
-// POST /api/mcqs/generate-primary  (multi-worker + concurrent)
+// ---- main API ----
 exports.generatePrimaryMCQs = async (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit || DEFAULT_LIMIT, 10), MAX_LIMIT);
-  const concurrency = Math.max(1, parseInt(req.query.concurrency || CONCURRENCY, 10));
+  const limit = Math.min(parseInt(req.query.limit || GEN_DEFAULT_LIMIT, 10), GEN_MAX_LIMIT);
+  const concurrency = Math.max(1, parseInt(req.query.concurrency || GEN_CONCURRENCY, 10));
   const workerId = req.headers['x-worker-id'] || `w-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
 
   try {
-    // 1) claim
-    const claimed = await claimRows(limit, workerId);
+    const claimed = await genClaimRows(limit, workerId);
     if (!claimed.length) {
-      return res.status(200).json({ message: 'No pending rows', claimed: 0, updated: 0, failed: 0, model: MODEL });
+      return res.status(200).json({ message: 'No pending rows', claimed: 0, updated: 0, failed: 0, model: GEN_MODEL });
     }
 
-    // 2) process concurrently
-    const results = await asyncPool(concurrency, claimed, r => processRow(r));
-
-    // 3) summarize + clear any leftover locks (e.g., on failures)
+    const results = await genAsyncPool(concurrency, claimed, r => genProcessRow(r));
     const updated = results.filter(r => r.status === 'fulfilled').length;
     const failed = results.length - updated;
+
+    // clear locks for failed ones
     const stillLockedIds = claimed
       .filter((_, i) => results[i].status !== 'fulfilled')
       .map(r => r.id);
-    await clearLocks(stillLockedIds);
+    await genClearLocks(stillLockedIds);
 
     return res.status(200).json({
       message: 'OK',
-      model: MODEL,
+      model: GEN_MODEL,
       claimed: claimed.length,
       updated,
       failed,
       concurrency,
     });
   } catch (err) {
-    // best-effort cleanup is handled per-row & above; just report error
     console.error('❌ generatePrimaryMCQs error:', err.message || err);
     return res.status(500).json({ error: 'Internal Server Error', details: err.message });
   }

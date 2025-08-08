@@ -1543,6 +1543,34 @@ paths:
                           type: string
         '500':
           description: Internal Server Error
+  /api/mcqs/generate-level10:
+    post:
+      summary: Generate Level 10 MCQs from Level 9 entries
+      tags:
+        - MCQ Generation
+      description: |
+        Generates the final Level 10 MCQ using the learning gap from Level 9. Only runs for mcq_bank rows where `level_9` is not null and `level_10` is null.
+      responses:
+        '200':
+          description: Level 10 generation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  updated:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        status:
+                          type: string
+        '500':
+          description: Internal Server Error
 
 components:
   schemas:

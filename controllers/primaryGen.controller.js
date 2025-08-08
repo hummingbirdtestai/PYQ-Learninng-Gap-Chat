@@ -91,21 +91,42 @@ function genIsRetryable(e) {
 
 async function genCallOpenAIWithRetry(messages, attempt = 1) {
   try {
+    // First try WITHOUT any token cap (works across all 5/5-mini/5-nano on chat.completions)
     const resp = await openai.chat.completions.create({
       model: GEN_MODEL,
       temperature: 0.6,
-      max_tokens: GEN_MAX_TOKENS,
       messages
     });
     return resp.choices?.[0]?.message?.content || '';
   } catch (e) {
-    if (genIsRetryable(e) && attempt <= 3) {
+    // If you really want a cap, try again using the new field name some models expect.
+    // (Some server configs suggest `max_completion_tokens`.)
+    const msg = String(e?.message || e);
+    if (/max_tokens/i.test(msg) || /completion_tokens/i.test(msg)) {
+      try {
+        const resp = await openai.chat.completions.create({
+          model: GEN_MODEL,
+          temperature: 0.6,
+          messages,
+          // NOTE: this param is accepted by some newer models; if it 400s we’ll fall back to retries below
+          max_completion_tokens: GEN_MAX_TOKENS
+        });
+        return resp.choices?.[0]?.message?.content || '';
+      } catch (e2) {
+        // fall through to retry handler below
+        e = e2;
+      }
+    }
+    // retry/backoff for timeouts/429/etc.
+    const retryable = /timeout|ETIMEDOUT|429|rate limit|temporar|unavailable|ECONNRESET/i.test(String(e));
+    if (retryable && attempt <= 3) {
       await genSleep(400 * attempt);
       return genCallOpenAIWithRetry(messages, attempt + 1);
     }
     throw e;
   }
 }
+
 
 // ---- locking ----
 async function genClaimRows(limit, workerId) {

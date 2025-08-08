@@ -582,7 +582,16 @@ exports.classifySubjects = async (req, res) => {
   }
 };
 
-// ✅ Final Prompt Template
+
+// === Tunables (env or query override) ===
+const MODEL = process.env.GEN_MODEL || 'gpt-5-mini';
+const DEFAULT_LIMIT = parseInt(process.env.GEN_LIMIT || '40', 10);       // how many rows to claim per run
+const MAX_LIMIT = 100;
+const CONCURRENCY = parseInt(process.env.GEN_CONCURRENCY || '3', 10);    // parallel OpenAI calls *per worker*
+const LOCK_TTL_MIN = parseInt(process.env.GEN_LOCK_TTL_MIN || '20', 10); // reclaim stale locks
+const OPENAI_MAX_TOKENS = parseInt(process.env.GEN_MAX_TOKENS || '1800', 10); // cap output size
+
+// === Your existing prompt (kept as-is) ===
 const PROMPT_TEMPLATE = `🚨 OUTPUT RULES: Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
 - DO NOT add explanations, comments, or headings.
@@ -622,71 +631,153 @@ If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slid
 All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.
 `;
 
-exports.generatePrimaryMCQs = async (req, res) => {
+// ---------- helpers ----------
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+async function asyncPool(limit, items, iter) {
+  const ret = []; const exec = [];
+  for (const it of items) {
+    const p = Promise.resolve().then(() => iter(it));
+    ret.push(p);
+    const e = p.then(() => exec.splice(exec.indexOf(e), 1));
+    exec.push(e);
+    if (exec.length >= limit) await Promise.race(exec);
+  }
+  return Promise.allSettled(ret);
+}
+
+function cleanAndParseJSON(raw) {
+  // strip fences and keep outermost { ... }
+  let t = (raw || '').trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/,'').trim();
+  const first = t.indexOf('{'); const last = t.lastIndexOf('}');
+  if (first === -1 || last === -1 || last < first) throw new Error('No JSON object found');
+  t = t.slice(first, last + 1);
+  return JSON.parse(t);
+}
+
+function buildPrompt(row) {
+  const mcqText = typeof row.mcq === 'string'
+    ? row.mcq
+    : (row.mcq?.stem || row.mcq?.question || row.mcq?.text || JSON.stringify(row.mcq));
+  return `${PROMPT_TEMPLATE}\n\nMCQ: ${mcqText}\nCorrect Answer: ${row.correct_answer || ''}`;
+}
+
+function isRetryable(e) {
+  const s = String(e?.message || e);
+  return /timeout|ETIMEDOUT|429|rate limit|temporar|unavailable|ECONNRESET/i.test(s);
+}
+
+async function callOpenAIWithRetry(messages, attempt = 1) {
   try {
-    const { data: mcqs, error: fetchError } = await supabase
-      .from('mcq_bank')
-      .select('id, mcq, correct_answer')
-      .is('primary_mcq', null)
-      .limit(20);
+    const resp = await openai.chat.completions.create({
+      model: MODEL,
+      temperature: 0.6,
+      max_tokens: OPENAI_MAX_TOKENS,
+      messages
+    });
+    return resp.choices?.[0]?.message?.content || '';
+  } catch (e) {
+    if (isRetryable(e) && attempt <= 3) {
+      await sleep(400 * attempt);
+      return callOpenAIWithRetry(messages, attempt + 1);
+    }
+    throw e;
+  }
+}
 
-    if (fetchError) throw fetchError;
+// ---------- locking ----------
+async function claimRows(limit, workerId) {
+  const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-    const results = [];
+  // 1) pick candidates
+  const { data: candidates, error: e1 } = await supabase
+    .from('mcq_bank')
+    .select('id')
+    .is('primary_mcq', null)
+    .or(`primary_lock.is.null,primary_locked_at.lt.${cutoff}`)
+    .order('id', { ascending: true })
+    .limit(limit * 3);
+  if (e1) throw e1;
+  if (!candidates?.length) return [];
 
-    for (const row of mcqs) {
-      const fullPrompt = `${PROMPT_TEMPLATE}\n\nMCQ: ${row.mcq}\nCorrect Answer: ${row.correct_answer}`;
-      let parsed = null;
-      let rawOutput = '';
+  const ids = candidates.map(r => r.id);
 
-      try {
-        const gptResponse = await openai.chat.completions.create({
-          model: 'gpt-5', // updated to GPT-5
-          messages: [{ role: 'user', content: fullPrompt }],
-          temperature: 0.7
-        });
+  // 2) lock a subset
+  const { data: locked, error: e2 } = await supabase
+    .from('mcq_bank')
+    .update({ primary_lock: workerId, primary_locked_at: new Date().toISOString() })
+    .in('id', ids)
+    .is('primary_mcq', null)
+    .is('primary_lock', null)
+    .select('id, mcq, correct_answer')   // return rows we actually got
+    ;
+  if (e2) throw e2;
 
-        rawOutput = gptResponse.choices?.[0]?.message?.content || '';
-        const cleaned = rawOutput.trim().replace(/^```json|```$/g, '');
-        parsed = JSON.parse(cleaned);
+  return (locked || []).slice(0, limit);
+}
 
-        // ✅ Validate required structure
-        if (!parsed.primary_mcq || !parsed.learning_gap || !parsed.buzzwords) {
-          throw new Error('Missing one or more required fields: primary_mcq, learning_gap, buzzwords');
-        }
-      } catch (err) {
-        console.warn(`❌ GPT failed for mcq_id ${row.id}:`, err.message);
-        continue;
-      }
+async function clearLocks(ids) {
+  if (!ids.length) return;
+  await supabase
+    .from('mcq_bank')
+    .update({ primary_lock: null, primary_locked_at: null })
+    .in('id', ids);
+}
 
-      const { error: updateError } = await supabase
-        .from('mcq_bank')
-        .update({ primary_mcq: parsed })
-        .eq('id', row.id);
+// ---------- main worker per request ----------
+async function processRow(row) {
+  const prompt = buildPrompt(row);
+  const raw = await callOpenAIWithRetry([{ role: 'user', content: prompt }]);
+  const parsed = cleanAndParseJSON(raw);
 
-      if (updateError) {
-        console.error(`❌ Failed to update row ${row.id}`, updateError);
-        continue;
-      }
+  if (!parsed.primary_mcq || !parsed.learning_gap || !Array.isArray(parsed.buzzwords)) {
+    throw new Error('Missing required fields in JSON');
+  }
 
-      results.push({
-        id: row.id,
-        status: '✅ Inserted',
-        preview: parsed.primary_mcq?.stem || 'N/A'
-      });
+  const { error: upErr } = await supabase
+    .from('mcq_bank')
+    .update({ primary_mcq: parsed, primary_lock: null, primary_locked_at: null })
+    .eq('id', row.id);
+  if (upErr) throw upErr;
+
+  return { id: row.id, ok: true };
+}
+
+// POST /api/mcqs/generate-primary  (multi-worker + concurrent)
+exports.generatePrimaryMCQs = async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || DEFAULT_LIMIT, 10), MAX_LIMIT);
+  const concurrency = Math.max(1, parseInt(req.query.concurrency || CONCURRENCY, 10));
+  const workerId = req.headers['x-worker-id'] || `w-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+
+  try {
+    // 1) claim
+    const claimed = await claimRows(limit, workerId);
+    if (!claimed.length) {
+      return res.status(200).json({ message: 'No pending rows', claimed: 0, updated: 0, failed: 0, model: MODEL });
     }
 
+    // 2) process concurrently
+    const results = await asyncPool(concurrency, claimed, r => processRow(r));
+
+    // 3) summarize + clear any leftover locks (e.g., on failures)
+    const updated = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.length - updated;
+    const stillLockedIds = claimed
+      .filter((_, i) => results[i].status !== 'fulfilled')
+      .map(r => r.id);
+    await clearLocks(stillLockedIds);
+
     return res.status(200).json({
-      message: '✅ GPT-based primary MCQ generation complete',
-      count: results.length,
-      results
+      message: 'OK',
+      model: MODEL,
+      claimed: claimed.length,
+      updated,
+      failed,
+      concurrency,
     });
   } catch (err) {
-    console.error('❌ Error in generatePrimaryMCQs:', err.message);
-    return res.status(500).json({
-      error: 'Internal Server Error',
-      details: err.message
-    });
+    // best-effort cleanup is handled per-row & above; just report error
+    console.error('❌ generatePrimaryMCQs error:', err.message || err);
+    return res.status(500).json({ error: 'Internal Server Error', details: err.message });
   }
 };
 

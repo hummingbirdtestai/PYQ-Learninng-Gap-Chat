@@ -1835,4 +1835,3 @@ exports.generateLevel10ForMCQBank = async (req, res) => {
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 };
-

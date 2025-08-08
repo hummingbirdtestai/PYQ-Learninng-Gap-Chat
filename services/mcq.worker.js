@@ -134,7 +134,7 @@ Correct Answer: ${rawMCQ.correct_answer}`;
 
     while (attempts < 3) {
       const chatResponse = await openai.chat.completions.create({
-        model: 'gpt-4-0613',
+        model: 'gpt-5', // updated to GPT-5
         messages: [{ role: 'user', content: fullPrompt }],
         temperature: 0.7
       });

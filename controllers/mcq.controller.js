@@ -414,48 +414,158 @@ exports.processGraphById = async (req, res) => {
   }
 };
 
+const MODEL = process.env.CLASSIFY_MODEL || 'gpt-4o-mini'; // keep 'gpt-5' if you truly have it
+
+// Optional: map subject -> UUID if you also store subject_id
+const SUBJECT_NAME_TO_ID = {
+  Anatomy: "2884ede5-ebdc-4dd7-be0d-cce07fd54c05",
+  Physiology: "cde00973-d19a-4ad2-9683-08f79f219603",
+  Biochemistry: "4df2c8b9-d9c0-480c-aecc-61563fa616ce",
+  Pathology: "aed84226-be65-43a3-bae9-06ab57ab48bf",
+  Pharmacology: "59665c8f-6277-4e17-9c92-18257d2fc1f2",
+  Microbiology: "5d3c2d0a-8718-4964-baaa-7ffc664f072c",
+  "Forensic Medicine": "6b9abcfa-9ac0-4930-a42f-f390c6be04c4",
+  "Community Medicine": "78f794bb-90b5-4bb5-b5d6-d57381175e52",
+  ENT: "4e5a1bd4-18de-4975-bed3-28d428cda51c",
+  Ophthalmology: "be03e32f-c62a-431b-97d8-88be27a24175",
+  "General Medicine": "3cd6242a-51be-4e93-98f2-b42268a8175a",
+  Pediatrics: "6268d53e-9ed5-45ae-833b-59dd88b3af74",
+  Dermatology: "832bb0b0-30ef-453d-914b-1484ad455959",
+  Psychiatry: "2f599bf5-e471-4705-b183-55e44bd93c92",
+  "General Surgery": "aebf4b8b-446d-4a67-a325-ee8d1c7f05ca",
+  Orthopedics: "fbbafd10-ba0f-4113-ad24-8192f40aa60d",
+  Anesthesia: "ebc4ef0f-46dd-4a4e-acca-1e53c7d6f127",
+  Radiology: "fb0c84ba-9eb1-4274-b4ef-2af5ce56cff5",
+  "Obstetrics and Gynaecology": "8c9c6b8c-bd2f-404b-8e58-d5a7a722650b"
+};
+
+const SUBJECTS = Object.keys(SUBJECT_NAME_TO_ID);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const CLASSIFICATION_PROMPT = `
-These are pyqS, Classify the question in each cell into one of the following MBBS subjects:
-Anatomy, Physiology, Biochemistry, Pathology, Pharmacology, Microbiology, Forensic Medicine, Community Medicine, ENT, Ophthalmology, General Medicine, Pediatrics, Dermatology, Psychiatry, General Surgery, Orthopedics, Anesthesia, Radiology, Obstetrics and Gynaecology.
-Only return the subject name (e.g., "Pharmacology")
-`;
+You are a meticulous classifier for MBBS exam MCQs.
+
+Pick exactly ONE subject for each MCQ from this closed list (case-sensitive, exact match):
+${SUBJECTS.map(s => `- ${s}`).join('\n')}
+
+OUTPUT RULES:
+- Return ONLY a single JSON array, parsable by JSON.parse.
+- Each item MUST be: {"id":"<uuid>", "subject":"<one of the above exactly>"}.
+- "id" must be the SAME uuid you received, as a string, unchanged.
+- Do not add text before or after the JSON.
+- If ambiguous, choose the most probable.
+- Never invent subjects outside the list.
+`.trim();
+
+function extractText(mcq) {
+  if (!mcq) return '';
+  if (typeof mcq === 'string') return mcq;
+  if (typeof mcq === 'object') {
+    return mcq.stem || mcq.question || mcq.text || JSON.stringify(mcq).slice(0, 2000);
+  }
+  return String(mcq);
+}
 
 exports.classifySubjects = async (req, res) => {
   try {
-    // Fetch 10 unclassified MCQs
+    // Allow override: ?limit=200
+    const limit = Math.min(parseInt(req.query.limit || '100', 10), 300);
+
+    // 1) Fetch unclassified MCQs (subject NULL)
     const { data: rows, error: fetchError } = await supabase
       .from('mcq_bank')
       .select('id, mcq')
       .is('subject', null)
-      .limit(100);
+      .limit(limit);
 
     if (fetchError) throw fetchError;
-    if (!rows || rows.length === 0) return res.json({ message: '✅ No unclassified MCQs found.' });
-
-    for (const row of rows) {
-      const prompt = `${CLASSIFICATION_PROMPT}\n\nMCQ: ${row.mcq}`;
-
-      const chatResponse = await openai.chat.completions.create({
-        model: 'gpt-5', // updated to GPT-5
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0,
-      });
-
-      const subject = chatResponse.choices?.[0]?.message?.content?.trim() || 'Unclassified';
-
-      await supabase
-        .from('mcq_bank')
-        .update({ subject })
-        .eq('id', row.id);
+    if (!rows || rows.length === 0) {
+      return res.json({ message: '✅ No unclassified MCQs found.', fetched: 0, updated: 0 });
     }
 
-    res.json({ message: `✅ Classified ${rows.length} MCQs.` });
+    // 2) Build ONE batched payload for OpenAI
+    const payload = {
+      mcqs: rows.map(r => ({
+        id: String(r.id),     // keep uuid as string
+        text: extractText(r.mcq)
+      }))
+    };
+
+    // 3) One model call for the whole batch
+    const chatResponse = await openai.chat.completions.create({
+      model: MODEL,
+      temperature: 0,
+      messages: [
+        { role: 'system', content: CLASSIFICATION_PROMPT },
+        { role: 'user', content: JSON.stringify(payload) }
+      ],
+    });
+
+    const raw = chatResponse.choices?.[0]?.message?.content?.trim() || '[]';
+
+    // 4) Parse + validate
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) throw new Error('Model did not return an array');
+    } catch (e) {
+      return res.status(502).json({ error: 'LLM returned invalid JSON', sample: raw.slice(0, 400) });
+    }
+
+    const valid = parsed
+      .filter(it =>
+        typeof it?.id === 'string' &&
+        UUID_RE.test(it.id) &&
+        typeof it?.subject === 'string' &&
+        SUBJECTS.includes(it.subject)
+      )
+      .map(it => ({
+        id: it.id,
+        subject: it.subject,
+        subject_id: SUBJECT_NAME_TO_ID[it.subject] // comment this line if you don't store subject_id
+      }));
+
+    if (!valid.length) {
+      return res.status(422).json({ error: 'No valid classifications returned', rawSample: raw.slice(0, 300) });
+    }
+
+    // 5) Bulk upsert (idempotent)
+    let updated = 0;
+    try {
+      const { error: upErr, data } = await supabase
+        .from('mcq_bank')
+        .upsert(valid, { onConflict: 'id', ignoreDuplicates: false })
+        .select('id');
+
+      if (upErr) throw upErr;
+      updated = data?.length || valid.length;
+    } catch (e) {
+      // If your table doesn't have subject_id, fallback to subject-only update
+      if (String(e.message || e).includes('column "subject_id"')) {
+        const minimal = valid.map(v => ({ id: v.id, subject: v.subject }));
+        const { error: up2, data: d2 } = await supabase
+          .from('mcq_bank')
+          .upsert(minimal, { onConflict: 'id', ignoreDuplicates: false })
+          .select('id');
+        if (up2) throw up2;
+        updated = d2?.length || minimal.length;
+      } else {
+        throw e;
+      }
+    }
+
+    return res.json({
+      message: `✅ Classified ${updated} / ${rows.length} MCQs in one call`,
+      fetched: rows.length,
+      updated,
+      invalidReturned: parsed.length - valid.length,
+      model: MODEL
+    });
   } catch (err) {
     console.error('❌ Error classifying MCQs:', err);
     res.status(500).json({ error: 'Internal Server Error', details: err.message });
   }
 };
-
 
 // ✅ Final Prompt Template
 const PROMPT_TEMPLATE = `🚨 OUTPUT RULES: Your entire output must be a single valid JSON object.

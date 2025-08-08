@@ -1547,7 +1547,7 @@ paths:
     post:
       summary: Generate Level 10 MCQs from Level 9 entries
       tags:
-        - MCQ Generation
+        - MCQs
       description: |
         Generates the final Level 10 MCQ using the learning gap from Level 9. Only runs for mcq_bank rows where `level_9` is not null and `level_10` is null.
       responses:

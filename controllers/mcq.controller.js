@@ -414,10 +414,6 @@ exports.processGraphById = async (req, res) => {
   }
 };
 
-// controllers/mcq.controller.js  (replace your classifySubjects with this)
-const { supabase } = require('../config/supabaseClient');
-const openai = require('../config/openaiClient');
-
 const MODEL = process.env.CLASSIFY_MODEL || 'gpt-4o-mini';
 const MAX_LIMIT = 200; // hard ceiling for one call
 const DEFAULT_LIMIT = 80;

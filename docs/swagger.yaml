@@ -1247,14 +1247,21 @@ paths:
     post:
       tags:
         - MCQ Generation
-      summary: Generate Primary MCQ JSONs (multi-worker safe, concurrent)
+      summary: Generate Primary MCQ JSONs (concurrent, multi-worker safe)
       description: |
-        Claims up to `limit` pending rows from `mcq_bank` (where `primary_mcq` IS NULL),
-        locks them to this worker, generates **primary_mcq** JSON via ChatGPT-5 mini in
-        parallel (concurrency-limited), writes results, and releases locks.
-        
-        You can scale **Railway replicas** to run multiple workers simultaneously; the
-        lock columns prevent duplicate processing.
+        Claims up to `limit` pending rows from `mcq_bank` where `primary_mcq` IS NULL,
+        locks them to this worker (using `primary_lock` / `primary_locked_at`), generates
+        structured JSON via ChatGPT-5 mini **in parallel** (bounded by `concurrency`),
+        writes results, and releases locks for processed rows.
+  
+        Scale throughput by:
+        - Increasing **replicas** in Railway (multiple workers), and/or
+        - Calling this endpoint in parallel, and/or
+        - Raising `concurrency` (per-request parallel OpenAI calls).
+  
+        Environment defaults:
+        - `GEN_MODEL=gpt-5-mini`
+        - `GEN_LIMIT=40`, `GEN_CONCURRENCY=3`, `GEN_LOCK_TTL_MIN=20`, `GEN_MAX_TOKENS=1800`
       parameters:
         - in: query
           name: limit
@@ -1277,7 +1284,7 @@ paths:
         - in: header
           name: x-worker-id
           required: false
-          description: Optional worker identifier; generated if omitted.
+          description: Optional worker identifier (auto-generated if omitted).
           schema:
             type: string
       responses:
@@ -1296,12 +1303,15 @@ paths:
                     example: "gpt-5-mini"
                   claimed:
                     type: integer
+                    description: Rows successfully locked by this request
                     example: 40
                   updated:
                     type: integer
+                    description: Rows written with primary_mcq and lock cleared
                     example: 37
                   failed:
                     type: integer
+                    description: Rows that failed generation (locks auto-cleared)
                     example: 3
                   concurrency:
                     type: integer
@@ -1318,7 +1328,8 @@ paths:
                     example: "Internal Server Error"
                   details:
                     type: string
-                    example: "Bad JSON: { ... }"
+                    example: "Missing required fields in JSON"
+
 
           
   /api/mcqs/generate-level1-from-bank:

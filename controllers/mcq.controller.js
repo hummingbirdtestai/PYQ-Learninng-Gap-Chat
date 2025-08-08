@@ -297,7 +297,7 @@ Here is the MCQ:
 
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-0613',
+      model: 'gpt-5', // updated to GPT-5
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
     });
@@ -436,7 +436,7 @@ exports.classifySubjects = async (req, res) => {
       const prompt = `${CLASSIFICATION_PROMPT}\n\nMCQ: ${row.mcq}`;
 
       const chatResponse = await openai.chat.completions.create({
-        model: 'gpt-4',
+        model: 'gpt-5', // updated to GPT-5
         messages: [{ role: 'user', content: prompt }],
         temperature: 0,
       });
@@ -516,7 +516,7 @@ exports.generatePrimaryMCQs = async (req, res) => {
 
       try {
         const gptResponse = await openai.chat.completions.create({
-          model: 'gpt-4-0613',
+          model: 'gpt-5', // updated to GPT-5
           messages: [{ role: 'user', content: fullPrompt }],
           temperature: 0.7
         });
@@ -639,7 +639,7 @@ exports.generateLevel1ForMCQBank = async (req, res) => {
         attempt++;
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4-0613',
+            model: 'gpt-5', // updated to GPT-5
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }
@@ -788,7 +788,7 @@ exports.generateLevel2ForMCQBank = async (req, res) => {
         attempt++;
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4-0613',
+            model: 'gpt-5', // updated to GPT-5
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }
@@ -937,7 +937,7 @@ exports.generateLevel3ForMCQBank = async (req, res) => {
         attempt++;
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4-0613',
+            model: 'gpt-5', // updated to GPT-5
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }
@@ -1058,7 +1058,7 @@ exports.generateLevel4ForMCQBank = async (req, res) => {
         attempt++;
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4-0613',
+            model: 'gpt-5', // updated to GPT-5
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }
@@ -1178,7 +1178,7 @@ exports.generateLevel5ForMCQBank = async (req, res) => {
         attempt++;
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4-0613',
+            model: 'gpt-5', // updated to GPT-5
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }
@@ -1298,7 +1298,7 @@ exports.generateLevel6ForMCQBank = async (req, res) => {
         attempt++;
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4-0613',
+            model: 'gpt-5', // updated to GPT-5
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }
@@ -1418,7 +1418,7 @@ exports.generateLevel7ForMCQBank = async (req, res) => {
         attempt++;
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4-0613',
+            model: 'gpt-5', // updated to GPT-5
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }
@@ -1538,7 +1538,7 @@ exports.generateLevel8ForMCQBank = async (req, res) => {
         attempt++;
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4-0613',
+            model: 'gpt-5', // updated to GPT-5
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }
@@ -1658,7 +1658,7 @@ exports.generateLevel9ForMCQBank = async (req, res) => {
         attempt++;
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4-0613',
+            model: 'gpt-5', // updated to GPT-5
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }
@@ -1778,7 +1778,7 @@ exports.generateLevel10ForMCQBank = async (req, res) => {
         attempt++;
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4-0613',
+            model: 'gpt-5', // updated to GPT-5
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }

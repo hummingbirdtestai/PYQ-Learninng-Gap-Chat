@@ -414,11 +414,11 @@ exports.processGraphById = async (req, res) => {
   }
 };
 
+// CLASSIFY SUBJECTS
 const MODEL = process.env.CLASSIFY_MODEL || 'gpt-4o-mini';
-const MAX_LIMIT = 200; // hard ceiling for one call
+const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 80;
 
-// Allowed canonical subjects
 const SUBJECTS = [
   "Anatomy","Physiology","Biochemistry","Pathology","Pharmacology","Microbiology",
   "Forensic Medicine","Community Medicine","ENT","Ophthalmology",
@@ -426,11 +426,9 @@ const SUBJECTS = [
   "General Surgery","Orthopedics","Anesthesia","Radiology","Obstetrics and Gynaecology"
 ];
 
-// Normalization map for common variants that the model may return
 const SUBJECT_SYNONYMS = {
-  // direct mappings
-  "immunology": "Microbiology",       // immunology content → Microbiology
-  "genetics": "Biochemistry",         // genetics content → Biochemistry
+  "immunology": "Microbiology",
+  "genetics": "Biochemistry",
   "public health": "Community Medicine",
   "psm": "Community Medicine",
   "spm": "Community Medicine",
@@ -459,7 +457,8 @@ const SUBJECT_SYNONYMS = {
   "pharma": "Pharmacology",
 };
 
-// Strict system prompt, with fallback mapping rules baked in
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const CLASSIFICATION_PROMPT = `
 You are a meticulous classifier for MBBS exam MCQs.
 
@@ -478,12 +477,12 @@ If the best label in your head is:
 - "Psych" → "Psychiatry", "Derm" → "Dermatology", "Peds" → "Pediatrics", "Ortho" → "Orthopedics",
   "Anesthesiology" → "Anesthesia", "Micro" → "Microbiology", "Biochem" → "Biochemistry", "Pharma" → "Pharmacology".
 
-OUTPUT RULES:
+STRICT OUTPUT RULES:
 - Return ONLY a single JSON array, parsable by JSON.parse.
-- Each item MUST be: {"id":"<uuid>", "subject":"<one of the above exactly>"}.
-- "id" must be the SAME uuid you received, as a string, unchanged.
+- Each item MUST be: {"id":"<uuid from input>", "subject":"<one of the above exactly>"}.
+- The "id" must be EXACTLY the uuid string you received for that MCQ; do not invent or renumber.
 - Do not add any text before or after the JSON.
-- Temperature = 0 behavior; be deterministic.
+- Temperature = 0; be deterministic.
 `.trim();
 
 function extractText(mcq) {
@@ -495,42 +494,35 @@ function extractText(mcq) {
   return String(mcq);
 }
 
-// Try to repair common bad JSON: strip fences, trim extras, close bracket if truncated.
+// Repair common bad JSON outputs and parse an array.
 function safeParseArray(raw) {
   if (!raw) throw new Error('Empty response');
   let t = raw.trim();
 
-  // strip Markdown fences if any
+  // Remove fences
   if (t.startsWith('```')) {
-    t = t.replace(/^```(\w+)?/,'').replace(/```$/,'').trim();
+    t = t.replace(/^```(\w+)?/, '').replace(/```$/, '').trim();
   }
 
-  // find the first '[' and the last ']'
+  // Keep only the outermost array
   const first = t.indexOf('[');
   const last = t.lastIndexOf(']');
-  if (first === -1) throw new Error('No JSON array start');
-  if (last === -1 || last < first) {
-    // try appending a closing bracket
-    t = t.slice(first) + ']';
-  } else {
-    t = t.slice(first, last + 1);
-  }
+  if (first === -1) throw new Error('No array start');
+  t = last >= first ? t.slice(first, last + 1) : t.slice(first) + ']';
 
-  // remove trailing commas before ]  (common LLM slip)
+  // Kill trailing commas
   t = t.replace(/,\s*]/g, ']');
 
   const parsed = JSON.parse(t);
-  if (!Array.isArray(parsed)) throw new Error('Parsed value is not an array');
+  if (!Array.isArray(parsed)) throw new Error('Not an array');
   return parsed;
 }
 
-// Normalize the subject to a canonical label from SUBJECTS
 function normalizeSubject(s) {
   if (!s) return null;
   if (SUBJECTS.includes(s)) return s;
   const key = s.toLowerCase().trim();
   if (SUBJECT_SYNONYMS[key]) return SUBJECT_SYNONYMS[key];
-  // minor punctuation/space variants
   const simplified = key.replace(/[&.]/g, '').replace(/\s+/g, ' ').trim();
   for (const sub of SUBJECTS) {
     if (sub.toLowerCase() === simplified) return sub;
@@ -539,19 +531,17 @@ function normalizeSubject(s) {
 }
 
 exports.classifySubjects = async (req, res) => {
-  const requestedLimit = Math.min(parseInt(req.query.limit || '0', 10) || DEFAULT_LIMIT, MAX_LIMIT);
+  const limit = Math.min(parseInt(req.query.limit || '0', 10) || DEFAULT_LIMIT, MAX_LIMIT);
 
-  // a little helper to classify with retry and autosplit on parse failure
+  // classify a batch; fall back to index-alignment if ids are bad
   const classifyBatch = async (rows, attempt = 1) => {
-    // 1) Build single payload
     const payload = { mcqs: rows.map(r => ({ id: String(r.id), text: extractText(r.mcq) })) };
 
-    // 2) Call model
     const completion = await openai.chat.completions.create({
       model: MODEL,
       temperature: 0,
-      // (Optional) Increase if you still see truncation:
-      // max_tokens: 2000,
+      // If you still see truncation, set a higher max_tokens (e.g., 2000–2500)
+      // max_tokens: 2200,
       messages: [
         { role: 'system', content: CLASSIFICATION_PROMPT },
         { role: 'user', content: JSON.stringify(payload) }
@@ -559,56 +549,63 @@ exports.classifySubjects = async (req, res) => {
     });
 
     const raw = completion.choices?.[0]?.message?.content?.trim() || '';
-
-    // 3) Parse + normalize
     let arr;
     try {
       arr = safeParseArray(raw);
     } catch (e) {
-      // On first failure, auto-split the batch into two halves and retry both
+      // split & retry once on parse errors
       if (attempt <= 1 && rows.length > 20) {
         const mid = Math.floor(rows.length / 2);
         const left = await classifyBatch(rows.slice(0, mid), attempt + 1);
         const right = await classifyBatch(rows.slice(mid), attempt + 1);
         return left.concat(right);
       }
-      // bubble up with sample for the API to return 502
       const err = new Error(`LLM returned invalid JSON: ${String(e.message)}`);
       err.rawSample = raw.slice(0, 400);
       throw err;
     }
 
-    // 4) Validate IDs and normalize subjects
-    const valid = [];
-    for (const it of arr) {
-      const id = typeof it?.id === 'string' ? it.id : null;
-      const normalized = normalizeSubject(it?.subject);
-      if (id && normalized) valid.push({ id, subject: normalized });
+    // Strict id validation
+    const inputIdSet = new Set(rows.map(r => String(r.id)));
+    const validByUuid = arr
+      .map(it => ({
+        id: typeof it?.id === 'string' ? it.id : null,
+        subject: normalizeSubject(it?.subject)
+      }))
+      .filter(it => it.id && UUID_RE.test(it.id) && inputIdSet.has(it.id) && !!it.subject);
+
+    // If most items have bad ids but the array length matches, fall back to index alignment
+    if (validByUuid.length < Math.floor(rows.length * 0.6) && arr.length === rows.length) {
+      const aligned = [];
+      for (let i = 0; i < rows.length; i++) {
+        const subj = normalizeSubject(arr[i]?.subject);
+        if (subj) aligned.push({ id: String(rows[i].id), subject: subj });
+      }
+      if (aligned.length) return aligned;
     }
-    return valid;
+
+    return validByUuid;
   };
 
   try {
-    // 0) Fetch unclassified MCQs
     const { data: rows, error: fetchError } = await supabase
       .from('mcq_bank')
       .select('id, mcq')
       .is('subject', null)
-      .limit(requestedLimit);
+      .limit(limit);
 
     if (fetchError) throw fetchError;
     if (!rows || rows.length === 0) {
       return res.json({ message: '✅ No unclassified MCQs found.', fetched: 0, updated: 0 });
     }
 
-    // 1) Classify (with autosplit retry)
     const classified = await classifyBatch(rows);
 
     if (!classified.length) {
       return res.status(422).json({ error: 'No valid classifications returned' });
     }
 
-    // 2) Bulk upsert SUBJECT ONLY (per your plan)
+    // subject-only update
     const { error: upErr, data: upd } = await supabase
       .from('mcq_bank')
       .upsert(classified, { onConflict: 'id', ignoreDuplicates: false })

@@ -1,15 +1,19 @@
 const express = require('express');
 const router = express.Router();
 
+// Main controller (everything except primary generation)
 const mcqController = require('../controllers/mcq.controller');
+
+// New dedicated controller for concurrent primary generation (gpt-5-mini)
+const primaryGen = require('../controllers/primaryGen.controller');
 
 const {
   generateMCQGraphFromInput,       // Legacy (optional)
   insertMCQGraphFromJson,          // Legacy (optional)
   generateAndSaveGraphDraft,       // ✅ Save draft graph from raw_text + subject_id
   processGraphById,                // ✅ Process graph and insert MCQs
-  classifySubjects,                // ✅ Classify MCQs using GPT
-  generatePrimaryMCQs,             // ✅ Generate primary MCQs and store in primary_mcq
+  classifySubjects,                // ✅ Classify MCQs using GPT (subject text update)
+  // 🔁 DO NOT take generatePrimaryMCQs from mcqController anymore
   generateLevel1ForMCQBank,
   generateLevel2ForMCQBank,
   generateLevel3ForMCQBank,
@@ -32,8 +36,9 @@ router.post('/mcqs/graph/process/:graphId', processGraphById);
 // ✅ Auto-classify MCQs by subject using GPT
 router.post('/classify-subjects', classifySubjects);
 
-// ✅ Generate Primary MCQs (Step 1 of recursion)
-router.post('/mcqs/generate-primary', generatePrimaryMCQs);
+// ✅ Generate Primary MCQs (concurrent, multi-worker safe; uses gpt-5-mini)
+//    Query params supported: ?limit=40&concurrency=3
+router.post('/mcqs/generate-primary', primaryGen.generatePrimaryMCQs);
 
 // ✅ Generate Recursive Level 1 MCQs from learning_gap of primary_mcq
 router.post('/mcqs/generate-level1-from-bank', generateLevel1ForMCQBank);
@@ -54,6 +59,5 @@ router.post('/mcqs/generate-level7', generateLevel7ForMCQBank);
 router.post('/mcqs/generate-level8', generateLevel8ForMCQBank);
 
 router.post('/mcqs/generate-level9', generateLevel9ForMCQBank);
-
 
 module.exports = router;

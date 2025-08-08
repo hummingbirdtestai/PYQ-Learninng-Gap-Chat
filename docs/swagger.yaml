@@ -1179,22 +1179,19 @@ paths:
       summary: Batch-classify unlabelled MCQs into MBBS subjects
       description: |
         Fetches up to `limit` MCQs from `mcq_bank` where `subject` is NULL, sends them
-        in a single batched request to the LLM, and bulk-upserts the `subject` field.
-        
-        Notes:
-        - Uses synonym normalization (e.g., "Immunology" → "Microbiology", "Genetics" → "Biochemistry").
-        - Repairs common bad JSON (code fences, trailing text, missing closing bracket, trailing commas).
-        - If parsing still fails, it automatically splits the batch and retries.
-        - Safe to call repeatedly; already-classified rows are skipped by selection.
+        to the LLM with instructions to output EXACTLY N LINES (one subject per MCQ in order),
+        normalizes common synonyms (e.g., "Immunology" → "Microbiology", "Genetics" → "Biochemistry"),
+        and bulk-upserts the `subject` field. Safe to call repeatedly; already-classified rows
+        are skipped by selection.
       parameters:
         - in: query
           name: limit
           required: false
-          description: Max number of MCQs to classify in this run (UUID `id` is required).
+          description: Max number of MCQs to classify in this run.
           schema:
             type: integer
             minimum: 1
-            maximum: 200
+            maximum: 150
             default: 80
       responses:
         '200':
@@ -1217,13 +1214,13 @@ paths:
                     example: 80
                   droppedForWhitelist:
                     type: integer
-                    description: Count of items returned by the LLM that were dropped due to not matching the whitelist even after normalization
+                    description: Count of outputs dropped after normalization (not in whitelist)
                     example: 0
                   model:
                     type: string
                     example: gpt-4o-mini
         '422':
-          description: LLM returned results but none passed validation (e.g., subject not in whitelist after normalization)
+          description: Model returned outputs but none mapped to the whitelist after normalization
           content:
             application/json:
               schema:
@@ -1232,19 +1229,6 @@ paths:
                   error:
                     type: string
                     example: "No valid classifications returned"
-        '502':
-          description: LLM returned invalid/non-JSON output (after repair attempts), autosplit may have been attempted
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "LLM returned invalid JSON"
-                  sample:
-                    type: string
-                    description: First ~400 chars of the LLM response for debugging
         '500':
           description: Server error during classification
           content:
@@ -1258,7 +1242,7 @@ paths:
                   details:
                     type: string
                     example: "Database connection failed"
-  
+
   /api/mcqs/generate-primary:
     post:
       summary: Generate Primary MCQs from existing raw questions
@@ -1301,7 +1285,6 @@ paths:
                           example: A 40-year-old man presents with <strong>palpitations</strong> and ...
         '500':
           description: Internal server error
-          
           
   /api/mcqs/generate-level1-from-bank:
     post:

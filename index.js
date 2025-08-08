@@ -19,32 +19,39 @@ const collegeRoutes = require('./routes/college.routes');
 const examRoutes = require('./routes/exam.routes');
 const generationRoutes = require('./routes/generation.routes'); // GPT Worker Status APIs
 const adaptiveRoutes = require('./routes/adaptive.routes');
-const mcqGeneratorRoutes = require('./routes/mcqGenerator.routes'); // ✅ NEW: On-demand MCQ generation
+const mcqGeneratorRoutes = require('./routes/mcqGenerator.routes'); // On-demand MCQ generation
 const mcqRoutes = require('./routes/mcq.routes');
+
+// ✅ NEW: Subject classifier routes
+const classifierRoutes = require('./routes/classifier.routes');
 
 // ✅ Middleware: CORS
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // ✅ Middleware: JSON Body Parser
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+
+// ✅ Health check
+app.get('/', (_req, res) => res.json({ ok: true, service: 'HB Backend', env: process.env.NODE_ENV || 'dev' }));
 
 // ✅ Swagger Documentation Route
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // ✅ Register API Routes
-app.use('/auth', authRoutes);                    // Twilio OTP Auth
-app.use('/users', userRoutes);                   // User Registration + Activation
-app.use('/colleges', collegeRoutes);             // Medical Colleges List
-app.use('/api/exams', examRoutes);                   // Exams and Subjects
-app.use('/api', importRoutes);                   // Google Sheets → Supabase MCQ Import
-app.use('/generation', generationRoutes);        // GPT Worker Status Dashboard
-app.use('/api', adaptiveRoutes);                 // Adaptive MCQ APIs
-app.use('/api', mcqGeneratorRoutes);
-app.use('/api', mcqRoutes);
+app.use('/auth', authRoutes);                     // Twilio OTP Auth
+app.use('/users', userRoutes);                    // User Registration + Activation
+app.use('/colleges', collegeRoutes);              // Medical Colleges List
+app.use('/api/exams', examRoutes);                // Exams and Subjects
+app.use('/api', importRoutes);                    // Google Sheets → Supabase MCQ Import
+app.use('/generation', generationRoutes);         // GPT Worker Status Dashboard
+app.use('/api', adaptiveRoutes);                  // Adaptive MCQ APIs
+app.use('/api', mcqGeneratorRoutes);              // MCQ generation
+app.use('/api', mcqRoutes);                       // MCQ CRUD
+app.use('/api', classifierRoutes);                // 🔥 Subject classification (/classify/subjects/run)
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

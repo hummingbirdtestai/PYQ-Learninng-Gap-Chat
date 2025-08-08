@@ -115,7 +115,7 @@ ${raw_mcq_text}
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const gptResponse = await openai.chat.completions.create({
-        model: 'gpt-4-0613',
+        model: 'gpt-5', // updated to GPT-5
         messages: [{ role: 'user', content: fullPrompt }],
         temperature: 0.7
       });

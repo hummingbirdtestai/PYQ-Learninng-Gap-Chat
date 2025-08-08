@@ -22,9 +22,6 @@ const adaptiveRoutes = require('./routes/adaptive.routes');
 const mcqGeneratorRoutes = require('./routes/mcqGenerator.routes'); // On-demand MCQ generation
 const mcqRoutes = require('./routes/mcq.routes');
 
-// ✅ NEW: Subject classifier routes
-const classifierRoutes = require('./routes/classifier.routes');
-
 // ✅ Middleware: CORS
 app.use(cors({
   origin: '*',
@@ -51,7 +48,6 @@ app.use('/generation', generationRoutes);         // GPT Worker Status Dashboard
 app.use('/api', adaptiveRoutes);                  // Adaptive MCQ APIs
 app.use('/api', mcqGeneratorRoutes);              // MCQ generation
 app.use('/api', mcqRoutes);                       // MCQ CRUD
-app.use('/api', classifierRoutes);                // 🔥 Subject classification (/classify/subjects/run)
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

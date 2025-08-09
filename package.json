@@ -1,19 +1,15 @@
 {
   "name": "mcq-backend",
   "version": "1.0.0",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "private": true,
   "description": "",
-  "engines": {
-    "node": ">=20.0.0"
+  "main": "index.js",
+  "directories": { "doc": "docs" },
+  "engines": { "node": ">=20.0.0" },
+  "scripts": {
+    "start": "node index.js",                 // web service (API)
+    "worker:primary": "node workers/primaryWorker.js",
+    "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.52.1",

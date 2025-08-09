@@ -7,7 +7,7 @@
   "directories": { "doc": "docs" },
   "engines": { "node": ">=20.0.0" },
   "scripts": {
-    "start": "node index.js",                 // web service (API)
+    "start": "node index.js",
     "worker:primary": "node workers/primaryWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },

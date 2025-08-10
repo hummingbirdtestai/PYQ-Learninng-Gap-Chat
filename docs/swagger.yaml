@@ -1329,8 +1329,6 @@ paths:
                   details:
                     type: string
                     example: "Missing required fields in JSON"
-
-
           
   /api/mcqs/generate-level1-from-bank:
     post:
@@ -1338,11 +1336,31 @@ paths:
         - MCQs
       summary: Generate Level 1 MCQs for unprocessed entries in mcq_bank
       description: >
-        Uses ChatGPT to recursively generate a level_1 MCQ for each primary_mcq
-        in mcq_bank where level_1 is null.
+        Fetches up to `limit` rows where `level_1 IS NULL` and `primary_mcq IS NOT NULL`,
+        sends them to the LLM, and saves the generated `level_1` JSON.  
+        You can control parallel requests with the optional `concurrency` query param.
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          description: Max rows to process in this call.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: concurrency
+          required: false
+          description: Parallel OpenAI requests (small number recommended to avoid rate limits).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 8
+            default: 3
       responses:
         '200':
-          description: Successfully generated and saved level 1 MCQs
+          description: Successfully processed a batch
           content:
             application/json:
               schema:
@@ -1350,17 +1368,50 @@ paths:
                 properties:
                   message:
                     type: string
-                  details:
+                    example: "Processed 20 Level 1 MCQs."
+                  fetched:
+                    type: integer
+                    example: 20
+                  updated:
+                    type: integer
+                    example: 18
+                  failed:
+                    type: integer
+                    example: 2
+                  failures:
                     type: array
+                    description: Up to 20 failed items with brief errors
                     items:
                       type: object
                       properties:
                         id:
                           type: string
-                        status:
+                          format: uuid
+                          nullable: true
+                          example: "3cd6242a-51be-4e93-98f2-b42268a8175a"
+                        error:
                           type: string
+                          example: "Invalid Level 1 schema"
+                  model:
+                    type: string
+                    example: "gpt-5-mini"
+                  concurrency:
+                    type: integer
+                    example: 3
         '500':
           description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Internal Server Error"
+                  details:
+                    type: string
+                    example: "Database connection failed"
+
   /api/mcqs/generate-level2:
     post:
       tags:

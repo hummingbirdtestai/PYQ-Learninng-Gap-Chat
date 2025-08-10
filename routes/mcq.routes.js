@@ -43,7 +43,7 @@ router.post('/mcqs/generate-primary', primaryGen.generatePrimaryMCQs);
 // ✅ Generate Recursive Level 1 MCQs from learning_gap of primary_mcq
 router.post('/mcqs/generate-level1-from-bank', generateLevel1ForMCQBank);
 
-router.post('/mcqs/generate-level2', generateLevel2ForMCQBank);
+router.post('/mcqs/generate-level2-from-bank', generateLevel2ForMCQBank);
 
 // ✅ Generate Recursive Level 3 MCQs from level_2's learning gap
 router.post('/mcqs/generate-level3', generateLevel3ForMCQBank);

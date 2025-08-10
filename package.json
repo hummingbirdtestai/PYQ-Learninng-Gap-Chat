@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node index.js",
     "worker:primary": "node workers/primaryWorker.js",
+    "worker:level1": "node workers/level1Worker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

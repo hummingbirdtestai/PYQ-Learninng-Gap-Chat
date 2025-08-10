@@ -582,6 +582,7 @@ exports.classifySubjects = async (req, res) => {
   }
 };
 
+// ===== Level 1: Prompt (updated) =====
 const LEVEL_1_PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
 Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
@@ -629,93 +630,154 @@ Your task is to:
 }
 `;
 
+// ===== Helpers (scoped, unique names to avoid collisions) =====
+const L1_MODEL = process.env.L1_MODEL || 'gpt-5-mini';
+const L1_HTTP_CONCURRENCY = parseInt(process.env.L1_HTTP_CONCURRENCY || '3', 10);
+
+function l1CleanAndParseJSON(raw) {
+  let t = String(raw || '').trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```$/,'')
+    .trim();
+  const first = t.indexOf('{'); const last = t.lastIndexOf('}');
+  if (first === -1 || last === -1 || last < first) throw new Error('No JSON object found');
+  t = t.slice(first, last + 1);
+  return JSON.parse(t);
+}
+
+function l1NormalizePrimaryForPrompt(primaryObj) {
+  // Accept both shapes: {primary_mcq: {...}, learning_gap, buzzwords} OR flat legacy
+  const pm = primaryObj?.primary_mcq || primaryObj || {};
+  return {
+    buzzwords: Array.isArray(primaryObj?.buzzwords) ? primaryObj.buzzwords : [],
+    learning_gap: typeof primaryObj?.learning_gap === 'string' ? primaryObj.learning_gap : '',
+    primary_mcq: {
+      stem: pm.stem ?? (primaryObj?.stem ?? ''),
+      options: pm.options ?? (primaryObj?.options ?? {}),
+      // unify correct field name for the model
+      correct_answer: pm.correct_answer || pm.correct_option || primaryObj?.correct_answer || primaryObj?.correct_option || ''
+    }
+  };
+}
+
+function l1IsValidOutput(parsed) {
+  const l1 = parsed?.level_1;
+  if (!l1) return false;
+  const mcq = l1.mcq;
+  if (!mcq || typeof mcq.stem !== 'string') return false;
+  const opts = mcq.options || {};
+  const hasAD = ['A','B','C','D'].every(k => typeof opts[k] === 'string' && opts[k].length > 0);
+  if (!hasAD) return false; // E optional
+  if (typeof mcq.correct_answer !== 'string' || !mcq.correct_answer) return false;
+  if (!Array.isArray(l1.buzzwords)) return false;
+  if (typeof l1.learning_gap !== 'string') return false;
+  return true;
+}
+
+async function l1AsyncPool(limit, items, iter) {
+  const out = []; const exec = [];
+  for (const it of items) {
+    const p = Promise.resolve().then(() => iter(it));
+    out.push(p);
+    const e = p.then(() => exec.splice(exec.indexOf(e), 1));
+    exec.push(e);
+    if (exec.length >= limit) await Promise.race(exec);
+  }
+  return Promise.allSettled(out);
+}
+
+function l1IsRetryable(e) {
+  const s = String(e?.message || e);
+  return /timeout|ETIMEDOUT|429|rate limit|temporar|unavailable|ECONNRESET/i.test(s);
+}
+
+// ===== Controller: concurrent, robust =====
 exports.generateLevel1ForMCQBank = async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  const concurrency = Math.min(parseInt(req.query.concurrency || String(L1_HTTP_CONCURRENCY), 10), 8);
+
   try {
+    // Fetch eligible rows
     const { data: rows, error: fetchError } = await supabase
       .from('mcq_bank')
       .select('id, primary_mcq')
       .is('level_1', null)
       .not('primary_mcq', 'is', null)
-      .limit(20);
+      .order('id', { ascending: true })
+      .limit(limit);
 
     if (fetchError) throw fetchError;
     if (!rows || rows.length === 0) {
-      return res.json({ message: 'No eligible MCQs found without Level 1.' });
+      return res.json({ message: 'No eligible MCQs found without Level 1.', fetched: 0, updated: 0, failed: 0, model: L1_MODEL });
     }
 
-    const results = [];
-
-    for (const row of rows) {
-      const prompt = `${LEVEL_1_PROMPT_TEMPLATE}\n\nPrimary MCQ:\n${JSON.stringify(row.primary_mcq)}`;
+    // Per-row worker
+    const workOne = async (row) => {
+      const normalized = l1NormalizePrimaryForPrompt(row.primary_mcq);
+      const prompt = `${LEVEL_1_PROMPT_TEMPLATE}\n\nPrimary MCQ:\n${JSON.stringify(normalized)}`;
 
       let parsed = null;
-      let attempt = 0;
-
-      while (attempt < 3) {
-        attempt++;
+      for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-5', // updated to GPT-5
+            model: L1_MODEL,
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }
-            ],
-            temperature: 0.5
+            ]
+            // tip: with chat.completions + gpt-5-mini, omit temperature/max_tokens unless needed
           });
 
-          const outputText = completion.choices[0].message.content.trim();
+          const raw = completion.choices?.[0]?.message?.content ?? '';
+          parsed = l1CleanAndParseJSON(raw);
 
-          // Attempt to parse output
-          parsed = JSON.parse(outputText);
+          if (!l1IsValidOutput(parsed)) throw new Error('Invalid Level 1 schema');
+          // Save
+          const { error: upErr } = await supabase
+            .from('mcq_bank')
+            .update({ level_1: parsed.level_1 })
+            .eq('id', row.id);
+          if (upErr) throw upErr;
 
-          // Validate structure
-          if (
-            !parsed.level_1 ||
-            !parsed.level_1.mcq ||
-            !parsed.level_1.mcq.stem ||
-            !parsed.level_1.mcq.options ||
-            !parsed.level_1.mcq.correct_answer ||
-            !Array.isArray(parsed.level_1.buzzwords) ||
-            !parsed.level_1.learning_gap
-          ) {
-            throw new Error('Invalid schema in GPT response');
-          }
-
-          // Schema validated
-          break;
+          return { id: row.id, ok: true };
         } catch (err) {
-          console.warn(`⚠️ Attempt ${attempt} failed to generate valid JSON:`, err.message);
-          parsed = null;
+          if (attempt < 3 && l1IsRetryable(err)) {
+            await new Promise(r => setTimeout(r, 400 * attempt));
+            continue;
+          }
+          return { id: row.id, ok: false, error: err.message || String(err) };
         }
       }
+    };
 
-      if (!parsed) {
-        results.push({ id: row.id, status: '❌ GPT response invalid after 3 attempts' });
-        continue;
+    // Run with small concurrency
+    const results = await l1AsyncPool(concurrency, rows, workOne);
+
+    let updated = 0, failed = 0;
+    const details = [];
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value?.ok) {
+        updated += 1;
+      } else {
+        failed += 1;
+        const item = (r.status === 'fulfilled') ? r.value : { error: r.reason?.message || String(r.reason) };
+        details.push({ id: item?.id || null, error: item?.error || 'Unknown error' });
       }
-
-      // Save to Supabase
-      const { error: updateError } = await supabase
-        .from('mcq_bank')
-        .update({ level_1: parsed.level_1 })
-        .eq('id', row.id);
-
-      if (updateError) {
-        console.error('❌ Supabase update error:', updateError.message);
-        results.push({ id: row.id, status: '❌ Supabase error' });
-        continue;
-      }
-
-      results.push({ id: row.id, status: '✅ Level 1 saved' });
     }
 
     return res.json({
-      message: `${results.length} Level 1 MCQs processed.`,
-      updated: results
+      message: `Processed ${rows.length} Level 1 MCQs.`,
+      fetched: rows.length,
+      updated,
+      failed,
+      failures: details.slice(0, 20), // cap in response
+      model: L1_MODEL,
+      concurrency
     });
   } catch (err) {
-    console.error('❌ Fatal error:', err.message);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error('❌ Level1 API error:', err);
+    return res.status(500).json({ error: 'Internal Server Error', details: err.message || String(err) });
   }
 };
 

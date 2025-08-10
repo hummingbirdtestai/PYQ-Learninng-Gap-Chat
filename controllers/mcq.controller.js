@@ -609,7 +609,7 @@ You will be given a MCQ in the following JSON format:
 Your task is to:
 
 1. Do NOT create an MCQ testing the same learning_gap verbatim.
-2. Generate a new **Level 1 MCQ** on the **prior conceptual gap**.
+2. Generate a new **Level 1 MCQ** on the **learning_gap** of previous **primary_mcq** for Recursive Learning Gap detection for adaptive Learning.
 3. Write a 5-sentence USMLE-style clinical vignette with bolded keywords.
 4. Include 5 options (A–E), mark the correct answer.
 5. Provide a new learning gap with 2+ <strong> keywords.

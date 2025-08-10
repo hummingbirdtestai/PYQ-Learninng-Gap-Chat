@@ -781,6 +781,7 @@ exports.generateLevel1ForMCQBank = async (req, res) => {
   }
 };
 
+// ===== Level 2: Prompt =====
 const LEVEL_2_PROMPT_TEMPLATE = `🚨 OUTPUT RULES: 
 Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
@@ -808,12 +809,12 @@ You will be given a Level 1 MCQ in the following JSON format:
 Your task is to:
 
 1. Do NOT repeat the same learning gap or content.
-2. Generate a new **Level 2 MCQ** targeting the **previous conceptual prerequisite**.
-3. Use 5-sentence USMLE-style clinical vignette with bolded keywords.
-4. Provide 5 options (A–E) with one correct answer.
-5. Add a new learning gap (with at least 2 bolded keywords).
+2. Generate a new **Level 2 MCQ** targeting the **prior conceptual prerequisite**.
+3. Write a 5-sentence USMLE-style clinical vignette with bolded keywords.
+4. Include 5 options (A–E), mark the correct answer.
+5. Provide a new learning gap with 2+ <strong> keywords.
 6. Include 10 exam-relevant buzzwords (emoji prefixed, bold terms).
-7. Format output as:
+7. Return in this format:
 
 {
   "level_2": {
@@ -828,105 +829,152 @@ Your task is to:
 }
 `;
 
+// ===== Level-2 helpers (scoped names) =====
+const L2_MODEL = process.env.L2_MODEL || 'gpt-5-mini';
+const L2_HTTP_CONCURRENCY = parseInt(process.env.L2_HTTP_CONCURRENCY || '3', 10);
+
+function l2CleanAndParseJSON(raw) {
+  let t = String(raw || '').trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```$/,'')
+    .trim();
+  const first = t.indexOf('{'); const last = t.lastIndexOf('}');
+  if (first === -1 || last === -1 || last < first) throw new Error('No JSON object found');
+  t = t.slice(first, last + 1);
+  return JSON.parse(t);
+}
+
+// Accept both shapes: either row.level_1 is the object {mcq,buzzwords,learning_gap}
+// or (rarely) someone saved { level_1: { ... } }
+function l2NormalizeLevel1ForPrompt(l1ObjRaw) {
+  const l1 = l1ObjRaw?.level_1 || l1ObjRaw || {};
+  const mcq = l1.mcq || {};
+  const opts = mcq.options || {};
+  // Normalize the correct field name for the model
+  const correct_answer = mcq.correct_answer || mcq.correct_option || '';
+  return {
+    mcq: {
+      stem: mcq.stem ?? '',
+      options: opts,         // may be A–D only; E optional
+      correct_answer
+    },
+    buzzwords: Array.isArray(l1.buzzwords) ? l1.buzzwords : [],
+    learning_gap: typeof l1.learning_gap === 'string' ? l1.learning_gap : ''
+  };
+}
+
+function l2IsValidOutput(parsed) {
+  const l2 = parsed?.level_2;
+  if (!l2) return false;
+  const mcq = l2.mcq;
+  if (!mcq || typeof mcq.stem !== 'string') return false;
+  const opts = mcq.options || {};
+  const hasAD = ['A','B','C','D'].every(k => typeof opts[k] === 'string' && opts[k].length > 0);
+  if (!hasAD) return false; // E optional
+  if (typeof mcq.correct_answer !== 'string' || !mcq.correct_answer) return false;
+  if (!Array.isArray(l2.buzzwords)) return false;
+  if (typeof l2.learning_gap !== 'string') return false;
+  return true;
+}
+
+async function l2AsyncPool(limit, items, iter) {
+  const out = []; const exec = [];
+  for (const it of items) {
+    const p = Promise.resolve().then(() => iter(it));
+    out.push(p);
+    const e = p.then(() => exec.splice(exec.indexOf(e), 1));
+    exec.push(e);
+    if (exec.length >= limit) await Promise.race(exec);
+  }
+  return Promise.allSettled(out);
+}
+function l2IsRetryable(e) {
+  const s = String(e?.message || e);
+  return /timeout|ETIMEDOUT|429|rate limit|temporar|unavailable|ECONNRESET/i.test(s);
+}
+
+// ===== Controller: Generate Level-2 from Level-1 =====
 exports.generateLevel2ForMCQBank = async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  const concurrency = Math.min(parseInt(req.query.concurrency || String(L2_HTTP_CONCURRENCY), 10), 8);
+
   try {
+    // Eligible rows: level_1 present, level_2 null
     const { data: rows, error: fetchError } = await supabase
       .from('mcq_bank')
       .select('id, level_1')
       .is('level_2', null)
       .not('level_1', 'is', null)
-      .limit(10);
+      .order('id', { ascending: true })
+      .limit(limit);
 
     if (fetchError) throw fetchError;
     if (!rows || rows.length === 0) {
-      return res.json({ message: 'No eligible MCQs found without Level 2.' });
+      return res.json({ message: 'No eligible MCQs found without Level 2.', fetched: 0, updated: 0, failed: 0, model: L2_MODEL });
     }
 
-    const results = [];
+    const workOne = async (row) => {
+      const normalized = l2NormalizeLevel1ForPrompt(row.level_1);
+      const prompt = `${LEVEL_2_PROMPT_TEMPLATE}\n\nLevel 1 MCQ:\n${JSON.stringify(normalized)}`;
 
-    for (const row of rows) {
-      const level1 = row.level_1;
-
-      // ✅ Validate level_1 content before GPT prompt
-      if (
-        !level1?.mcq?.stem ||
-        !level1?.mcq?.options ||
-        !level1?.mcq?.correct_answer ||
-        !level1?.learning_gap
-      ) {
-        results.push({ id: row.id, status: '❌ Invalid or incomplete level_1 MCQ' });
-        continue;
-      }
-
-      const prompt = `${LEVEL_2_PROMPT_TEMPLATE}\n\nLevel 1 MCQ:\n${JSON.stringify(level1)}`;
-      let parsed = null;
-      let attempt = 0;
-
-      while (attempt < 3) {
-        attempt++;
+      for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-5', // updated to GPT-5
+            model: L2_MODEL,
             messages: [
               { role: 'system', content: 'You are a medical educator generating MCQs in JSON.' },
               { role: 'user', content: prompt }
-            ],
-            temperature: 0.5
+            ]
           });
+          const raw = completion.choices?.[0]?.message?.content ?? '';
+          const parsed = l2CleanAndParseJSON(raw);
 
-          const outputText = completion.choices[0].message.content.trim();
+          if (!l2IsValidOutput(parsed)) throw new Error('Invalid Level 2 schema');
 
-          // Attempt to parse output
-          parsed = JSON.parse(outputText);
+          const { error: upErr } = await supabase
+            .from('mcq_bank')
+            .update({ level_2: parsed.level_2 })
+            .eq('id', row.id);
+          if (upErr) throw upErr;
 
-          // Validate schema
-          if (
-            !parsed.level_2 ||
-            !parsed.level_2.mcq ||
-            !parsed.level_2.mcq.stem ||
-            !parsed.level_2.mcq.options ||
-            !parsed.level_2.mcq.correct_answer ||
-            !Array.isArray(parsed.level_2.buzzwords) ||
-            !parsed.level_2.learning_gap
-          ) {
-            throw new Error('Invalid schema in GPT response');
-          }
-
-          // Schema validated
-          break;
+          return { id: row.id, ok: true };
         } catch (err) {
-          console.warn(`⚠️ Attempt ${attempt} failed for ID ${row.id}:`, err.message);
-          parsed = null;
+          if (attempt < 3 && l2IsRetryable(err)) {
+            await new Promise(r => setTimeout(r, 400 * attempt));
+            continue;
+          }
+          return { id: row.id, ok: false, error: err.message || String(err) };
         }
       }
+    };
 
-      if (!parsed) {
-        results.push({ id: row.id, status: '❌ GPT response invalid after 3 attempts' });
-        continue;
+    const results = await l2AsyncPool(concurrency, rows, workOne);
+
+    let updated = 0, failed = 0;
+    const failures = [];
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value?.ok) {
+        updated += 1;
+      } else {
+        failed += 1;
+        const item = (r.status === 'fulfilled') ? r.value : { error: r.reason?.message || String(r.reason) };
+        failures.push({ id: item?.id || null, error: item?.error || 'Unknown error' });
       }
-
-      // ✅ Save result to Supabase
-      const { error: updateError } = await supabase
-        .from('mcq_bank')
-        .update({ level_2: parsed.level_2 })
-        .eq('id', row.id);
-
-      if (updateError) {
-        console.error(`❌ Supabase update error for ID ${row.id}:`, updateError.message);
-        results.push({ id: row.id, status: '❌ Supabase error' });
-        continue;
-      }
-
-      results.push({ id: row.id, status: '✅ Level 2 saved' });
     }
 
     return res.json({
-      message: `${results.length} Level 2 MCQs processed.`,
-      updated: results
+      message: `Processed ${rows.length} Level 2 MCQs.`,
+      fetched: rows.length,
+      updated,
+      failed,
+      failures: failures.slice(0, 20),
+      model: L2_MODEL,
+      concurrency
     });
   } catch (err) {
-    console.error('❌ Fatal error:', err.message);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error('❌ Level2 API error:', err);
+    return res.status(500).json({ error: 'Internal Server Error', details: err.message || String(err) });
   }
 };
 

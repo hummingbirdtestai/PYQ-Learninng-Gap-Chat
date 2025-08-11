@@ -1419,8 +1419,8 @@ paths:
       summary: Generate Level 2 MCQs for unprocessed entries in mcq_bank
       description: >
         Fetches up to `limit` rows where `level_2 IS NULL` and `level_1 IS NOT NULL`,
-        sends them to the LLM, and saves the generated `level_2` JSON.
-        You can control parallel requests with the optional `concurrency` query param.
+        generates Level 2 content via LLM, and saves it into `level_2`.
+        Control parallel requests with `concurrency`.
       parameters:
         - in: query
           name: limit

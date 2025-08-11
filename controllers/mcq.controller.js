@@ -1985,7 +1985,7 @@ const SUBJECTS_CLASSIFY = [
   "General Surgery","Orthopedics","Anesthesia","Radiology","Obstetrics and Gynaecology"
 ];
 
-const SUBJECT_SYNONYMS = {
+const SUBJECT_SYNONYMS_1 = {
   "immunology": "Microbiology",
   "genetics": "Biochemistry",
   "public health": "Community Medicine",

@@ -305,51 +305,87 @@ exports.handleNextAction = async (req, res) => {
 
 exports.getAdaptiveStart = async (req, res) => {
   const { examId, subjectId, userId } = req.query;
+  const limit = Math.min(parseInt(req.query.limit || '10', 10), 50); // safety cap
+  const cursorSeq = req.query.cursorSeq ? parseInt(req.query.cursorSeq, 10) : null;
 
   if (!examId || !subjectId || !userId) {
     return res.status(400).json({ error: 'Missing parameters' });
   }
 
   try {
-    // Step 1: Get all MCQs sorted by year DESC
-    const { data: allMcqs, error: mcqError } = await supabase
+    // Base query (only primary rows needed for ordering/ids)
+    let query = supabase
       .from('mcq_bank')
-      .select('*')
+      .select(`
+        id,
+        primary_mcq_id,
+        year_of_exam,
+        primary_seq,
+        primary_mcq,
+        level_1, level_2, level_3, level_4, level_5,
+        level_6, level_7, level_8, level_9, level_10
+      `)
       .eq('exam_id', examId)
       .eq('subject_id', subjectId)
-      .order('year_of_exam', { ascending: false });
+      .not('primary_mcq', 'is', null)
+      .order('primary_seq', { ascending: true, nullsFirst: false })
+      .order('year_of_exam', { ascending: false, nullsFirst: false })
+      .limit(limit + 1); // fetch one extra to know has_more
 
-    if (mcqError) throw mcqError;
+    // If client sent a cursor, continue after that sequence
+    if (cursorSeq !== null && !Number.isNaN(cursorSeq)) {
+      query = query.gt('primary_seq', cursorSeq);
+    } else {
+      // No cursor → use resume tracker (first page)
+      const { data: resumeData, error: resumeError } = await supabase
+        .from('mcq_resume_tracker')
+        .select('resume_mcq_id, primary_index, level')
+        .eq('user_id', userId)
+        .eq('exam_id', examId)
+        .eq('subject_id', subjectId)
+        .limit(1);
 
-    // Step 2: Get resume point
-    const { data: resumeData, error: resumeError } = await supabase
-      .from('mcq_resume_tracker')
-      .select('resume_mcq_id, primary_index, level')
-      .eq('user_id', userId)
-      .eq('exam_id', examId)
-      .eq('subject_id', subjectId)
-      .limit(1);
+      if (resumeError) throw resumeError;
 
-    if (resumeError) throw resumeError;
+      // Pull the full ordered list once to position startIndex
+      const { data: orderedAll, error: listErr } = await supabase
+        .from('mcq_bank')
+        .select('primary_mcq_id, primary_seq')
+        .eq('exam_id', examId)
+        .eq('subject_id', subjectId)
+        .not('primary_mcq', 'is', null)
+        .order('primary_seq', { ascending: true, nullsFirst: false })
+        .order('year_of_exam', { ascending: false, nullsFirst: false });
 
-    let startIndex = 0;
-    const resume = resumeData?.[0];
+      if (listErr) throw listErr;
 
-    // Step 3: Find resume index from resume_mcq_id
-    if (resume?.resume_mcq_id) {
-      const foundIndex = allMcqs.findIndex(
-        (mcq) => mcq.primary_mcq_id === resume.resume_mcq_id
-      );
-      if (foundIndex !== -1) startIndex = foundIndex;
-    } else if (resume?.primary_index !== undefined) {
-      startIndex = resume.primary_index;
+      const resume = resumeData?.[0];
+      let startSeq = null;
+
+      if (resume?.resume_mcq_id) {
+        const found = orderedAll?.find(r => r.primary_mcq_id === resume.resume_mcq_id);
+        if (found?.primary_seq != null) startSeq = found.primary_seq;
+      } else if (resume?.primary_index != null && orderedAll?.length) {
+        // Map index → seq (defensive)
+        const byIndex = orderedAll[Math.max(0, Math.min(resume.primary_index, orderedAll.length - 1))];
+        if (byIndex?.primary_seq != null) startSeq = byIndex.primary_seq;
+      }
+
+      if (startSeq != null) {
+        query = query.gt('primary_seq', startSeq - 1); // start at startSeq
+      }
     }
 
-    const selected = allMcqs.slice(startIndex, startIndex + 10);
+    const { data: pageRows, error: pageErr } = await query;
+    if (pageErr) throw pageErr;
 
-    const questions = selected.map((row) => ({
+    const has_more = (pageRows?.length || 0) > limit;
+    const sliced = has_more ? pageRows.slice(0, limit) : (pageRows || []);
+
+    const questions = sliced.map(row => ({
       primary_mcq_id: row.primary_mcq_id,
       year: row.year_of_exam,
+      primary_seq: row.primary_seq ?? null,
       primary_mcq: row.primary_mcq,
       levels: {
         level_1: row.level_1,
@@ -365,15 +401,20 @@ exports.getAdaptiveStart = async (req, res) => {
       }
     }));
 
-    res.json({
+    const last = sliced[sliced.length - 1];
+    const next_cursor = has_more ? (last?.primary_seq ?? null) : null;
+
+    return res.json({
       questions,
-      resume_point: resume || null
+      has_more,
+      next_cursor
     });
   } catch (err) {
-    console.error('❌ Error in getAdaptiveStart:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Error in getAdaptiveStart:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
+
 exports.submitBatchResponses = async (req, res) => {
   const { responses } = req.body;
 

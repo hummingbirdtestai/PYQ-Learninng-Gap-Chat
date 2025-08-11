@@ -477,7 +477,6 @@ function extractText(mcq) {
   if (typeof mcq === 'object') return mcq.stem || mcq.question || mcq.text || JSON.stringify(mcq);
   return String(mcq);
 }
-const truncate = (s, n = 600) => (s.length > n ? s.slice(0, n) + ' …' : s);
 
 // Build a super-stable line-output prompt (no JSON, no IDs)
 function buildPrompt(items) {

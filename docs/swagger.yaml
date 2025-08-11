@@ -764,34 +764,35 @@ paths:
         '500':
           description: Server error
 
-  /api/adaptive/pyq/start:
+  /adaptive/pyq/start:
     get:
-      summary: Start or resume adaptive MCQ session
-      description: Returns 10 MCQs (from resume point if available), sorted by most recent year.
-      tags:
-        - Adaptive MCQs
+      summary: Get a paginated batch of primary MCQs (by subject order)
       parameters:
-        - name: examId
-          in: query
+        - in: query
+          name: examId
           required: true
-          schema:
-            type: string
-            format: uuid
-        - name: subjectId
-          in: query
+          schema: { type: string, format: uuid }
+        - in: query
+          name: subjectId
           required: true
-          schema:
-            type: string
-            format: uuid
-        - name: userId
-          in: query
+          schema: { type: string, format: uuid }
+        - in: query
+          name: userId
           required: true
-          schema:
-            type: string
-            format: uuid
+          schema: { type: string, format: uuid }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+          description: Number of MCQs to fetch
+        - in: query
+          name: cursorSeq
+          required: false
+          schema: { type: integer }
+          description: Fetch items with primary_seq strictly greater than this value
       responses:
         '200':
-          description: List of MCQs and resume point
+          description: Paginated list of MCQs
           content:
             application/json:
               schema:
@@ -802,29 +803,35 @@ paths:
                     items:
                       type: object
                       properties:
-                        primary_mcq_id:
-                          type: string
-                        year:
+                        primary_mcq_id: { type: string, format: uuid }
+                        year: { type: integer }
+                        primary_seq:
                           type: integer
-                        primary_mcq:
-                          type: object
+                          nullable: true
+                          description: Per-subject serial order (1..n)
+                        primary_mcq: { type: object, nullable: true }
                         levels:
                           type: object
-                          additionalProperties:
-                            type: object
-                  resume_point:
-                    type: object
-                    properties:
-                      resume_mcq_id:
-                        type: string
-                      primary_index:
-                        type: integer
-                      level:
-                        type: string
-        '400':
-          description: Missing parameters
-        '500':
-          description: Internal server error
+                          properties:
+                            level_1:  { type: object, nullable: true }
+                            level_2:  { type: object, nullable: true }
+                            level_3:  { type: object, nullable: true }
+                            level_4:  { type: object, nullable: true }
+                            level_5:  { type: object, nullable: true }
+                            level_6:  { type: object, nullable: true }
+                            level_7:  { type: object, nullable: true }
+                            level_8:  { type: object, nullable: true }
+                            level_9:  { type: object, nullable: true }
+                            level_10: { type: object, nullable: true }
+                  has_more:
+                    type: boolean
+                    description: True if another page is available
+                  next_cursor:
+                    type: integer
+                    nullable: true
+                    description: Pass this back as cursorSeq to fetch the next page
+        '400': { description: Missing parameters }
+        '500': { description: Internal server error }
 
   /api/adaptive/pyq/submit:
     post:

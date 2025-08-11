@@ -809,7 +809,7 @@ You will be given a Level 1 MCQ in the following JSON format:
 Your task is to:
 
 1. Do NOT repeat the same learning gap or content.
-2. Generate a new **Level 2 MCQ** targeting the **prior conceptual prerequisite**.
+2. Generate a new **Level 2 MCQ** on the **learning_gap** of previous **level_1** for Recursive Learning Gap detection for adaptive Learning.
 3. Write a 5-sentence USMLE-style clinical vignette with bolded keywords.
 4. Include 5 options (A–E), mark the correct answer.
 5. Provide a new learning gap with 2+ <strong> keywords.
@@ -829,7 +829,7 @@ Your task is to:
 }
 `;
 
-// ===== Level-2 helpers (scoped names) =====
+// ===== Level-2 helpers (scoped names to avoid collisions) =====
 const L2_MODEL = process.env.L2_MODEL || 'gpt-5-mini';
 const L2_HTTP_CONCURRENCY = parseInt(process.env.L2_HTTP_CONCURRENCY || '3', 10);
 
@@ -845,19 +845,16 @@ function l2CleanAndParseJSON(raw) {
   return JSON.parse(t);
 }
 
-// Accept both shapes: either row.level_1 is the object {mcq,buzzwords,learning_gap}
-// or (rarely) someone saved { level_1: { ... } }
+// Accept both shapes: either the DB cell is { mcq, buzzwords, learning_gap }
+// or (rarely) it’s wrapped as { level_1: { ... } }
 function l2NormalizeLevel1ForPrompt(l1ObjRaw) {
   const l1 = l1ObjRaw?.level_1 || l1ObjRaw || {};
   const mcq = l1.mcq || {};
-  const opts = mcq.options || {};
-  // Normalize the correct field name for the model
-  const correct_answer = mcq.correct_answer || mcq.correct_option || '';
   return {
     mcq: {
       stem: mcq.stem ?? '',
-      options: opts,         // may be A–D only; E optional
-      correct_answer
+      options: mcq.options ?? {}, // A–D required; E optional
+      correct_answer: mcq.correct_answer || mcq.correct_option || ''
     },
     buzzwords: Array.isArray(l1.buzzwords) ? l1.buzzwords : [],
     learning_gap: typeof l1.learning_gap === 'string' ? l1.learning_gap : ''
@@ -889,6 +886,7 @@ async function l2AsyncPool(limit, items, iter) {
   }
   return Promise.allSettled(out);
 }
+
 function l2IsRetryable(e) {
   const s = String(e?.message || e);
   return /timeout|ETIMEDOUT|429|rate limit|temporar|unavailable|ECONNRESET/i.test(s);
@@ -927,6 +925,7 @@ exports.generateLevel2ForMCQBank = async (req, res) => {
               { role: 'user', content: prompt }
             ]
           });
+
           const raw = completion.choices?.[0]?.message?.content ?? '';
           const parsed = l2CleanAndParseJSON(raw);
 

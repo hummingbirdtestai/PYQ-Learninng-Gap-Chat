@@ -613,8 +613,15 @@ Your task is to:
 2. Generate a new **Level 1 MCQ** on the **learning_gap** of previous **primary_mcq** for Recursive Learning Gap detection for adaptive Learning.
 3. Write a 5-sentence USMLE-style clinical vignette with bolded keywords.
 4. Include 5 options (A–E), mark the correct answer.
-5. Provide a new learning gap with 2+ <strong> keywords.
-6. Include 10 high-yield buzzwords with emoji prefix and bold terms.
+5. Identify the *key learning gap* if the MCQ was answered wrong.
+   - The learning gap statement must be *one sentence*, and include <strong>bolded keywords</strong> for the missed concept.
+6. Provide 10 *high-quality, laser-sharp, buzzword-style facts* related to the concept of the current MCQ:
+   - Each fact must be *8 to 12 words long*, maximum of one sentence.
+   - Start with a relevant *emoji*.
+   - Bold key terms using <strong>...</strong>.
+   - Format as flat strings in a "buzzwords": [] array.
+   - Style should match Amboss/NBME/USMLE exam revision quality — *concise, specific, exam-sure*.
+
 7. Return in this format:
 
 {
@@ -817,7 +824,8 @@ Your task is to:
    - Bold key terms using <strong>...</strong>.
    - Format as flat strings in a "buzzwords": [] array.
    - Style should match Amboss/NBME/USMLE exam revision quality — *concise, specific, exam-sure*.
-5. Provide a new learning gap with 2+ <strong> keywords.
+5. Identify the *key learning gap* if the MCQ was answered wrong.
+   - The learning gap statement must be *one sentence*, and include <strong>bolded keywords</strong> for the missed concept.
 6. Return in this format:
 
 {

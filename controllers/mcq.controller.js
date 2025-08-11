@@ -1978,7 +1978,7 @@ const SUBJECT_MODEL   = process.env.CLASSIFY_MODEL || 'gpt-5-mini';
 const SUBJECT_DEFAULT_LIMIT = parseInt(process.env.CLASSIFY_LIMIT || '80', 10);
 const SUBJECT_MAX_LIMIT     = 150;
 
-const SUBJECTS = [
+const SUBJECTS_CLASSIFY = [
   "Anatomy","Physiology","Biochemistry","Pathology","Pharmacology","Microbiology",
   "Forensic Medicine","Community Medicine","ENT","Ophthalmology",
   "General Medicine","Pediatrics","Dermatology","Psychiatry",

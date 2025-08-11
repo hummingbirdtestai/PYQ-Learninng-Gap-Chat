@@ -1,3 +1,4 @@
+// workers/subjectWorker.js
 require('dotenv').config();
 const { supabase } = require('../config/supabaseClient');
 const openai = require('../config/openaiClient');
@@ -16,6 +17,7 @@ const SUBJECTS = [
   "General Medicine","Pediatrics","Dermatology","Psychiatry",
   "General Surgery","Orthopedics","Anesthesia","Radiology","Obstetrics and Gynaecology"
 ];
+
 const SUBJECT_SYNONYMS = {
   "immunology":"Microbiology","genetics":"Biochemistry","public health":"Community Medicine","psm":"Community Medicine","spm":"Community Medicine",
   "radiodiagnosis":"Radiology","radiodiagnostics":"Radiology","internal medicine":"General Medicine","medicine":"General Medicine",
@@ -41,6 +43,7 @@ function extractPrimaryStem(primary) {
   const pm = primary?.primary_mcq || primary || {};
   return pm.stem || primary?.stem || '';
 }
+
 function extractMCQText(row) {
   const fromPrimary = extractPrimaryStem(row.primary_mcq);
   if (fromPrimary) return fromPrimary;
@@ -50,6 +53,7 @@ function extractMCQText(row) {
   if (typeof mcq === 'object') return mcq.stem || mcq.question || mcq.text || JSON.stringify(mcq);
   return String(mcq);
 }
+
 const truncate = (s, n = 600) => (String(s || '').length > n ? String(s).slice(0, n) + ' …' : String(s || ''));
 
 function buildPrompt(items) {
@@ -82,6 +86,7 @@ Map related terms as:
 }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
 function isRetryable(e) {
   const s = String(e?.message || e);
   return /timeout|ETIMEDOUT|429|rate limit|temporar|unavailable|ECONNRESET/i.test(s);
@@ -91,8 +96,8 @@ async function callOpenAI(messages, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: SUBJECT_MODEL,
-      temperature: 0,
       messages
+      // Note: gpt-5-mini chat.completions does not support overriding temperature; omit it.
     });
     return resp.choices?.[0]?.message?.content || '';
   } catch (e) {

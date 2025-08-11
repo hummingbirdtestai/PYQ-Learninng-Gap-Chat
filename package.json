@@ -11,6 +11,7 @@
     "worker:primary": "node workers/primaryWorker.js",
     "worker:level1": "node workers/level1Worker.js",
     "worker:level2": "node workers/level2Worker.js",
+    "worker:subject": "node workers/subjectWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

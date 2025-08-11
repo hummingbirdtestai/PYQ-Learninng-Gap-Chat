@@ -1972,3 +1972,174 @@ exports.generateLevel10ForMCQBank = async (req, res) => {
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+
+// ===== Subject Classification (API + Worker share these helpers) =====
+const SUBJECT_MODEL   = process.env.CLASSIFY_MODEL || 'gpt-5-mini';
+const SUBJECT_DEFAULT_LIMIT = parseInt(process.env.CLASSIFY_LIMIT || '80', 10);
+const SUBJECT_MAX_LIMIT     = 150;
+
+const SUBJECTS = [
+  "Anatomy","Physiology","Biochemistry","Pathology","Pharmacology","Microbiology",
+  "Forensic Medicine","Community Medicine","ENT","Ophthalmology",
+  "General Medicine","Pediatrics","Dermatology","Psychiatry",
+  "General Surgery","Orthopedics","Anesthesia","Radiology","Obstetrics and Gynaecology"
+];
+
+const SUBJECT_SYNONYMS = {
+  "immunology": "Microbiology",
+  "genetics": "Biochemistry",
+  "public health": "Community Medicine",
+  "psm": "Community Medicine",
+  "spm": "Community Medicine",
+  "radiodiagnosis": "Radiology",
+  "radiodiagnostics": "Radiology",
+  "internal medicine": "General Medicine",
+  "medicine": "General Medicine",
+  "surgery": "General Surgery",
+  "obg": "Obstetrics and Gynaecology",
+  "ob&g": "Obstetrics and Gynaecology",
+  "obstetrics & gynaecology": "Obstetrics and Gynaecology",
+  "obstetrics and gynecology": "Obstetrics and Gynaecology",
+  "gynecology": "Obstetrics and Gynaecology",
+  "ophthal": "Ophthalmology",
+  "ophthalmic": "Ophthalmology",
+  "eye": "Ophthalmology",
+  "ent": "ENT",
+  "psych": "Psychiatry",
+  "derm": "Dermatology",
+  "peds": "Pediatrics",
+  "ortho": "Orthopedics",
+  "anesthesiology": "Anesthesia",
+  "micro": "Microbiology",
+  "biochem": "Biochemistry",
+  "pharma": "Pharmacology"
+};
+
+function normalizeSubject(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  if (SUBJECTS.includes(s)) return s;
+  const key = s.toLowerCase();
+  if (SUBJECT_SYNONYMS[key]) return SUBJECT_SYNONYMS[key];
+  const simplified = key.replace(/[&.]/g, '').replace(/\s+/g, ' ').trim();
+  for (const sub of SUBJECTS) {
+    if (sub.toLowerCase() === simplified) return sub;
+  }
+  return null;
+}
+
+function extractPrimaryStem(primary) {
+  if (!primary) return '';
+  // stored shapes: {primary_mcq:{stem,...}, buzzwords, learning_gap} OR flat
+  const pm = primary?.primary_mcq || primary || {};
+  return pm.stem || primary?.stem || '';
+}
+
+function extractMCQText(row) {
+  // Prefer primary_mcq stem if present, else fallback to raw mcq
+  const fromPrimary = extractPrimaryStem(row.primary_mcq);
+  if (fromPrimary) return fromPrimary;
+  const mcq = row.mcq;
+  if (!mcq) return '';
+  if (typeof mcq === 'string') return mcq;
+  if (typeof mcq === 'object') return mcq.stem || mcq.question || mcq.text || JSON.stringify(mcq);
+  return String(mcq);
+}
+
+const truncate = (s, n = 600) => (String(s || '').length > n ? String(s).slice(0, n) + ' …' : String(s || ''));
+
+// Stable line-output prompt (no JSON, no IDs)
+function buildSubjectPrompt(items) {
+  const header = `
+You classify MBBS MCQs into subjects.
+
+Use ONLY these exact subjects:
+${SUBJECTS.map(s => `- ${s}`).join('\n')}
+
+Return format:
+- Output EXACTLY ${items.length} LINES.
+- Each line is ONE subject from the list, matching the order of the MCQs given.
+- No numbering, no IDs, no extra text before/after. Just the subject names, one per line.
+
+Map related terms as:
+- "Immunology" → Microbiology
+- "Genetics" → Biochemistry
+- "Public Health/PSM/SPM" → Community Medicine
+- "Radiodiagnosis/…diagnostics" → Radiology
+- "Internal Medicine/Medicine" → General Medicine
+- "Surgery" (broad) → General Surgery
+- "OBG/OB & G/Obstetrics & Gynecology" → Obstetrics and Gynaecology
+- "Ophthal/Ophthalmic/Eye" → Ophthalmology
+- "Psych" → Psychiatry, "Derm" → Dermatology, "Peds" → Pediatrics, "Ortho" → Orthopedics,
+  "Anesthesiology" → Anesthesia, "Micro" → Microbiology, "Biochem" → Biochemistry, "Pharma" → Pharmacology.
+`.trim();
+
+  const body = items
+    .map((it, i) => `${i + 1}) ${truncate(extractMCQText(it))}`)
+    .join('\n\n');
+
+  return `${header}\n\nMCQs:\n\n${body}\n\nRemember: output exactly ${items.length} lines, one subject per line.`;
+}
+
+// ---------- API: batch classify (manual kick) ----------
+exports.classifySubjectsV2 = async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || '', 10) || SUBJECT_DEFAULT_LIMIT, SUBJECT_MAX_LIMIT);
+
+    const { data: rows, error: fetchError } = await supabase
+      .from('mcq_bank')
+      .select('id, mcq, primary_mcq, subject')
+      .is('subject', null)
+      .order('id', { ascending: true })
+      .limit(limit);
+
+    if (fetchError) throw fetchError;
+    if (!rows?.length) {
+      return res.json({ message: '✅ No unclassified MCQs found.', fetched: 0, updated: 0 });
+    }
+
+    const prompt = buildSubjectPrompt(rows);
+    const completion = await openai.chat.completions.create({
+      model: SUBJECT_MODEL,
+      temperature: 0,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const raw = completion.choices?.[0]?.message?.content || '';
+    const lines = raw
+      .trim()
+      .replace(/^```.*?\n|\n```$/g, '') // strip fences if any
+      .split(/\r?\n/)
+      .map(l => l.replace(/^\d+[\).\s-]+/, '').trim())
+      .filter(Boolean)
+      .slice(0, rows.length);
+
+    const updates = [];
+    for (let i = 0; i < rows.length && i < lines.length; i++) {
+      const sub = normalizeSubject(lines[i]);
+      if (sub) updates.push({ id: rows[i].id, subject: sub });
+    }
+
+    if (!updates.length) {
+      return res.status(422).json({ error: 'No valid classifications returned' });
+    }
+
+    const { error: upErr, data: updatedRows } = await supabase
+      .from('mcq_bank')
+      .upsert(updates, { onConflict: 'id', ignoreDuplicates: false })
+      .select('id');
+
+    if (upErr) throw upErr;
+
+    return res.json({
+      message: `✅ Classified ${updatedRows?.length || updates.length} / ${rows.length} MCQs`,
+      fetched: rows.length,
+      updated: updatedRows?.length || updates.length,
+      droppedForWhitelist: rows.length - (updatedRows?.length || updates.length),
+      model: SUBJECT_MODEL
+    });
+  } catch (err) {
+    console.error('❌ classifySubjectsV2 error:', err);
+    return res.status(500).json({ error: 'Internal Server Error', details: err.message });
+  }
+};

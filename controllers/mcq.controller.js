@@ -810,11 +810,15 @@ Your task is to:
 
 1. Do NOT repeat the same learning gap or content.
 2. Generate a new **Level 2 MCQ** on the **learning_gap** of previous **level_1** for Recursive Learning Gap detection for adaptive Learning.
-3. Write a 5-sentence USMLE-style clinical vignette with bolded keywords.
-4. Include 5 options (A–E), mark the correct answer.
+3. Include 5 options (A–E), mark the correct answer.
+4. Provide 10 *high-quality, laser-sharp, buzzword-style facts* related to the concept of the current MCQ:
+   - Each fact must be *8 to 12 words long*, maximum of one sentence.
+   - Start with a relevant *emoji*.
+   - Bold key terms using <strong>...</strong>.
+   - Format as flat strings in a "buzzwords": [] array.
+   - Style should match Amboss/NBME/USMLE exam revision quality — *concise, specific, exam-sure*.
 5. Provide a new learning gap with 2+ <strong> keywords.
-6. Include 10 exam-relevant buzzwords (emoji prefixed, bold terms).
-7. Return in this format:
+6. Return in this format:
 
 {
   "level_2": {

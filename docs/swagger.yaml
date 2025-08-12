@@ -77,23 +77,42 @@ paths:
 
   /users/register:
     post:
-      tags: [Users]
-      summary: Register a new student
+      tags:
+        - Users
+      summary: Register a new student (minimal fields)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserInput'
+              type: object
+              required:
+                - country_code
+                - phone
+                - name
+              properties:
+                country_code:
+                  type: string
+                  description: E.164 country code
+                  example: "+91"
+                phone:
+                  type: string
+                  description: 10-digit local phone number (no country code)
+                  example: "9999999999"
+                name:
+                  type: string
+                  description: Full name of the student
+                  example: "John Doe"
       responses:
         '201':
           description: User registered successfully
+        '400':
+          description: Missing or invalid required fields
         '409':
           description: User already registered
-        '400':
-          description: Missing required fields
         '500':
           description: Registration failed
+
 
   /users/{id}:
     get:

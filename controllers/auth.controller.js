@@ -1,69 +1,87 @@
-// Auth Controller
+// controllers/auth.controller.js
 const twilioClient = require('../utils/twilioClient');
 const supabase = require('../config/supabaseClient');
+const { toE164, last10 } = require('../utils/phone');
+
+// IMPORTANT: your users table stores phone split as (country_code, phone)
+// Example rows: country_code="+91", phone="9876543210" (10 digits)
 
 exports.startOTP = async (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'Phone number is required' });
 
   try {
-    console.log('📤 Sending OTP to:', phone);
+    const phoneE164 = toE164(phone, '+91');
 
-    const otpResponse = await twilioClient.verify.v2.services(process.env.TWILIO_VERIFY_SERVICE_SID)
-      .verifications
-      .create({ to: phone, channel: 'sms' });
+    // Debug logs: verify both endpoints use the SAME service + exact 'to'
+    console.log('📤 startOTP → service:', process.env.TWILIO_VERIFY_SERVICE_SID, 'to:', phoneE164);
+
+    const otpResponse = await twilioClient.verify.v2
+      .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+      .verifications.create({ to: phoneE164, channel: 'sms' });
 
     console.log('✅ OTP sent, SID:', otpResponse.sid);
-
-    res.status(200).json({ message: 'OTP sent', sid: otpResponse.sid });
+    return res.status(200).json({ message: 'OTP sent', sid: otpResponse.sid });
   } catch (error) {
-    console.error('❌ Error sending OTP:', error.message);
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error sending OTP:', error?.message || error);
+    const msg = error?.message === 'INVALID_PHONE_FORMAT' ? 'Invalid phone number' : (error?.message || 'Failed to send OTP');
+    return res.status(500).json({ error: msg });
   }
 };
 
 exports.verifyOTP = async (req, res) => {
   const { phone, otp } = req.body;
-
   if (!phone || !otp) {
     return res.status(400).json({ error: 'Phone and OTP are required' });
   }
 
   try {
-    console.log('🔐 Verifying OTP for:', phone, '| OTP:', otp);
+    const phoneE164 = toE164(phone, '+91');
+    console.log('🔐 verifyOTP → service:', process.env.TWILIO_VERIFY_SERVICE_SID, 'to:', phoneE164, 'code:', otp);
 
-    const verificationCheck = await twilioClient.verify.v2.services(process.env.TWILIO_VERIFY_SERVICE_SID)
-      .verificationChecks
-      .create({ to: phone, code: otp });
+    const verificationCheck = await twilioClient.verify.v2
+      .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+      .verificationChecks.create({ to: phoneE164, code: otp });
 
-    console.log('📲 Twilio verification status:', verificationCheck.status);
+    console.log('📲 Twilio verification status:', verificationCheck.status, 'errorCode:', verificationCheck.errorCode || null);
 
-    if (verificationCheck.status === 'approved') {
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('phone', phone)
-        .limit(1)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('❌ Supabase error:', error.message);
-        return res.status(500).json({ error: error.message });
-      }
-
-      const isNewUser = !user;
-
-      res.status(200).json({
-        message: 'OTP verified',
-        isNewUser,
-        user: user || null
+    if (verificationCheck.status !== 'approved') {
+      // Surface Twilio status while testing
+      return res.status(401).json({
+        error: 'Invalid OTP',
+        twilio_status: verificationCheck.status,
+        twilio_error_code: verificationCheck.errorCode ?? null
       });
-    } else {
-      console.warn('⚠️ Invalid OTP attempt for:', phone);
-      res.status(401).json({ error: 'Invalid OTP' });
     }
+
+    // 🔽🔽 Align with how you store in DB: country_code + 10-digit phone 🔽🔽
+    const country = '+91';
+    const ten = last10(phoneE164); // "9876543210"
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('country_code', country)
+      .eq('phone', ten)
+      .limit(1)
+      .maybeSingle(); // safer than .single() when 0 rows
+
+    if (error) {
+      console.error('❌ Supabase error:', error?.message || error);
+      return res.status(500).json({ error: error?.message || 'Database error' });
+    }
+
+    // If you ever migrate to a single "phone" column storing full E.164, switch to:
+    // .eq('phone', phoneE164)
+
+    return res.status(200).json({
+      message: 'OTP verified',
+      isNewUser: !user,
+      user: user || null
+    });
   } catch (error) {
-    console.error('❌ OTP verification error:', error.message);
-    res.status(500).json({ error: error.message });
+    console.error('❌ OTP verification error:', error?.message || error);
+    const msg = error?.message === 'INVALID_PHONE_FORMAT' ? 'Invalid phone number' : (error?.message || 'Verification failed');
+    return res.status(500).json({ error: msg });
   }
 };

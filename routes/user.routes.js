@@ -2,10 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   registerUser,
-  getUserById,
-  getUserStatusByPhone,
-  toggleActivationByPhone,
-  getUserByPhone
+  getUserById
 } = require('../controllers/user.controller');
 
 router.post('/register', registerUser);

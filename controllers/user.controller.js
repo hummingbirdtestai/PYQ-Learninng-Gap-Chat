@@ -6,7 +6,7 @@ const { supabase } = require('../config/supabaseClient');
  *   post:
  *     tags:
  *       - Users
- *     summary: Register student
+ *     summary: Register a new student (minimal fields)
  *     requestBody:
  *       required: true
  *       content:
@@ -16,86 +16,82 @@ const { supabase } = require('../config/supabaseClient');
  *             required:
  *               - country_code
  *               - phone
- *               - email
  *               - name
  *             properties:
  *               country_code:
  *                 type: string
+ *                 description: E.164 country code
  *                 example: '+91'
  *               phone:
  *                 type: string
+ *                 description: 10-digit local phone number (no country code)
  *                 example: '9999999999'
- *               email:
- *                 type: string
- *                 example: 'student@example.com'
  *               name:
  *                 type: string
  *                 example: 'John Doe'
- *               photograph_url:
- *                 type: string
- *                 example: 'https://example.com/photo.jpg'
- *               medical_college_id:
- *                 type: string
- *                 format: uuid
- *               year_of_joining:
- *                 type: integer
- *                 example: 2022
  *     responses:
  *       201:
  *         description: User registered successfully
+ *       400:
+ *         description: Invalid input
  *       409:
  *         description: User already registered
  *       500:
  *         description: Registration failed
  */
 exports.registerUser = async (req, res) => {
-  const {
-    country_code,
-    phone,
-    email,
-    name,
-    photograph_url,
-    medical_college_id,
-    year_of_joining
-  } = req.body;
-
-  if (!country_code || !phone || !email || !name) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-
   try {
-    const { data: existingUser, error: checkError } = await supabase
+    const { country_code, phone, name } = req.body || {};
+
+    // Basic validation
+    const cc = String(country_code || '').trim();
+    const ten = last10(phone || '');
+    const fullName = String(name || '').trim();
+
+    if (!cc || !ten || !fullName) {
+      return res.status(400).json({ error: 'Missing required fields: country_code, phone, and name are required' });
+    }
+    if (cc !== '+91') {
+      return res.status(400).json({ error: 'Unsupported country_code. Only +91 is allowed at the moment.' });
+    }
+    if (!/^\d{10}$/.test(ten)) {
+      return res.status(400).json({ error: 'Phone must be a 10-digit number' });
+    }
+
+    // Check duplicates (by phone)
+    const { data: existing, error: checkErr } = await supabase
       .from('users')
       .select('id')
-      .eq('phone', phone)
+      .eq('phone', ten)
       .limit(1);
 
-    if (checkError) return res.status(500).json({ error: checkError.message });
-
-    if (existingUser.length > 0) {
+    if (checkErr) {
+      return res.status(500).json({ error: checkErr.message || 'Database error' });
+    }
+    if (Array.isArray(existing) && existing.length > 0) {
       return res.status(409).json({ error: 'User already registered' });
     }
 
+    // Insert minimal row
     const { data, error } = await supabase
       .from('users')
       .insert({
-        country_code,
-        phone,
-        email,
-        name,
-        photograph_url: photograph_url || null,
-        medical_college_id: medical_college_id || null,
-        year_of_joining: year_of_joining || null,
-        is_active: false
+        country_code: cc,
+        phone: ten,
+        name: fullName,
+        // email omitted by design
+        is_active: false,
       })
       .select()
       .single();
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      return res.status(500).json({ error: error.message || 'Registration failed' });
+    }
 
-    res.status(201).json(data);
+    return res.status(201).json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err?.message || 'Registration failed' });
   }
 };
 

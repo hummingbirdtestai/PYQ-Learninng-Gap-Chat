@@ -1,4 +1,6 @@
+// controllers/user.controller.js
 const { supabase } = require('../config/supabaseClient');
+const { last10 } = require('../utils/phone'); // ← make sure this exists (you shared it earlier)
 
 /**
  * @swagger
@@ -39,35 +41,34 @@ const { supabase } = require('../config/supabaseClient');
  *       500:
  *         description: Registration failed
  */
-exports.registerUser = async (req, res) => {
+async function registerUser(req, res) {
   try {
     const { country_code, phone, name } = req.body || {};
 
-    // Basic validation
     const cc = String(country_code || '').trim();
     const ten = last10(phone || '');
     const fullName = String(name || '').trim();
 
     if (!cc || !ten || !fullName) {
-      return res.status(400).json({ error: 'Missing required fields: country_code, phone, and name are required' });
+      return res
+        .status(400)
+        .json({ error: 'Missing required fields: country_code, phone, and name are required' });
     }
     if (cc !== '+91') {
-      return res.status(400).json({ error: 'Unsupported country_code. Only +91 is allowed at the moment.' });
+      return res.status(400).json({ error: 'Unsupported country_code. Only +91 is allowed.' });
     }
     if (!/^\d{10}$/.test(ten)) {
       return res.status(400).json({ error: 'Phone must be a 10-digit number' });
     }
 
-    // Check duplicates (by phone)
+    // Duplicate check by phone
     const { data: existing, error: checkErr } = await supabase
       .from('users')
       .select('id')
       .eq('phone', ten)
       .limit(1);
 
-    if (checkErr) {
-      return res.status(500).json({ error: checkErr.message || 'Database error' });
-    }
+    if (checkErr) return res.status(500).json({ error: checkErr.message || 'Database error' });
     if (Array.isArray(existing) && existing.length > 0) {
       return res.status(409).json({ error: 'User already registered' });
     }
@@ -79,21 +80,18 @@ exports.registerUser = async (req, res) => {
         country_code: cc,
         phone: ten,
         name: fullName,
-        // email omitted by design
-        is_active: false,
+        is_active: false, // default for new registrations
       })
       .select()
       .single();
 
-    if (error) {
-      return res.status(500).json({ error: error.message || 'Registration failed' });
-    }
+    if (error) return res.status(500).json({ error: error.message || 'Registration failed' });
 
     return res.status(201).json(data);
   } catch (err) {
     return res.status(500).json({ error: err?.message || 'Registration failed' });
   }
-};
+}
 
 /**
  * @swagger
@@ -111,26 +109,22 @@ exports.registerUser = async (req, res) => {
  *     responses:
  *       200:
  *         description: User profile
+ *       404:
+ *         description: User not found
  *       500:
  *         description: Error fetching user
  */
-exports.getUserById = async (req, res) => {
+async function getUserById(req, res) {
   const { id } = req.params;
-
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', id)
-      .single();
-
+    const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle();
     if (error) return res.status(500).json({ error: error.message });
-
-    res.status(200).json(data);
+    if (!data) return res.status(404).json({ error: 'User not found' });
+    return res.status(200).json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err?.message || 'Error fetching user' });
   }
-};
+}
 
 /**
  * @swagger
@@ -138,7 +132,7 @@ exports.getUserById = async (req, res) => {
  *   get:
  *     tags:
  *       - Users
- *     summary: Get full user details by phone number
+ *     summary: Get full user details by phone number (10 digits)
  *     parameters:
  *       - in: path
  *         name: phone
@@ -151,31 +145,24 @@ exports.getUserById = async (req, res) => {
  *         description: Full user profile
  *       404:
  *         description: User not found
+ *       400:
+ *         description: Bad phone format
  */
-exports.getUserByPhone = async (req, res) => {
-  let { phone } = req.params;
-
-  // ✅ Normalize phone to exclude any +91 or +XX prefix
-  if (phone.startsWith('+91')) {
-    phone = phone.substring(3);
+async function getUserByPhone(req, res) {
+  const ten = last10(req.params.phone || '');
+  if (!/^\d{10}$/.test(ten)) {
+    return res.status(400).json({ error: 'Phone must be a 10-digit number' });
   }
 
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('phone', phone)
-      .single();
-
-    if (error || !data) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.status(200).json(data);
+    const { data, error } = await supabase.from('users').select('*').eq('phone', ten).maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data) return res.status(404).json({ error: 'User not found' });
+    return res.status(200).json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err?.message || 'Error fetching user' });
   }
-};
+}
 
 /**
  * @swagger
@@ -183,7 +170,7 @@ exports.getUserByPhone = async (req, res) => {
  *   get:
  *     tags:
  *       - Users
- *     summary: Check if user is active
+ *     summary: Check if user is active (by 10-digit phone)
  *     parameters:
  *       - in: path
  *         name: phone
@@ -205,33 +192,38 @@ exports.getUserByPhone = async (req, res) => {
  *                   type: boolean
  *       404:
  *         description: User not found
+ *       400:
+ *         description: Bad phone format
  */
-exports.getUserStatusByPhone = async (req, res) => {
-  const { phone } = req.params;
+async function getUserStatusByPhone(req, res) {
+  const ten = last10(req.params.phone || '');
+  if (!/^\d{10}$/.test(ten)) {
+    return res.status(400).json({ error: 'Phone must be a 10-digit number' });
+  }
 
   try {
     const { data, error } = await supabase
       .from('users')
       .select('phone, is_active')
-      .eq('phone', phone)
-      .single();
+      .eq('phone', ten)
+      .maybeSingle();
 
-    if (error || !data) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data) return res.status(404).json({ error: 'User not found' });
 
-    res.status(200).json(data);
+    return res.status(200).json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err?.message || 'Error fetching status' });
   }
-};
+}
 
 /**
  * @swagger
  * /users/phone/{phone}/toggle-activation:
  *   patch:
- *     tags: [Users]
- *     summary: Toggle user's active status using phone number
+ *     tags:
+ *       - Users
+ *     summary: Toggle user's active status by 10-digit phone
  *     parameters:
  *       - in: path
  *         name: phone
@@ -253,34 +245,47 @@ exports.getUserStatusByPhone = async (req, res) => {
  *                   type: boolean
  *       404:
  *         description: User not found
+ *       400:
+ *         description: Bad phone format
  */
-exports.toggleActivationByPhone = async (req, res) => {
-  const { phone } = req.params;
+async function toggleActivationByPhone(req, res) {
+  const ten = last10(req.params.phone || '');
+  if (!/^\d{10}$/.test(ten)) {
+    return res.status(400).json({ error: 'Phone must be a 10-digit number' });
+  }
 
   try {
-    const { data: user, error } = await supabase
+    const { data: user, error: fetchErr } = await supabase
       .from('users')
       .select('is_active')
-      .eq('phone', phone)
-      .single();
+      .eq('phone', ten)
+      .maybeSingle();
 
-    if (error || !user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (fetchErr) return res.status(500).json({ error: fetchErr.message });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const newStatus = !user.is_active;
+    const next = !user.is_active;
 
-    const { data, updateError } = await supabase
+    const { data, error: updateErr } = await supabase
       .from('users')
-      .update({ is_active: newStatus })
-      .eq('phone', phone)
+      .update({ is_active: next })
+      .eq('phone', ten)
       .select('phone, is_active')
-      .single();
+      .maybeSingle();
 
-    if (updateError) return res.status(500).json({ error: updateError.message });
+    if (updateErr) return res.status(500).json({ error: updateErr.message });
 
-    res.status(200).json(data);
+    return res.status(200).json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err?.message || 'Error updating user' });
   }
+}
+
+// ✅ default export (CommonJS)
+exports.default = {
+  registerUser,
+  getUserById,
+  getUserByPhone,
+  getUserStatusByPhone,
+  toggleActivationByPhone,
 };

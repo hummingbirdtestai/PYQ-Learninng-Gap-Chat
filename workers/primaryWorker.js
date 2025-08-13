@@ -4,9 +4,9 @@ const openai = require('../config/openaiClient');
 
 /* -------- Settings (env-overridable) -------- */
 const GEN_MODEL          = process.env.GEN_MODEL || 'gpt-5-mini';
-const GEN_LIMIT          = parseInt(process.env.GEN_LIMIT || '120', 10);        // bigger batch
-const GEN_CONCURRENCY    = parseInt(process.env.GEN_CONCURRENCY || '10', 10);   // more parallel calls
-const GEN_LOCK_TTL_MIN   = parseInt(process.env.GEN_LOCK_TTL_MIN || '45', 10);  // longer lock expiry
+const GEN_LIMIT          = parseInt(process.env.GEN_LIMIT || '120', 10);
+const GEN_CONCURRENCY    = parseInt(process.env.GEN_CONCURRENCY || '10', 10);
+const GEN_LOCK_TTL_MIN   = parseInt(process.env.GEN_LOCK_TTL_MIN || '45', 10);
 const SLEEP_EMPTY_MS     = parseInt(process.env.GEN_LOOP_SLEEP_MS || '400', 10);
 const WORKER_ID          = process.env.WORKER_ID || `w-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
@@ -22,9 +22,9 @@ const PROMPT_TEMPLATE = `🚨 OUTPUT RULES: Your entire output must be a single 
 🧠 OBJECTIVE:
 You will be given a *Previous Year Question (PYQ)* MCQ that a student got wrong. Your task is to:
 
-1. Reframe the MCQ as a clinical vignette with *exactly 5 full sentences*, USMLE-style.  
-   - The MCQ stem must resemble Amboss/NBME/USMLE-level difficulty.  
-   - Bold all *high-yield keywords* using <strong>...</strong>.  
+1. Reframe the MCQ as a clinical vignette with *exactly 5 full sentences*, USMLE-style.
+   - The MCQ stem must resemble Amboss/NBME/USMLE-level difficulty.
+   - Bold all *high-yield keywords* using <strong>...</strong>.
    - If an image is mentioned or implied but not provided, imagine a *relevant clinical/anatomical image* and incorporate its findings logically into the stem.
 
 2. Provide 4 answer options (A–D), with one correct answer clearly marked.
@@ -73,24 +73,6 @@ function cleanAndParseJSON(raw) {
   return JSON.parse(t);
 }
 
-function validatePrimaryStructure(parsed) {
-  try {
-    if (!parsed || typeof parsed !== 'object') return false;
-    const pmcq = parsed.primary_mcq;
-    if (!pmcq || typeof pmcq !== 'object') return false;
-    if (typeof pmcq.stem !== 'string' || pmcq.stem.trim().length < 10) return false;
-    if (!pmcq.options || typeof pmcq.options !== 'object') return false;
-    const keys = Object.keys(pmcq.options);
-    if (keys.length !== 4 || !['A','B','C','D'].every(k => keys.includes(k))) return false;
-    if (!['A','B','C','D'].includes(pmcq.correct_answer)) return false;
-    if (typeof parsed.learning_gap !== 'string' || parsed.learning_gap.trim().length < 5) return false;
-    if (!Array.isArray(parsed.buzzwords) || parsed.buzzwords.length !== 10) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function asyncPool(limit, items, iter) {
   const out = []; const exec = [];
   for (const it of items) {
@@ -129,14 +111,12 @@ async function callOpenAI(messages, attempt = 1) {
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - GEN_LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // Clear stale locks
   await supabase
     .from('mcq_bank')
     .update({ primary_lock: null, primary_locked_at: null })
     .is('primary_mcq', null)
     .lt('primary_locked_at', cutoff);
 
-  // Find candidates
   const { data: candidates, error: e1 } = await supabase
     .from('mcq_bank')
     .select('id')
@@ -149,7 +129,6 @@ async function claimRows(limit) {
 
   const ids = candidates.map(r => r.id);
 
-  // Lock & fetch
   const { data: locked, error: e2 } = await supabase
     .from('mcq_bank')
     .update({ primary_lock: WORKER_ID, primary_locked_at: new Date().toISOString() })
@@ -170,17 +149,12 @@ async function clearLocks(ids) {
     .in('id', ids);
 }
 
-/* -------- Per-Row Processor -------- */
+/* -------- Per-Row Processor (no validation) -------- */
 async function processRow(row) {
   try {
     const prompt = buildPrompt(row);
     const raw = await callOpenAI([{ role: 'user', content: prompt }]);
     const parsed = cleanAndParseJSON(raw);
-
-    const isValid = validatePrimaryStructure(parsed);
-    if (!isValid) {
-      console.warn(`⚠️ Row ${row.id} JSON structure not perfect — saving anyway for review`);
-    }
 
     const { error: upErr } = await supabase
       .from('mcq_bank')
@@ -202,7 +176,6 @@ async function processRow(row) {
 /* -------- Main Loop -------- */
 (async function main() {
   console.log(`🧵 Primary Worker ${WORKER_ID} | model=${GEN_MODEL} | limit=${GEN_LIMIT} | conc=${GEN_CONCURRENCY} | ttl=${GEN_LOCK_TTL_MIN}m`);
-
   while (true) {
     try {
       const claimed = await claimRows(GEN_LIMIT);
@@ -210,14 +183,11 @@ async function processRow(row) {
         await sleep(SLEEP_EMPTY_MS);
         continue;
       }
-
       console.log(`⚙️ claimed=${claimed.length}`);
       const results = await asyncPool(GEN_CONCURRENCY, claimed, r => processRow(r));
-
       const ok = results.filter(r => r.status === 'fulfilled' && r.value?.ok).length;
       const fail = results.length - ok;
       console.log(`✅ ok=${ok} ❌ fail=${fail}`);
-
     } catch (e) {
       console.error('Loop error:', e.message || e);
       await sleep(1000);

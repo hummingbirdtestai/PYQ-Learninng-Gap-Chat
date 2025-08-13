@@ -503,36 +503,33 @@ paths:
         500:
           description: Server error or Supabase failure
 
-  /api/adaptive/pyq/start:
+  /adaptive/pyq/start:
     get:
-      summary: Start adaptive MCQ session
-      description: |
-        Fetches the first set of MCQ graphs for a given exam, subject, and user.
-        Always starts from the beginning unless the user has a saved resume position.
+      summary: Start an adaptive MCQ session
+      description: >
+        Fetches the first batch of MCQ graphs for the given user, exam, and subject.
+        Also resets the resume tracker to the first MCQ in this batch.
       parameters:
-        - name: userId
-          in: query
+        - in: query
+          name: userId
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the user.
-        - name: examId
-          in: query
+        - in: query
+          name: examId
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the exam.
-        - name: subjectId
-          in: query
+        - in: query
+          name: subjectId
           required: true
           schema:
             type: string
-            format: uuid
           description: UUID of the subject.
-        - name: limit
-          in: query
+        - in: query
+          name: limit
           required: false
           schema:
             type: integer
@@ -540,7 +537,7 @@ paths:
           description: Number of MCQ graphs to fetch.
       responses:
         '200':
-          description: List of MCQ graphs to start the session.
+          description: Successfully fetched MCQ graphs.
           content:
             application/json:
               schema:
@@ -550,78 +547,118 @@ paths:
                     type: array
                     items:
                       type: object
-                      description: MCQ graph object.
         '400':
           description: Missing parameters.
+        '404':
+          description: No MCQ graphs found.
         '500':
           description: Internal server error.
 
-  /api/adaptive/pyq/resume:
+  /adaptive/pyq/resume:
     get:
-      summary: Resume adaptive MCQ session
-      description: |
-        Resumes the adaptive MCQ session from the last saved position.
-        Uses mcq_resume_tracker table to determine starting primary index and level.
+      summary: Resume an adaptive MCQ session
+      description: >
+        Resumes the session from the last saved progress in mcq_resume_tracker
+        and fetches the next batch of MCQ graphs.
       parameters:
-        - name: userId
-          in: query
+        - in: query
+          name: userId
           required: true
           schema:
             type: string
-            format: uuid
-          description: UUID of the user.
-        - name: examId
-          in: query
+        - in: query
+          name: examId
           required: true
           schema:
             type: string
-            format: uuid
-          description: UUID of the exam.
-        - name: subjectId
-          in: query
+        - in: query
+          name: subjectId
           required: true
           schema:
             type: string
-            format: uuid
-          description: UUID of the subject.
-        - name: limit
-          in: query
+        - in: query
+          name: limit
           required: false
           schema:
             type: integer
             default: 5
-          description: Number of MCQ graphs to fetch starting from saved position.
       responses:
         '200':
-          description: List of MCQ graphs starting from saved position.
+          description: Successfully resumed session and fetched MCQ graphs.
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  resume_position:
-                    type: object
-                    properties:
-                      primary_index:
-                        type: integer
-                        description: Index of the primary MCQ to start from.
-                      level:
-                        type: string
-                        enum: [primary, level_1, level_2, level_3, level_4, level_5, level_6, level_7, level_8, level_9, level_10]
-                        description: Level to start from.
-                      resume_mcq_id:
-                        type: string
-                        format: uuid
-                        description: MCQ ID to start from.
                   graphs:
                     type: array
                     items:
                       type: object
-                      description: MCQ graph object.
+                  resumeFrom:
+                    type: object
+                    properties:
+                      mcq_id:
+                        type: string
+                      level:
+                        type: integer
         '400':
           description: Missing parameters.
         '404':
-          description: No saved session found.
+          description: No resume data found.
+        '500':
+          description: Internal server error.
+
+  /adaptive/pyq/submit:
+    post:
+      summary: Submit batch MCQ responses
+      description: >
+        Saves a batch of MCQ responses for a user and optionally updates the resume tracker.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  description: UUID of the user.
+                examId:
+                  type: string
+                  description: UUID of the exam.
+                subjectId:
+                  type: string
+                  description: UUID of the subject.
+                responses:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      user_id:
+                        type: string
+                      mcq_id:
+                        type: string
+                      selected_option:
+                        type: string
+                resumeHint:
+                  type: object
+                  properties:
+                    last_primary_mcq_id:
+                      type: string
+                    last_level_played:
+                      type: integer
+      responses:
+        '200':
+          description: Responses saved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: Missing parameters or invalid request body.
         '500':
           description: Internal server error.
   

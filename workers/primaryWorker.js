@@ -2,15 +2,15 @@ require('dotenv').config();
 const { supabase } = require('../config/supabaseClient');
 const openai = require('../config/openaiClient');
 
-// ---- Settings (env overrideable) ----
+/* -------- Settings (env-overridable) -------- */
 const GEN_MODEL          = process.env.GEN_MODEL || 'gpt-5-mini';
-const GEN_LIMIT          = parseInt(process.env.GEN_LIMIT || '40', 10);      // rows per loop
-const GEN_CONCURRENCY    = parseInt(process.env.GEN_CONCURRENCY || '4', 10); // parallel OpenAI calls
-const GEN_LOCK_TTL_MIN   = parseInt(process.env.GEN_LOCK_TTL_MIN || '15', 10);
-const SLEEP_EMPTY_MS     = parseInt(process.env.GEN_LOOP_SLEEP_MS || '750', 10);
+const GEN_LIMIT          = parseInt(process.env.GEN_LIMIT || '120', 10);        // bigger batch
+const GEN_CONCURRENCY    = parseInt(process.env.GEN_CONCURRENCY || '10', 10);   // more parallel calls
+const GEN_LOCK_TTL_MIN   = parseInt(process.env.GEN_LOCK_TTL_MIN || '45', 10);  // longer lock expiry
+const SLEEP_EMPTY_MS     = parseInt(process.env.GEN_LOOP_SLEEP_MS || '400', 10);
 const WORKER_ID          = process.env.WORKER_ID || `w-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
-// ---- Your existing prompt template (verbatim) ----
+/* -------- Prompt Template -------- */
 const PROMPT_TEMPLATE = `🚨 OUTPUT RULES: Your entire output must be a single valid JSON object.
 - DO NOT include \`\`\`json or any markdown syntax.
 - DO NOT add explanations, comments, or headings.
@@ -50,7 +50,7 @@ If the original MCQ implies an image (e.g., anatomy, CT scan, fundus, histo slid
 All "buzzwords" must be 10 high-yield, bolded HTML-formatted one-liners, each starting with an emoji.
 `;
 
-// ---- Helpers ----
+/* -------- Helpers -------- */
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 function truncate(s, n = 1000) { s = String(s || ''); return s.length > n ? s.slice(0, n) + ' …' : s; }
 
@@ -73,16 +73,34 @@ function cleanAndParseJSON(raw) {
   return JSON.parse(t);
 }
 
+function validatePrimaryStructure(parsed) {
+  try {
+    if (!parsed || typeof parsed !== 'object') return false;
+    const pmcq = parsed.primary_mcq;
+    if (!pmcq || typeof pmcq !== 'object') return false;
+    if (typeof pmcq.stem !== 'string' || pmcq.stem.trim().length < 10) return false;
+    if (!pmcq.options || typeof pmcq.options !== 'object') return false;
+    const keys = Object.keys(pmcq.options);
+    if (keys.length !== 4 || !['A','B','C','D'].every(k => keys.includes(k))) return false;
+    if (!['A','B','C','D'].includes(pmcq.correct_answer)) return false;
+    if (typeof parsed.learning_gap !== 'string' || parsed.learning_gap.trim().length < 5) return false;
+    if (!Array.isArray(parsed.buzzwords) || parsed.buzzwords.length !== 10) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function asyncPool(limit, items, iter) {
-  const ret = []; const exec = [];
+  const out = []; const exec = [];
   for (const it of items) {
     const p = Promise.resolve().then(() => iter(it));
-    ret.push(p);
+    out.push(p);
     const e = p.then(() => exec.splice(exec.indexOf(e), 1));
     exec.push(e);
     if (exec.length >= limit) await Promise.race(exec);
   }
-  return Promise.allSettled(ret);
+  return Promise.allSettled(out);
 }
 
 function isRetryable(e) {
@@ -90,7 +108,7 @@ function isRetryable(e) {
   return /timeout|ETIMEDOUT|429|rate limit|temporar|unavailable|ECONNRESET/i.test(s);
 }
 
-// ---- OpenAI call (no temperature / no max_tokens for compatibility) ----
+/* -------- OpenAI Call -------- */
 async function callOpenAI(messages, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
@@ -107,11 +125,18 @@ async function callOpenAI(messages, attempt = 1) {
   }
 }
 
-// ---- Locking & claiming ----
+/* -------- Locking & Claiming -------- */
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - GEN_LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // 1) candidates
+  // Clear stale locks
+  await supabase
+    .from('mcq_bank')
+    .update({ primary_lock: null, primary_locked_at: null })
+    .is('primary_mcq', null)
+    .lt('primary_locked_at', cutoff);
+
+  // Find candidates
   const { data: candidates, error: e1 } = await supabase
     .from('mcq_bank')
     .select('id')
@@ -124,7 +149,7 @@ async function claimRows(limit) {
 
   const ids = candidates.map(r => r.id);
 
-  // 2) lock & fetch
+  // Lock & fetch
   const { data: locked, error: e2 } = await supabase
     .from('mcq_bank')
     .update({ primary_lock: WORKER_ID, primary_locked_at: new Date().toISOString() })
@@ -145,22 +170,23 @@ async function clearLocks(ids) {
     .in('id', ids);
 }
 
-// ---- Per-row processor ----
+/* -------- Per-Row Processor -------- */
 async function processRow(row) {
   try {
     const prompt = buildPrompt(row);
     const raw = await callOpenAI([{ role: 'user', content: prompt }]);
     const parsed = cleanAndParseJSON(raw);
 
-    if (!parsed.primary_mcq || !parsed.learning_gap || !Array.isArray(parsed.buzzwords)) {
-      throw new Error('Missing required fields in JSON');
+    const isValid = validatePrimaryStructure(parsed);
+    if (!isValid) {
+      console.warn(`⚠️ Row ${row.id} JSON structure not perfect — saving anyway for review`);
     }
 
     const { error: upErr } = await supabase
       .from('mcq_bank')
       .update({
         primary_mcq: parsed,
-        primary_lock: null,             // success → clear lock
+        primary_lock: null,
         primary_locked_at: null
       })
       .eq('id', row.id);
@@ -168,16 +194,12 @@ async function processRow(row) {
 
     return { ok: true, id: row.id };
   } catch (e) {
-    // failure → also clear lock so another attempt can retry later
-    await supabase
-      .from('mcq_bank')
-      .update({ primary_lock: null, primary_locked_at: null })
-      .eq('id', row.id);
+    await clearLocks([row.id]);
     return { ok: false, id: row.id, error: e.message || String(e) };
   }
 }
 
-// ---- Main loop ----
+/* -------- Main Loop -------- */
 (async function main() {
   console.log(`🧵 Primary Worker ${WORKER_ID} | model=${GEN_MODEL} | limit=${GEN_LIMIT} | conc=${GEN_CONCURRENCY} | ttl=${GEN_LOCK_TTL_MIN}m`);
 
@@ -189,18 +211,13 @@ async function processRow(row) {
         continue;
       }
 
-      console.log(`⚙️  claimed=${claimed.length}`);
+      console.log(`⚙️ claimed=${claimed.length}`);
       const results = await asyncPool(GEN_CONCURRENCY, claimed, r => processRow(r));
 
       const ok = results.filter(r => r.status === 'fulfilled' && r.value?.ok).length;
       const fail = results.length - ok;
-      console.log(`✅ ok=${ok}  ❌ fail=${fail}`);
+      console.log(`✅ ok=${ok} ❌ fail=${fail}`);
 
-      // Just in case: clear any still-locked failures
-      const stillLocked = claimed
-        .filter((_, i) => results[i].status !== 'fulfilled' || !results[i].value?.ok)
-        .map(r => r.id);
-      if (stillLocked.length) await clearLocks(stillLocked);
     } catch (e) {
       console.error('Loop error:', e.message || e);
       await sleep(1000);

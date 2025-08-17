@@ -5,11 +5,12 @@ const openai = require('../config/openaiClient');
 const { v4: uuidv4 } = require('uuid');
 
 const MODEL             = process.env.LG_MODEL || 'gpt-5-mini';
-const LIMIT             = parseInt(process.env.LG_LIMIT || '50', 10);
-const CONCURRENCY       = parseInt(process.env.LG_CONCURRENCY || '6', 10);
+const LIMIT             = parseInt(process.env.LG_LIMIT || '150', 10);   // 🔥 raised from 50 → 150
+const CONCURRENCY       = parseInt(process.env.LG_CONCURRENCY || '10', 10); // 🔥 raised from 6 → 10
 const LOCK_TTL_MIN      = parseInt(process.env.LG_LOCK_TTL_MIN || '15', 10);
 const SLEEP_EMPTY_MS    = parseInt(process.env.LG_LOOP_SLEEP_MS || '1000', 10);
 const WORKER_ID         = process.env.WORKER_ID || `lg-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+
 
 /* -------- Prompt (verbatim from your spec) -------- */
 const PROMPT_TEMPLATE = `🚨 OUTPUT RULES: 

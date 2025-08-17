@@ -12,6 +12,7 @@
     "worker:level1": "node workers/level1Worker.js",
     "worker:level2": "node workers/level2Worker.js",
     "worker:subject": "node workers/subjectWorker.js",
+    "start:lg": "node workers/learningGapWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

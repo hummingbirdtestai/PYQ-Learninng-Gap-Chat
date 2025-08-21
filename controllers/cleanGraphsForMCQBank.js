@@ -110,10 +110,10 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
         const raw = completion.choices?.[0]?.message?.content ?? '';
         const parsed = gCleanAndParseJSON(raw);
 
-        // Directly store
+        // Directly store as stringified JSON
         const { error: upErr } = await supabase
           .from('neet_ug_mcq_bank')
-          .update({ graphs_json: parsed })
+          .update({ graphs_json: JSON.stringify(parsed) })
           .eq('id', row.id);
 
         if (upErr) throw upErr;

@@ -57,8 +57,40 @@ function gCleanAndParseJSON(raw) {
     .replace(/^```\s*/i, '')
     .replace(/```$/,'')
     .trim();
-  if (!t.startsWith('[')) throw new Error('Output must be a JSON array');
   return JSON.parse(t);
+}
+
+// 🔑 NEW: Normalizer
+function gNormalize(parsed) {
+  if (!parsed) return [];
+
+  // Case 1: Already correct
+  if (Array.isArray(parsed) && parsed.every(o => o.ConceptTitle && o.Explanation)) {
+    return parsed;
+  }
+
+  // Case 2: Array with Concept + ConceptHeading
+  if (Array.isArray(parsed) && parsed.every(o => o.Concept || o.ConceptHeading)) {
+    return parsed.map(o => ({
+      ConceptTitle: o.ConceptHeading || "",
+      Explanation: o.Concept || ""
+    }));
+  }
+
+  // Case 3: Wrapped { concepts: [...] }
+  if (parsed.concepts && Array.isArray(parsed.concepts)) {
+    return parsed.concepts.map(o => ({
+      ConceptTitle: o.heading || "",
+      Explanation: o.explanation || ""
+    }));
+  }
+
+  // Case 4: Anything else → wrap into Explanation
+  if (typeof parsed === 'string') {
+    return [{ ConceptTitle: "Note", Explanation: parsed }];
+  }
+
+  return [];
 }
 
 function gIsValidOutput(parsed) {
@@ -68,8 +100,7 @@ function gIsValidOutput(parsed) {
     typeof obj.ConceptTitle === 'string' &&
     obj.ConceptTitle.trim().length > 0 &&
     typeof obj.Explanation === 'string' &&
-    obj.Explanation.trim().length > 0 &&
-    !obj.Explanation.includes('[object Object]')
+    obj.Explanation.trim().length > 0
   );
 }
 
@@ -132,9 +163,12 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
           });
 
           const raw = completion.choices?.[0]?.message?.content ?? '';
-          const parsed = gCleanAndParseJSON(raw);
+          let parsed = gCleanAndParseJSON(raw);
 
-          if (!gIsValidOutput(parsed)) throw new Error('Invalid Graphs schema');
+          // 🔑 normalize schema
+          parsed = gNormalize(parsed);
+
+          if (!gIsValidOutput(parsed)) throw new Error('Invalid Graphs schema after normalization');
 
           const { error: upErr } = await supabase
             .from('neet_ug_mcq_bank')

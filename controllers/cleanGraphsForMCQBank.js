@@ -78,12 +78,12 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
   const concurrency = Math.min(parseInt(req.query.concurrency || String(G_HTTP_CONCURRENCY), 10), 8);
 
   try {
-    // Eligible rows: graphs present, graphs_json null
+    // Eligible rows: graph present, graphs_json null
     const { data: rows, error: fetchError } = await supabase
       .from('neet_ug_mcq_bank')
-      .select('id, graphs')
+      .select('id, graph')
       .is('graphs_json', null)
-      .not('graphs', 'is', null)
+      .not('graph', 'is', null)
       .order('id', { ascending: true })
       .limit(limit);
 
@@ -93,7 +93,7 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
     }
 
     const workOne = async (row) => {
-      const inputText = row.graphs || '';
+      const inputText = row.graph || '';
       const prompt = `${GRAPHS_PROMPT_TEMPLATE}\n\nRaw Input:\n${inputText}`;
 
       for (let attempt = 1; attempt <= 3; attempt++) {

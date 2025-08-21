@@ -47,12 +47,25 @@ const G_HTTP_CONCURRENCY = parseInt(process.env.G_HTTP_CONCURRENCY || '3', 10);
 
 // ===== Helpers =====
 function gCleanAndParseJSON(raw) {
-  let t = String(raw || '').trim()
-    .replace(/^```json\s*/i, '')
-    .replace(/^```/i, '')
-    .replace(/```$/,'')
-    .trim();
-  return JSON.parse(t);
+  try {
+    let t = String(raw || '').trim()
+      .replace(/^```json\s*/i, '')
+      .replace(/^```/i, '')
+      .replace(/```$/,'')
+      .trim();
+    return JSON.parse(t);
+  } catch (err) {
+    console.error("❌ JSON parse error:", err.message, "\nRaw:", raw);
+    return [];
+  }
+}
+
+function normalizeObjects(parsed) {
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map((o, i) => ({
+    ConceptTitle: o.ConceptHeading || o.ConceptTitle || `Untitled ${i+1}`,
+    Explanation: o.Concept || o.Explanation || ""
+  }));
 }
 
 async function gAsyncPool(limit, items, iter) {
@@ -109,17 +122,19 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
 
         const raw = completion.choices?.[0]?.message?.content ?? '';
         const parsed = gCleanAndParseJSON(raw);
+        const normalized = normalizeObjects(parsed);
 
-        // Directly store as stringified JSON
+        // Store normalized JSON directly
         const { error: upErr } = await supabase
           .from('neet_ug_mcq_bank')
-          .update({ graphs_json: JSON.stringify(parsed) })
+          .update({ graphs_json: normalized })
           .eq('id', row.id);
 
         if (upErr) throw upErr;
 
         return { id: row.id, ok: true };
       } catch (err) {
+        console.error("❌ WorkOne failed for id:", row.id, err.message);
         return { id: row.id, ok: false, error: err.message || String(err) };
       }
     };

@@ -50,6 +50,7 @@ Your task:
 const G_MODEL = process.env.G_MODEL || 'gpt-5-mini';
 const G_HTTP_CONCURRENCY = parseInt(process.env.G_HTTP_CONCURRENCY || '3', 10);
 
+// ===== Helpers =====
 function gCleanAndParseJSON(raw) {
   let t = String(raw || '').trim()
     .replace(/^```json\s*/i, '')
@@ -65,12 +66,16 @@ function gIsValidOutput(parsed) {
   return parsed.every(obj =>
     obj &&
     typeof obj.ConceptTitle === 'string' &&
-    typeof obj.Explanation === 'string'
+    obj.ConceptTitle.trim().length > 0 &&
+    typeof obj.Explanation === 'string' &&
+    obj.Explanation.trim().length > 0 &&
+    !obj.Explanation.includes('[object Object]')
   );
 }
 
 async function gAsyncPool(limit, items, iter) {
-  const out = []; const exec = [];
+  const out = [];
+  const exec = [];
   for (const it of items) {
     const p = Promise.resolve().then(() => iter(it));
     out.push(p);
@@ -103,7 +108,13 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
 
     if (fetchError) throw fetchError;
     if (!rows || rows.length === 0) {
-      return res.json({ message: 'No eligible rows found without graphs_json.', fetched: 0, updated: 0, failed: 0, model: G_MODEL });
+      return res.json({
+        message: 'No eligible rows found without graphs_json.',
+        fetched: 0,
+        updated: 0,
+        failed: 0,
+        model: G_MODEL
+      });
     }
 
     const workOne = async (row) => {
@@ -129,6 +140,7 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
             .from('neet_ug_mcq_bank')
             .update({ graphs_json: parsed })
             .eq('id', row.id);
+
           if (upErr) throw upErr;
 
           return { id: row.id, ok: true };
@@ -137,7 +149,11 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
             await new Promise(r => setTimeout(r, 400 * attempt));
             continue;
           }
-          return { id: row.id, ok: false, error: err.message || String(err) };
+          return {
+            id: row.id,
+            ok: false,
+            error: err.message || String(err)
+          };
         }
       }
     };
@@ -151,7 +167,10 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
         updated += 1;
       } else {
         failed += 1;
-        const item = (r.status === 'fulfilled') ? r.value : { error: r.reason?.message || String(r.reason) };
+        const item =
+          r.status === 'fulfilled'
+            ? r.value
+            : { error: r.reason?.message || String(r.reason) };
         failures.push({ id: item?.id || null, error: item?.error || 'Unknown error' });
       }
     }
@@ -167,6 +186,9 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
     });
   } catch (err) {
     console.error('❌ Graphs API error:', err);
-    return res.status(500).json({ error: 'Internal Server Error', details: err.message || String(err) });
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      details: err.message || String(err)
+    });
   }
 };

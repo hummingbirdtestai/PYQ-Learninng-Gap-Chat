@@ -14,38 +14,33 @@ const openai = new OpenAI({
 });
 
 // ===== Graphs Cleaner Prompt =====
-const GRAPHS_PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
-Your entire output must be a single valid JSON array.
-- DO NOT include \`\`\`json or any markdown syntax.
-- DO NOT add explanations, comments, or headings.
-- It must be directly parsable by JSON.parse().
+const GRAPHS_PROMPT_TEMPLATE = `
+You are an expert teacher.  
+I will give you raw study material (text or images).  
 
-You are an expert teacher.
-I will give you raw study material (text or images).
+Your task:  
+1. Reorganize the content into **valid JSON only**.  
+2. Use an **array of objects**.  
+3. Each object must have exactly 2 keys:  
+   - "ConceptTitle" = short, clear title of the concept.  
+   - "Explanation" = explanation of the concept, written exactly as in the text.  
+4. Use **Markdown bold** (**word**) for highlighting important terms, numbers, formulas, names, etc.  
+5. Do not skip any content from the input.  
+6. Final output must be inside a **code block** as JSON (no extra text outside).  
 
-Your task:
-1. Reorganize the content into valid JSON only.
-2. Use an array of objects.
-3. Each object must have exactly 2 keys with exact spelling:
-   - "ConceptTitle" (string)
-   - "Explanation" (string)
-4. Use Markdown bold (**word**) for highlighting important terms, numbers, formulas, names, etc.
-5. Do not skip any content from the input.
-6. Do not use any other keys besides ConceptTitle and Explanation.
-7. Do not wrap inside another object, just output the JSON array.
-8. Final output must be valid JSON (no extra text).
+### Example Input:
+Types of Pure Chemicals: Pure chemicals are mainly of two types: elements and compounds.  
 
-### ✅ Example Output (follow format EXACTLY):
+### Example Output:
+\`\`\`json
 [
   {
     "ConceptTitle": "Types of Pure Chemicals",
     "Explanation": "Pure chemicals are mainly of two types: **elements** and **compounds**."
-  },
-  {
-    "ConceptTitle": "**Newlands’ Law of Octaves**",
-    "Explanation": "In 1866, **John Newlands** arranged elements in the order of **increasing atomic weights**. He observed that every **8th element** showed properties similar to the **1st element**, just like musical octaves."
   }
-]`;
+]
+\`\`\`
+`;
 
 const G_MODEL = process.env.G_MODEL || 'gpt-5-mini';
 const G_HTTP_CONCURRENCY = parseInt(process.env.G_HTTP_CONCURRENCY || '3', 10);
@@ -54,38 +49,30 @@ const G_HTTP_CONCURRENCY = parseInt(process.env.G_HTTP_CONCURRENCY || '3', 10);
 function gCleanAndParseJSON(raw) {
   let t = String(raw || '').trim()
     .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
+    .replace(/^```/i, '')
     .replace(/```$/,'')
     .trim();
   return JSON.parse(t);
 }
 
-// 🔑 NEW: Normalizer
+// 🔑 Normalizer → ensures keys always become ConceptTitle + Explanation
 function gNormalize(parsed) {
   if (!parsed) return [];
 
-  // Case 1: Already correct
-  if (Array.isArray(parsed) && parsed.every(o => o.ConceptTitle && o.Explanation)) {
-    return parsed;
-  }
-
-  // Case 2: Array with Concept + ConceptHeading
-  if (Array.isArray(parsed) && parsed.every(o => o.Concept || o.ConceptHeading)) {
+  if (Array.isArray(parsed)) {
     return parsed.map(o => ({
-      ConceptTitle: o.ConceptHeading || "",
-      Explanation: o.Concept || ""
+      ConceptTitle: o.ConceptTitle || o.ConceptHeading || o.heading || "Note",
+      Explanation: o.Explanation || o.Concept || o.explanation || ""
     }));
   }
 
-  // Case 3: Wrapped { concepts: [...] }
   if (parsed.concepts && Array.isArray(parsed.concepts)) {
     return parsed.concepts.map(o => ({
-      ConceptTitle: o.heading || "",
+      ConceptTitle: o.heading || "Note",
       Explanation: o.explanation || ""
     }));
   }
 
-  // Case 4: Anything else → wrap into Explanation
   if (typeof parsed === 'string') {
     return [{ ConceptTitle: "Note", Explanation: parsed }];
   }
@@ -164,8 +151,6 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
 
           const raw = completion.choices?.[0]?.message?.content ?? '';
           let parsed = gCleanAndParseJSON(raw);
-
-          // 🔑 normalize schema
           parsed = gNormalize(parsed);
 
           if (!gIsValidOutput(parsed)) throw new Error('Invalid Graphs schema after normalization');
@@ -183,11 +168,7 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
             await new Promise(r => setTimeout(r, 400 * attempt));
             continue;
           }
-          return {
-            id: row.id,
-            ok: false,
-            error: err.message || String(err)
-          };
+          return { id: row.id, ok: false, error: err.message || String(err) };
         }
       }
     };

@@ -1,3 +1,18 @@
+// ===== Imports =====
+const { createClient } = require('@supabase/supabase-js');
+const OpenAI = require('openai');
+
+// ✅ Init Supabase
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+);
+
+// ✅ Init OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
 // ===== Graphs Cleaner Prompt =====
 const GRAPHS_PROMPT_TEMPLATE = `🚨 OUTPUT RULES:
 Your entire output must be a single valid JSON array.

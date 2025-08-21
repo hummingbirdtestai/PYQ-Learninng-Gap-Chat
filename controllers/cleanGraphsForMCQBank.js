@@ -26,12 +26,26 @@ I will give you raw study material (text or images).
 Your task:
 1. Reorganize the content into valid JSON only.
 2. Use an array of objects.
-3. Each object must have exactly 2 keys:
-   - "ConceptTitle" = short, clear title of the concept.
-   - "Explanation" = explanation of the concept, written exactly as in the text.
+3. Each object must have exactly 2 keys with exact spelling:
+   - "ConceptTitle" (string)
+   - "Explanation" (string)
 4. Use Markdown bold (**word**) for highlighting important terms, numbers, formulas, names, etc.
 5. Do not skip any content from the input.
-6. Final output must be valid JSON (no extra text).`;
+6. Do not use any other keys besides ConceptTitle and Explanation.
+7. Do not wrap inside another object, just output the JSON array.
+8. Final output must be valid JSON (no extra text).
+
+### ✅ Example Output (follow format EXACTLY):
+[
+  {
+    "ConceptTitle": "Types of Pure Chemicals",
+    "Explanation": "Pure chemicals are mainly of two types: **elements** and **compounds**."
+  },
+  {
+    "ConceptTitle": "**Newlands’ Law of Octaves**",
+    "Explanation": "In 1866, **John Newlands** arranged elements in the order of **increasing atomic weights**. He observed that every **8th element** showed properties similar to the **1st element**, just like musical octaves."
+  }
+]`;
 
 const G_MODEL = process.env.G_MODEL || 'gpt-5-mini';
 const G_HTTP_CONCURRENCY = parseInt(process.env.G_HTTP_CONCURRENCY || '3', 10);

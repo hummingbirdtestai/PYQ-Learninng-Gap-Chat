@@ -1506,6 +1506,66 @@ paths:
         '500':
           description: Internal Server Error
 
+  /api/clean-graphs:
+    get:
+      summary: Clean raw graphs into structured JSON
+      description: >
+        Fetches rows from `neet_ug_mcq_bank` where `graphs_json` is null,
+        sends content to ChatGPT for cleaning, and updates the row with parsed JSON.
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+          description: Max number of rows to process (default 20, max 100).
+        - in: query
+          name: concurrency
+          schema:
+            type: integer
+            default: 3
+          description: Number of concurrent OpenAI requests (max 8).
+      responses:
+        '200':
+          description: API successfully processed rows.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  fetched:
+                    type: integer
+                  updated:
+                    type: integer
+                  failed:
+                    type: integer
+                  failures:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        error:
+                          type: string
+                  model:
+                    type: string
+                  concurrency:
+                    type: integer
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+
 components:
   schemas:
     User:

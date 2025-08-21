@@ -55,42 +55,6 @@ function gCleanAndParseJSON(raw) {
   return JSON.parse(t);
 }
 
-// 🔑 Normalizer → ensures keys always become ConceptTitle + Explanation
-function gNormalize(parsed) {
-  if (!parsed) return [];
-
-  if (Array.isArray(parsed)) {
-    return parsed.map(o => ({
-      ConceptTitle: o.ConceptTitle || o.ConceptHeading || o.heading || "Note",
-      Explanation: o.Explanation || o.Concept || o.explanation || ""
-    }));
-  }
-
-  if (parsed.concepts && Array.isArray(parsed.concepts)) {
-    return parsed.concepts.map(o => ({
-      ConceptTitle: o.heading || "Note",
-      Explanation: o.explanation || ""
-    }));
-  }
-
-  if (typeof parsed === 'string') {
-    return [{ ConceptTitle: "Note", Explanation: parsed }];
-  }
-
-  return [];
-}
-
-function gIsValidOutput(parsed) {
-  if (!Array.isArray(parsed)) return false;
-  return parsed.every(obj =>
-    obj &&
-    typeof obj.ConceptTitle === 'string' &&
-    obj.ConceptTitle.trim().length > 0 &&
-    typeof obj.Explanation === 'string' &&
-    obj.Explanation.trim().length > 0
-  );
-}
-
 async function gAsyncPool(limit, items, iter) {
   const out = [];
   const exec = [];
@@ -102,11 +66,6 @@ async function gAsyncPool(limit, items, iter) {
     if (exec.length >= limit) await Promise.race(exec);
   }
   return Promise.allSettled(out);
-}
-
-function gIsRetryable(e) {
-  const s = String(e?.message || e);
-  return /timeout|ETIMEDOUT|429|rate limit|temporar|unavailable|ECONNRESET/i.test(s);
 }
 
 // ===== Controller: Clean Graphs =====
@@ -139,37 +98,29 @@ exports.cleanGraphsForMCQBank = async (req, res) => {
       const inputText = row.graph || '';
       const prompt = `${GRAPHS_PROMPT_TEMPLATE}\n\nRaw Input:\n${inputText}`;
 
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          const completion = await openai.chat.completions.create({
-            model: G_MODEL,
-            messages: [
-              { role: 'system', content: 'You are a teacher generating cleaned JSON.' },
-              { role: 'user', content: prompt }
-            ]
-          });
+      try {
+        const completion = await openai.chat.completions.create({
+          model: G_MODEL,
+          messages: [
+            { role: 'system', content: 'You are a teacher generating cleaned JSON.' },
+            { role: 'user', content: prompt }
+          ]
+        });
 
-          const raw = completion.choices?.[0]?.message?.content ?? '';
-          let parsed = gCleanAndParseJSON(raw);
-          parsed = gNormalize(parsed);
+        const raw = completion.choices?.[0]?.message?.content ?? '';
+        const parsed = gCleanAndParseJSON(raw);
 
-          if (!gIsValidOutput(parsed)) throw new Error('Invalid Graphs schema after normalization');
+        // Directly store
+        const { error: upErr } = await supabase
+          .from('neet_ug_mcq_bank')
+          .update({ graphs_json: parsed })
+          .eq('id', row.id);
 
-          const { error: upErr } = await supabase
-            .from('neet_ug_mcq_bank')
-            .update({ graphs_json: parsed })
-            .eq('id', row.id);
+        if (upErr) throw upErr;
 
-          if (upErr) throw upErr;
-
-          return { id: row.id, ok: true };
-        } catch (err) {
-          if (attempt < 3 && gIsRetryable(err)) {
-            await new Promise(r => setTimeout(r, 400 * attempt));
-            continue;
-          }
-          return { id: row.id, ok: false, error: err.message || String(err) };
-        }
+        return { id: row.id, ok: true };
+      } catch (err) {
+        return { id: row.id, ok: false, error: err.message || String(err) };
       }
     };
 

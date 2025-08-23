@@ -1,35 +1,31 @@
 // scripts/get-token.js
-import { createClient } from '@supabase/supabase-js';
+require('dotenv').config();
+const { createClient } = require('@supabase/supabase-js');
 
-// Load env vars (make sure you have them in Railway or in local .env)
+// ✅ Use anon key (safe for client login flows)
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 );
 
 (async () => {
-  // Step 1: request OTP
-  const { error: sendError } = await supabase.auth.signInWithOtp({
-    phone: '+919704927613' // 👉 change to your phone number
-  });
-
-  if (sendError) {
-    console.error('❌ Error sending OTP:', sendError);
-    return;
-  }
-
-  console.log('📲 OTP sent to your phone! Now verify...');
-
-  // Step 2: after OTP arrives, paste it below
-  const otp = process.argv[2]; // pass OTP as argument
+  const phone = '+919704927613'; // 👉 change to your phone number
+  const otp = process.argv[2];   // Pass OTP if available
 
   if (!otp) {
-    console.log('👉 Run again with: node scripts/get-token.js <OTP>');
+    // Step 1: send OTP
+    const { error: sendError } = await supabase.auth.signInWithOtp({ phone });
+    if (sendError) {
+      console.error('❌ Error sending OTP:', sendError);
+      return;
+    }
+    console.log(`📲 OTP sent to ${phone}! Run again with: node scripts/get-token.js <OTP>`);
     return;
   }
 
+  // Step 2: verify OTP
   const { data, error } = await supabase.auth.verifyOtp({
-    phone: '+919704927613',
+    phone,
     token: otp,
     type: 'sms'
   });

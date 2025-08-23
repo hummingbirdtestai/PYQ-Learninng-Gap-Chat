@@ -22,17 +22,18 @@ const adaptiveRoutes = require('./routes/adaptive.routes');
 const mcqGeneratorRoutes = require('./routes/mcqGenerator.routes'); // On-demand MCQ generation
 const mcqRoutes = require('./routes/mcq.routes');
 const graphRoutes = require('./routes/graphs.routes'); 
-const briefingRoutes = require('./routes/briefing.routes');
+const briefingRoutes = require('./routes/briefing.routes'); // Daily briefing
 
-// ✅ Middleware: CORS (explicit headers for all requests)
+// ✅ Middleware: CORS (allow all origins for now)
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// ✅ Explicit headers for OPTIONS requests (important for Railway + Expo frontend)
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*"); // allow all origins
+  res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") {
@@ -44,7 +45,7 @@ app.use((req, res, next) => {
 // ✅ Middleware: JSON Body Parser
 app.use(express.json({ limit: '10mb' }));
 
-// ✅ Health check
+// ✅ Health check (basic endpoint to test Railway deployment)
 app.get('/', (_req, res) =>
   res.json({
     ok: true,
@@ -67,7 +68,7 @@ app.use('/api', adaptiveRoutes);                  // Adaptive MCQ APIs
 app.use('/api', mcqGeneratorRoutes);              // MCQ generation
 app.use('/api', mcqRoutes);                       // MCQ CRUD
 app.use('/api', graphRoutes);   
-app.use('/api', briefingRoutes);
+app.use('/api', briefingRoutes);                  // Daily Briefing (→ /api/daily-briefing)
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

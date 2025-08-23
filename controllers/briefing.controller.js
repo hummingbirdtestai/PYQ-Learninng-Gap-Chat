@@ -8,7 +8,7 @@ exports.getDailyBriefing = async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
 
   try {
-    // 1. Check cache first
+    // 1. Check cache
     const { data: cached } = await supabase
       .from('student_daily_briefings')
       .select('*')
@@ -20,10 +20,10 @@ exports.getDailyBriefing = async (req, res) => {
       return res.json({ message: cached.message });
     }
 
-    // 2. Gather facts from DB/service
+    // 2. Gather facts
     const facts = await getStudentFacts(studentId);
 
-    // 3. Generate briefing via GPT
+    // 3. GPT generation
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -35,7 +35,7 @@ exports.getDailyBriefing = async (req, res) => {
 
     const message = completion.choices[0].message.content;
 
-    // 4. Store in cache for rest of the day
+    // 4. Store in cache
     await supabase.from('student_daily_briefings').insert({
       student_id: studentId,
       briefing_date: today,
@@ -43,12 +43,11 @@ exports.getDailyBriefing = async (req, res) => {
     });
 
     return res.json({ message });
-
   } catch (err) {
     console.error("❌ Daily Briefing error:", err);
 
-    // 5. Fallback (safe default if GPT fails)
-    const fallbackFacts = await getStudentFacts(studentId); // ensure we have something
+    // 5. Fallback
+    const fallbackFacts = await getStudentFacts(studentId);
     const fallback = `Good day, ${fallbackFacts.student_name || "Doctor"}! 
 Yesterday you solved ${fallbackFacts.gaps_closed} questions in ${fallbackFacts.subject}. 
 Today's checkpoint → ${fallbackFacts.next_topic} (${fallbackFacts.target_questions} questions). 

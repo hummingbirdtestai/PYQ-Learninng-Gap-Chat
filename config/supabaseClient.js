@@ -8,9 +8,12 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // server-
 if (!supabaseUrl) {
   throw new Error("❌ Missing SUPABASE_URL in environment");
 }
+
 if (!supabaseServiceRoleKey) {
-  throw new Error("❌ Missing SUPABASE_SERVICE_ROLE_KEY in environment. 
-    Never use the anon key on backend, always use the service role key.");
+  throw new Error(
+    "❌ Missing SUPABASE_SERVICE_ROLE_KEY in environment. " +
+    "Never use the anon key on the backend, always use the service role key."
+  );
 }
 
 // ✅ Create Supabase client with service role key

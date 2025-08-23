@@ -22,6 +22,7 @@ const adaptiveRoutes = require('./routes/adaptive.routes');
 const mcqGeneratorRoutes = require('./routes/mcqGenerator.routes'); // On-demand MCQ generation
 const mcqRoutes = require('./routes/mcq.routes');
 const graphRoutes = require('./routes/graphs.routes'); 
+const briefingRoutes = require('./routes/briefing.routes');
 
 // ✅ Middleware: CORS
 app.use(cors({
@@ -50,6 +51,7 @@ app.use('/api', adaptiveRoutes);                  // Adaptive MCQ APIs
 app.use('/api', mcqGeneratorRoutes);              // MCQ generation
 app.use('/api', mcqRoutes);                       // MCQ CRUD
 app.use('/api', graphRoutes);   
+app.use('/api', briefingRoutes);
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

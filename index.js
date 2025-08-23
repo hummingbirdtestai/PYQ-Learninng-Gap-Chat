@@ -1,5 +1,3 @@
-// index.js
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -17,21 +15,20 @@ const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const collegeRoutes = require('./routes/college.routes');
 const examRoutes = require('./routes/exam.routes');
-const generationRoutes = require('./routes/generation.routes'); // GPT Worker Status APIs
+const generationRoutes = require('./routes/generation.routes'); 
 const adaptiveRoutes = require('./routes/adaptive.routes');
-const mcqGeneratorRoutes = require('./routes/mcqGenerator.routes'); // On-demand MCQ generation
+const mcqGeneratorRoutes = require('./routes/mcqGenerator.routes'); 
 const mcqRoutes = require('./routes/mcq.routes');
 const graphRoutes = require('./routes/graphs.routes'); 
-const briefingRoutes = require('./routes/briefing.routes'); // Daily briefing
+const briefingRoutes = require('./routes/briefing.routes'); // ✅ separate file
 
-// ✅ Middleware: CORS (allow all origins for now)
+// ✅ Middleware: CORS
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// ✅ Explicit headers for OPTIONS requests (important for Railway + Expo frontend)
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS");
@@ -42,10 +39,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ Middleware: JSON Body Parser
+// ✅ Middleware: JSON parser
 app.use(express.json({ limit: '10mb' }));
 
-// ✅ Health check (basic endpoint to test Railway deployment)
+// ✅ Health check
 app.get('/', (_req, res) =>
   res.json({
     ok: true,
@@ -54,21 +51,21 @@ app.get('/', (_req, res) =>
   })
 );
 
-// ✅ Swagger Documentation Route
+// ✅ Swagger docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // ✅ Register API Routes
-app.use('/auth', authRoutes);                     // Twilio OTP Auth
-app.use('/users', userRoutes);                    // User Registration + Activation
-app.use('/colleges', collegeRoutes);              // Medical Colleges List
-app.use('/api/exams', examRoutes);                // Exams and Subjects
-app.use('/api', importRoutes);                    // Google Sheets → Supabase MCQ Import
-app.use('/generation', generationRoutes);         // GPT Worker Status Dashboard
-app.use('/api', adaptiveRoutes);                  // Adaptive MCQ APIs
-app.use('/api', mcqGeneratorRoutes);              // MCQ generation
-app.use('/api', mcqRoutes);                       // MCQ CRUD
+app.use('/auth', authRoutes);                     
+app.use('/users', userRoutes);                    
+app.use('/colleges', collegeRoutes);              
+app.use('/api/exams', examRoutes);                
+app.use('/api', importRoutes);                    
+app.use('/generation', generationRoutes);         
+app.use('/api', adaptiveRoutes);                  
+app.use('/api', mcqGeneratorRoutes);              
+app.use('/api', mcqRoutes);                       
 app.use('/api', graphRoutes);   
-app.use('/api', briefingRoutes);                  // Daily Briefing (→ /api/daily-briefing)
+app.use('/api', briefingRoutes);                  // ✅ /api/daily-briefing
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

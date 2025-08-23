@@ -4,6 +4,7 @@ const { authenticate } = require('../middleware/auth'); // your JWT middleware
 
 const router = express.Router();
 
+// Daily briefing route (protected)
 router.get('/daily-briefing', authenticate, getDailyBriefing);
 
 module.exports = router;

@@ -661,7 +661,48 @@ paths:
           description: Missing parameters or invalid request body.
         '500':
           description: Internal server error.
-  
+  /api/student/progress:
+    post:
+      summary: Save or update student progress
+      tags: [Student]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                student_id: { type: string, format: uuid }
+                subject_id: { type: string, format: uuid }
+                last_completed_seq: { type: integer }
+                last_phase: { type: integer }
+                last_mcq_index: { type: integer }
+                is_completed: { type: boolean }
+      responses:
+        "200":
+          description: Progress saved successfully
+  /api/student/answers:
+    post:
+      summary: Save student answer
+      tags: [Student]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                student_id: { type: string, format: uuid }
+                subject_id: { type: string, format: uuid }
+                mcq_id: { type: string, format: uuid }
+                selected_option: { type: string }
+                is_correct: { type: boolean }
+                mcq_index: { type: integer }
+                correct_answer: { type: string }
+                exam_id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Answer saved successfully
   /api/generate-mcqs/from-raw:
     post:
       summary: Generate full MCQ graph using GPT from either raw_mcq_id or full MCQ input

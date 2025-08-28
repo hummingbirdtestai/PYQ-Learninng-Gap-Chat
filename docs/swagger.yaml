@@ -661,6 +661,44 @@ paths:
           description: Missing parameters or invalid request body.
         '500':
           description: Internal server error.
+  
+  /api/generate-mcqs/from-raw:
+    post:
+      summary: Generate full MCQ graph using GPT from either raw_mcq_id or full MCQ input
+      tags:
+        - MCQ Generator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                raw_mcq_id:
+                  type: string
+                question:
+                  type: string
+                options:
+                  type: object
+                  additionalProperties:
+                    type: string
+                correct_answer:
+                  type: string
+                exam_id:
+                  type: string
+                subject_id:
+                  type: string
+              oneOf:
+                - required: [raw_mcq_id]
+                - required: [question, options, correct_answer, exam_id, subject_id]
+      responses:
+        '200':
+          description: GPT-generated MCQ graph stored successfully
+        '400':
+          description: Missing or invalid input
+        '500':
+          description: GPT or Supabase error
+
   /api/student/progress:
     post:
       summary: Save or update student progress
@@ -702,43 +740,7 @@ paths:
                 exam_id: { type: string, format: uuid }
       responses:
         "200":
-          description: Answer saved successfully
-  /api/generate-mcqs/from-raw:
-    post:
-      summary: Generate full MCQ graph using GPT from either raw_mcq_id or full MCQ input
-      tags:
-        - MCQ Generator
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                raw_mcq_id:
-                  type: string
-                question:
-                  type: string
-                options:
-                  type: object
-                  additionalProperties:
-                    type: string
-                correct_answer:
-                  type: string
-                exam_id:
-                  type: string
-                subject_id:
-                  type: string
-              oneOf:
-                - required: [raw_mcq_id]
-                - required: [question, options, correct_answer, exam_id, subject_id]
-      responses:
-        '200':
-          description: GPT-generated MCQ graph stored successfully
-        '400':
-          description: Missing or invalid input
-        '500':
-          description: GPT or Supabase error
+          description: Answer saved successfully        
 
   /api/mcqs/generate-from-input:
     post:

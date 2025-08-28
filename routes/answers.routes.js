@@ -1,8 +1,9 @@
 const express = require("express");
-const router = express.Router();
-const { saveAnswer } = require("../controllers/answers.controller");
+const { saveAnswer } = require("../controllers/answersController");
 
-// Save student answer
-router.post("/answers", saveAnswer);
+const router = express.Router();
+
+// POST /answers
+router.post("/", saveAnswer);
 
 module.exports = router;

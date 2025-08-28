@@ -1,5 +1,6 @@
 const express = require("express");
-const { saveAnswer } = require("../controllers/answersController");
+const { saveAnswer } = require("../controllers/answers.controller");
+
 
 const router = express.Router();
 

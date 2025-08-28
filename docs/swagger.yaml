@@ -702,7 +702,7 @@ paths:
         '500':
           description: GPT or Supabase error
 
-  /api/answers:
+  /api/student/answers:
     post:
       summary: Save a student's MCQ answer
       description: >

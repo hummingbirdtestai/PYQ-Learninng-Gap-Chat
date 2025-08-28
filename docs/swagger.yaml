@@ -23,6 +23,9 @@ tags:
     description: Queue MCQs for GPT-powered question generation
   - name: Adaptive MCQs
     description: Adaptive MCQ Graph Retrieval, Response Submission, Progress Resume, and Scoring
+  - name: Answers
+    description: Inserts a new record into `student_answers`.
+    
 
 paths:
 
@@ -699,48 +702,75 @@ paths:
         '500':
           description: GPT or Supabase error
 
-  /api/student/progress:
+  /api/answers:
     post:
-      summary: Save or update student progress
-      tags: [Student]
+      summary: Save a student's MCQ answer
+      description: >
+        Inserts a new record into `student_answers`.  
+        The database triggers auto-fill `correct_answer`, `is_correct`, `subject_id`, `exam_id`, and `mcq_key`.
+      tags:
+        - Answers
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - student_id
+                - mcq_id
+                - selected_option
               properties:
-                student_id: { type: string, format: uuid }
-                subject_id: { type: string, format: uuid }
-                last_completed_seq: { type: integer }
-                last_phase: { type: integer }
-                last_mcq_index: { type: integer }
-                is_completed: { type: boolean }
+                student_id:
+                  type: string
+                  format: uuid
+                  example: "b63f47f0-6f3d-4d9a-9f30-3dcb589c1a9b"
+                mcq_id:
+                  type: string
+                  format: uuid
+                  example: "17cf5ee0-50e8-40c8-96fc-cf57c4c19320"
+                selected_option:
+                  type: string
+                  example: "B"
       responses:
-        "200":
-          description: Progress saved successfully
-  /api/student/answers:
-    post:
-      summary: Save student answer
-      tags: [Student]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                student_id: { type: string, format: uuid }
-                subject_id: { type: string, format: uuid }
-                mcq_id: { type: string, format: uuid }
-                selected_option: { type: string }
-                is_correct: { type: boolean }
-                mcq_index: { type: integer }
-                correct_answer: { type: string }
-                exam_id: { type: string, format: uuid }
-      responses:
-        "200":
-          description: Answer saved successfully        
+        "201":
+          description: Answer saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        example: "9a7f2e47-6d55-4b9c-9b28-b44b41f0b5d1"
+                      student_id:
+                        type: string
+                        format: uuid
+                        example: "b63f47f0-6f3d-4d9a-9f30-3dcb589c1a9b"
+                      mcq_id:
+                        type: string
+                        format: uuid
+                        example: "17cf5ee0-50e8-40c8-96fc-cf57c4c19320"
+                      selected_option:
+                        type: string
+                        example: "B"
+                      correct_answer:
+                        type: string
+                        example: "B"
+                      is_correct:
+                        type: boolean
+                        example: true
+        "400":
+          description: Missing required fields
+        "500":
+          description: Server error        
 
   /api/mcqs/generate-from-input:
     post:

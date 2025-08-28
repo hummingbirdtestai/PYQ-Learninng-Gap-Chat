@@ -1,41 +1,34 @@
-const { supabase } = require('../config/supabaseClient');
+const { supabase } = require("../config/supabaseClient");
 
 // Save a student answer
 exports.saveAnswer = async (req, res) => {
   try {
-    const {
-      student_id,
-      subject_id,
-      mcq_id,
-      selected_option,
-      is_correct,
-      mcq_index,
-      correct_answer,
-      exam_id
-    } = req.body;
+    const { student_id, mcq_id, selected_option } = req.body;
 
-    if (!student_id || !subject_id || !mcq_id) {
+    if (!student_id || !mcq_id || !selected_option) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const { error } = await supabase
+    // Insert into student_answers
+    const { data, error } = await supabase
       .from("student_answers")
-      .insert([{
-        student_id,
-        subject_id,
-        mcq_id,
-        selected_option,
-        is_correct,
-        mcq_index,
-        correct_answer,
-        exam_id
-      }]);
+      .insert([
+        {
+          student_id,
+          mcq_id,
+          selected_option,
+        },
+      ])
+      .select("id, student_id, mcq_id, selected_option, correct_answer, is_correct");
 
-    if (error) throw error;
+    if (error) {
+      console.error("Insert error:", error);
+      return res.status(500).json({ error: "Failed to save answer" });
+    }
 
-    return res.json({ message: "✅ Answer saved successfully" });
+    return res.status(201).json({ success: true, data: data?.[0] });
   } catch (err) {
     console.error("saveAnswer error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };

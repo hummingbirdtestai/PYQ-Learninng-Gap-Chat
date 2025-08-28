@@ -20,7 +20,9 @@ const adaptiveRoutes = require('./routes/adaptive.routes');
 const mcqGeneratorRoutes = require('./routes/mcqGenerator.routes'); 
 const mcqRoutes = require('./routes/mcq.routes');
 const graphRoutes = require('./routes/graphs.routes'); 
-const briefingRoutes = require('./routes/briefing.routes'); // ✅ separate file
+const briefingRoutes = require('./routes/briefing.routes');// ✅ separate file
+const progressRoutes = require("./routes/progress.routes");
+const answersRoutes = require("./routes/answers.routes");
 
 // ✅ Middleware: CORS
 app.use(cors({
@@ -65,7 +67,9 @@ app.use('/api', adaptiveRoutes);
 app.use('/api', mcqGeneratorRoutes);              
 app.use('/api', mcqRoutes);                       
 app.use('/api', graphRoutes);   
-app.use('/api', briefingRoutes);                  // ✅ /api/daily-briefing
+app.use('/api', briefingRoutes); // ✅ /api/daily-briefing
+app.use("/api/student", progressRoutes);
+app.use("/api/student", answersRoutes);
 
 // ✅ Start Express Server
 const PORT = process.env.PORT || 3000;

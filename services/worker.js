@@ -1,9 +1,9 @@
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
-const { v4: uuidv4 } = require("uuid"); // ✅ for flashcard UUIDs
+const { v4: uuidv4 } = require("uuid"); // for flashcard UUIDs
 
-/* -------- Settings (env-overridable) -------- */
+/* -------- Settings -------- */
 const GEN_MODEL        = process.env.GEN_MODEL || "gpt-5-mini";
 const GEN_LIMIT        = parseInt(process.env.GEN_LIMIT || "120", 10);
 const GEN_CONCURRENCY  = parseInt(process.env.GEN_CONCURRENCY || "5", 10);
@@ -52,8 +52,15 @@ function cleanAndParseJSON(raw) {
     .replace(/^```\s*/i, "")
     .replace(/```$/, "")
     .trim();
-  if (!t.startsWith("[") || !t.endsWith("]")) throw new Error("No JSON array found");
-  return JSON.parse(t);
+
+  let parsed = JSON.parse(t);
+
+  // Wrap single object into array for safety
+  if (!Array.isArray(parsed)) {
+    parsed = [parsed];
+  }
+
+  return parsed;
 }
 
 async function asyncPool(limit, items, iter) {
@@ -104,7 +111,7 @@ async function claimRows(limit) {
     .update({ lg_flashcard_lock: null, lg_flashcard_locked_at: null })
     .lt("lg_flashcard_locked_at", cutoff);
 
-  // find free candidates (based on mcq column)
+  // find free candidates (plain text mcq column)
   const { data: candidates, error: e1 } = await supabase
     .from("mcq_bank")
     .select("id, mcq")
@@ -150,7 +157,7 @@ async function processRow(row) {
     const raw = await callOpenAI(row.mcq);
     const parsed = cleanAndParseJSON(raw);
 
-    // ✅ inject UUIDs into each flashcard object
+    // inject UUIDs into each flashcard object
     const withUUIDs = parsed.map(item => ({
       uuid: uuidv4(),
       ...item

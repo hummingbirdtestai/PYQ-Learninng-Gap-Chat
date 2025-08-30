@@ -151,6 +151,13 @@ async function clearLocks(ids) {
     .in("id", ids);
 }
 
+async function processRow(row) {
+  try {
+    const raw = await callOpenAI(row.mcq);
+    console.log("🔎 Raw GPT output for row", row.id, ":", raw);  // <-- add this
+    const parsed = cleanAndParseJSON(raw);
+    ...
+
 /* -------- Per-Row Processor -------- */
 async function processRow(row) {
   try {

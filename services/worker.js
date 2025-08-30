@@ -2,6 +2,19 @@ import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import pg from "pg";
 
+const required = [
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "OPENAI_API_KEY"
+];
+required.forEach((k) => {
+  if (!process.env[k]) {
+    throw new Error(`❌ Missing env var: ${k}`);
+  } else {
+    console.log(`✅ Loaded ${k}`);
+  }
+});
+
 // --- ENV Vars ---
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

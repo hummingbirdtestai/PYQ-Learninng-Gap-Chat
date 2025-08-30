@@ -1,6 +1,7 @@
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
+const { v4: uuidv4 } = require("uuid"); // ✅ for flashcard UUIDs
 
 /* -------- Settings (env-overridable) -------- */
 const GEN_MODEL        = process.env.GEN_MODEL || "gpt-5-mini";
@@ -10,7 +11,7 @@ const GEN_LOCK_TTL_MIN = parseInt(process.env.GEN_LOCK_TTL_MIN || "45", 10);
 const SLEEP_EMPTY_MS   = parseInt(process.env.GEN_LOOP_SLEEP_MS || "800", 10);
 const WORKER_ID        = process.env.WORKER_ID || `lg-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
-/* -------- Prompt Template (verbatim from you) -------- */
+/* -------- Prompt Template -------- */
 const PROMPT_TEMPLATE = `
 You are a NEETPG & USMLE expert medical teacher with 20 years of experience.
 
@@ -100,15 +101,16 @@ async function claimRows(limit) {
   // release stale locks
   await supabase
     .from("mcq_bank")
-    .update({ lg_lock: null, lg_locked_at: null })
-    .lt("lg_locked_at", cutoff);
+    .update({ lg_flashcard_lock: null, lg_flashcard_locked_at: null })
+    .lt("lg_flashcard_locked_at", cutoff);
 
-  // find free candidates
+  // find free candidates (based on mcq column)
   const { data: candidates, error: e1 } = await supabase
     .from("mcq_bank")
     .select("id, mcq")
     .is("lg_flashcard", null)
-    .is("lg_lock", null)
+    .is("lg_flashcard_lock", null)
+    .not("mcq", "is", null)
     .order("id", { ascending: true })
     .limit(limit * 3);
 
@@ -121,12 +123,12 @@ async function claimRows(limit) {
   const { data: locked, error: e2 } = await supabase
     .from("mcq_bank")
     .update({
-      lg_lock: WORKER_ID,
-      lg_locked_at: new Date().toISOString()
+      lg_flashcard_lock: WORKER_ID,
+      lg_flashcard_locked_at: new Date().toISOString()
     })
     .in("id", ids)
     .is("lg_flashcard", null)
-    .is("lg_lock", null)
+    .is("lg_flashcard_lock", null)
     .select("id, mcq");
 
   if (e2) throw e2;
@@ -138,7 +140,7 @@ async function clearLocks(ids) {
   if (!ids.length) return;
   await supabase
     .from("mcq_bank")
-    .update({ lg_lock: null, lg_locked_at: null })
+    .update({ lg_flashcard_lock: null, lg_flashcard_locked_at: null })
     .in("id", ids);
 }
 
@@ -148,14 +150,21 @@ async function processRow(row) {
     const raw = await callOpenAI(row.mcq);
     const parsed = cleanAndParseJSON(raw);
 
+    // ✅ inject UUIDs into each flashcard object
+    const withUUIDs = parsed.map(item => ({
+      uuid: uuidv4(),
+      ...item
+    }));
+
     const { error: upErr } = await supabase
       .from("mcq_bank")
       .update({
-        lg_flashcard: parsed,
-        lg_lock: null,
-        lg_locked_at: null
+        lg_flashcard: withUUIDs,
+        lg_flashcard_lock: null,
+        lg_flashcard_locked_at: null
       })
       .eq("id", row.id);
+
     if (upErr) throw upErr;
 
     return { ok: true, id: row.id };

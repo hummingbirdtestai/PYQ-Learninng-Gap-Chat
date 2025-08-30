@@ -1,27 +1,15 @@
-// config/supabaseClient.js
 const { createClient } = require('@supabase/supabase-js');
 
-// ✅ Load from environment
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // server-only key
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // must be service role
 
-if (!supabaseUrl) {
-  throw new Error("❌ Missing SUPABASE_URL in environment");
+if (!supabaseUrl || !supabaseKey) {
+  console.error("❌ Missing Supabase env vars", { url: !!supabaseUrl, key: !!supabaseKey });
+  throw new Error("Supabase configuration missing");
 }
 
-if (!supabaseServiceRoleKey) {
-  throw new Error(
-    "❌ Missing SUPABASE_SERVICE_ROLE_KEY in environment. " +
-    "Never use the anon key on the backend, always use the service role key."
-  );
-}
-
-// ✅ Create Supabase client with service role key
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    persistSession: false, // backend doesn’t need to persist sessions
-    autoRefreshToken: false,
-  },
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false, autoRefreshToken: false }
 });
 
 module.exports = { supabase };

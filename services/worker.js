@@ -1,37 +1,18 @@
-import { createClient } from "@supabase/supabase-js";
-import OpenAI from "openai";
-import pg from "pg";
+require("dotenv").config();
+const { supabase } = require("../config/supabaseClient");
+const openai = require("../config/openaiClient");
 
-const required = [
-  "SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
-  "OPENAI_API_KEY"
-];
-required.forEach((k) => {
-  if (!process.env[k]) {
-    throw new Error(`❌ Missing env var: ${k}`);
-  } else {
-    console.log(`✅ Loaded ${k}`);
-  }
-});
+/* -------- Settings (env-overridable) -------- */
+const GEN_MODEL        = process.env.GEN_MODEL || "gpt-5-mini";
+const GEN_LIMIT        = parseInt(process.env.GEN_LIMIT || "120", 10);
+const GEN_CONCURRENCY  = parseInt(process.env.GEN_CONCURRENCY || "5", 10);
+const GEN_LOCK_TTL_MIN = parseInt(process.env.GEN_LOCK_TTL_MIN || "45", 10);
+const SLEEP_EMPTY_MS   = parseInt(process.env.GEN_LOOP_SLEEP_MS || "800", 10);
+const WORKER_ID        = process.env.WORKER_ID || `lg-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
-// --- ENV Vars ---
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const GEN_MODEL = process.env.GEN_MODEL || "gpt-5-mini";
-const GEN_LIMIT = parseInt(process.env.GEN_LIMIT || "120", 10);
-const GEN_CONCURRENCY = parseInt(process.env.GEN_CONCURRENCY || "5", 10);
-const GEN_LOOP_SLEEP_MS = parseInt(process.env.GEN_LOOP_SLEEP_MS || "1000", 10);
-const GEN_LOCK_TTL_MIN = parseInt(process.env.GEN_LOCK_TTL_MIN || "30", 10); // minutes
-const WORKER_ID = process.env.WORKER_ID || "worker-1";
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-const pgClient = new pg.Client({ connectionString: `${SUPABASE_URL}/postgres?apikey=${SUPABASE_SERVICE_ROLE_KEY}` });
-await pgClient.connect();
-
-const PROMPT_TEMPLATE = `You are a NEETPG & USMLE expert medical teacher with 20 years of experience.
+/* -------- Prompt Template (verbatim from you) -------- */
+const PROMPT_TEMPLATE = `
+You are a NEETPG & USMLE expert medical teacher with 20 years of experience.
 
 ### Task
 From the RAW MCQ text provided as input, create exactly 20 Questions and Answers for NEETPG/USMLE preparation.
@@ -61,94 +42,145 @@ From the RAW MCQ text provided as input, create exactly 20 Questions and Answers
 ]
 `;
 
-async function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+/* -------- Helpers -------- */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function cleanAndParseJSON(raw) {
+  let t = (raw || "").trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/, "")
+    .trim();
+  if (!t.startsWith("[") || !t.endsWith("]")) throw new Error("No JSON array found");
+  return JSON.parse(t);
 }
 
-async function fetchAndLockBatch() {
-  const { rows } = await pgClient.query(
-    `
-    UPDATE mcq_bank
-    SET lg_lock = $1, lg_locked_at = now()
-    WHERE id IN (
-      SELECT id FROM mcq_bank
-      WHERE lg_flashcard IS NULL
-        AND (lg_lock IS NULL OR lg_locked_at < now() - ($2 || ' minutes')::interval)
-      ORDER BY created_at
-      FOR UPDATE SKIP LOCKED
-      LIMIT $3
-    )
-    RETURNING id, mcq;
-    `,
-    [WORKER_ID, GEN_LOCK_TTL_MIN, GEN_LIMIT]
-  );
-  return rows;
-}
-
-async function processBatch() {
-  const rows = await fetchAndLockBatch();
-  if (rows.length === 0) {
-    console.log(`[${WORKER_ID}] No rows to process.`);
-    return;
+async function asyncPool(limit, items, iter) {
+  const out = [];
+  const exec = [];
+  for (const it of items) {
+    const p = Promise.resolve().then(() => iter(it));
+    out.push(p);
+    const e = p.then(() => exec.splice(exec.indexOf(e), 1));
+    exec.push(e);
+    if (exec.length >= limit) await Promise.race(exec);
   }
-  console.log(`[${WORKER_ID}] Picked ${rows.length} rows`);
+  return Promise.allSettled(out);
+}
 
-  for (let i = 0; i < rows.length; i += GEN_CONCURRENCY) {
-    const chunk = rows.slice(i, i + GEN_CONCURRENCY);
-    await Promise.all(
-      chunk.map(async (row) => {
-        try {
-          const completion = await openai.chat.completions.create({
-            model: GEN_MODEL,
-            messages: [
-              { role: "system", content: PROMPT_TEMPLATE },
-              { role: "user", content: row.mcq },
-            ],
-            temperature: 0,
-          });
+function isRetryable(e) {
+  const s = String(e?.message || e);
+  return /timeout|ETIMEDOUT|429|rate limit|temporar|unavailable|ECONNRESET/i.test(s);
+}
 
-          const jsonStr = completion.choices[0].message.content.trim();
-          let parsed;
-          try {
-            parsed = JSON.parse(jsonStr);
-          } catch {
-            console.error(`[${WORKER_ID}] Invalid JSON for id=${row.id}`);
-            return;
-          }
+async function callOpenAI(mcqText, attempt = 1) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: GEN_MODEL,
+      messages: [
+        { role: "system", content: PROMPT_TEMPLATE },
+        { role: "user", content: mcqText }
+      ],
+      temperature: 0
+    });
+    return resp.choices?.[0]?.message?.content || "";
+  } catch (e) {
+    if (isRetryable(e) && attempt <= 3) {
+      await sleep(400 * attempt);
+      return callOpenAI(mcqText, attempt + 1);
+    }
+    throw e;
+  }
+}
 
-          const { error: updateError } = await supabase
-            .from("mcq_bank")
-            .update({
-              lg_flashcard: parsed,
-              lg_lock: null,
-              lg_locked_at: null,
-            })
-            .eq("id", row.id);
+/* -------- Locking & Claiming -------- */
+async function claimRows(limit) {
+  const cutoff = new Date(Date.now() - GEN_LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-          if (updateError) {
-            console.error(`[${WORKER_ID}] Update error id=${row.id}`, updateError);
-          } else {
-            console.log(`[${WORKER_ID}] ✅ Updated id=${row.id}`);
-          }
-        } catch (err) {
-          console.error(`[${WORKER_ID}] GPT error id=${row.id}`, err);
-          // release lock so it can be retried
-          await supabase
-            .from("mcq_bank")
-            .update({ lg_lock: null, lg_locked_at: null })
-            .eq("id", row.id);
-        }
+  // release stale locks
+  await supabase
+    .from("mcq_bank")
+    .update({ lg_lock: null, lg_locked_at: null })
+    .lt("lg_locked_at", cutoff);
+
+  // find candidates
+  const { data: candidates, error: e1 } = await supabase
+    .from("mcq_bank")
+    .select("id, mcq")
+    .is("lg_flashcard", null)
+    .or(`lg_lock.is.null,lg_locked_at.lt.${cutoff}`)
+    .order("id", { ascending: true })
+    .limit(limit * 3);
+  if (e1) throw e1;
+  if (!candidates?.length) return [];
+
+  const ids = candidates.map(r => r.id);
+
+  // claim
+  const { data: locked, error: e2 } = await supabase
+    .from("mcq_bank")
+    .update({
+      lg_lock: WORKER_ID,
+      lg_locked_at: new Date().toISOString()
+    })
+    .in("id", ids)
+    .is("lg_flashcard", null)
+    .is("lg_lock", null)
+    .select("id, mcq");
+  if (e2) throw e2;
+
+  return (locked || []).slice(0, limit);
+}
+
+async function clearLocks(ids) {
+  if (!ids.length) return;
+  await supabase
+    .from("mcq_bank")
+    .update({ lg_lock: null, lg_locked_at: null })
+    .in("id", ids);
+}
+
+/* -------- Per-Row Processor -------- */
+async function processRow(row) {
+  try {
+    const raw = await callOpenAI(row.mcq);
+    const parsed = cleanAndParseJSON(raw);
+
+    const { error: upErr } = await supabase
+      .from("mcq_bank")
+      .update({
+        lg_flashcard: parsed,
+        lg_lock: null,
+        lg_locked_at: null
       })
-    );
-    await sleep(GEN_LOOP_SLEEP_MS);
+      .eq("id", row.id);
+    if (upErr) throw upErr;
+
+    return { ok: true, id: row.id };
+  } catch (e) {
+    await clearLocks([row.id]);
+    return { ok: false, id: row.id, error: e.message || String(e) };
   }
 }
 
-async function main() {
+/* -------- Main Loop -------- */
+(async function main() {
+  console.log(`🧵 Flashcard Worker ${WORKER_ID} | model=${GEN_MODEL} | limit=${GEN_LIMIT} | conc=${GEN_CONCURRENCY} | ttl=${GEN_LOCK_TTL_MIN}m`);
   while (true) {
-    await processBatch();
-    await sleep(GEN_LOOP_SLEEP_MS);
+    try {
+      const claimed = await claimRows(GEN_LIMIT);
+      if (!claimed.length) {
+        await sleep(SLEEP_EMPTY_MS);
+        continue;
+      }
+      console.log(`⚙️ claimed=${claimed.length}`);
+      const results = await asyncPool(GEN_CONCURRENCY, claimed, r => processRow(r));
+      const ok = results.filter(r => r.status === "fulfilled" && r.value?.ok).length;
+      const fail = results.length - ok;
+      console.log(`✅ ok=${ok} ❌ fail=${fail}`);
+    } catch (e) {
+      console.error("Loop error:", e.message || e);
+      await sleep(1000);
+    }
   }
-}
-
-main();
+})();

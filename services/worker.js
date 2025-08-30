@@ -103,20 +103,21 @@ async function claimRows(limit) {
     .update({ lg_lock: null, lg_locked_at: null })
     .lt("lg_locked_at", cutoff);
 
-  // find candidates
+  // find free candidates
   const { data: candidates, error: e1 } = await supabase
     .from("mcq_bank")
     .select("id, mcq")
     .is("lg_flashcard", null)
-    .or(`lg_lock.is.null,lg_locked_at.lt.${cutoff}`)
+    .is("lg_lock", null)
     .order("id", { ascending: true })
     .limit(limit * 3);
+
   if (e1) throw e1;
   if (!candidates?.length) return [];
 
   const ids = candidates.map(r => r.id);
 
-  // claim
+  // claim them
   const { data: locked, error: e2 } = await supabase
     .from("mcq_bank")
     .update({
@@ -127,6 +128,7 @@ async function claimRows(limit) {
     .is("lg_flashcard", null)
     .is("lg_lock", null)
     .select("id, mcq");
+
   if (e2) throw e2;
 
   return (locked || []).slice(0, limit);

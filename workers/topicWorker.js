@@ -60,31 +60,31 @@ async function classifyAndUpdate(batch) {
       {
         role: "user",
         content: `
-You are an expert NEETPG & USMLE medical teacher with 20+ years of experience.
+You are an expert NEETPG & USMLE medical teacher with 20+ years of experience.  
 I will give you a list of raw MCQ texts (from the mcq_bank table, column mcq).
 
 Your task:
-- For EACH input row, identify the **single most relevant high-yield topic** (from standard NEETPG subjects).
-- The topic name must be **exactly 1–3 words long**, and must match the **canonical textbook-style heading** used in NEETPG/PG preparation.
-- Be consistent: e.g. always use **Myocardial Infarction** (never "MI" or "Heart Attack").
-- If drug-related → exact drug name/class (e.g., "Metformin").
-- Output a valid JSON array. Each element must be: { "topic": "<Canonical Topic>" }
-- Do not output anything except the JSON array.
-
+- For EACH input row, identify the **single most relevant high-yield topic**.  
+- The topic must be **exactly 1–3 words**, like textbook headings (e.g., "Myocardial Infarction", "Elbow Dislocation").  
+- Be consistent: always use the same canonical phrase (never synonyms).  
+- If drug-related → exact drug/class (e.g., "Metformin").  
+- Output one topic **per line**, in the same order as inputs.  
+- Do not output numbers, JSON, extra text, or explanations — only plain topic names, one per line.
+  
 Here are the inputs:
-${JSON.stringify(inputs, null, 2)}
+${inputs.join("\n")}
         `,
       },
     ],
-    response_format: { type: "json_object" },
   });
 
-  const parsed = JSON.parse(response.choices[0].message.content);
+  const raw = response.choices[0].message.content.trim();
+  const topics = raw.split("\n").map(t => t.trim());
 
-  // 🔹 Update using IDs, not mcq_text
+  // 🔹 Update using IDs
   for (let i = 0; i < batch.length; i++) {
     const id = batch[i].id;
-    const topic = parsed[i]?.topic || null;
+    const topic = topics[i] || null;
 
     if (!topic) {
       console.warn(`⚠️ No topic returned for MCQ ID: ${id}`);

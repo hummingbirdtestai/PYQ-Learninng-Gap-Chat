@@ -25,6 +25,7 @@
     "openai": "^5.10.2",
     "swagger-ui-express": "^5.0.1",
     "twilio": "^5.8.0",
+    "pg": "^8.11.5",
     "uuid": "^9.0.1",
     "yamljs": "^0.3.0"
   }

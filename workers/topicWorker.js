@@ -1,47 +1,63 @@
 import OpenAI from "openai";
-import pkg from "pg";
-const { Client } = pkg;
+import { createClient } from "@supabase/supabase-js";
 
-const client = new Client({ connectionString: process.env.SUPABASE_DB_URL });
-await client.connect();
+// 🔹 Supabase client (use service role for backend workers)
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const MODEL = process.env.CLASSIFY_MODEL || "gpt-5-mini";
-const LIMIT = parseInt(process.env.MCQ_LIMIT || "180", 10);
-const BLOCK_SIZE = parseInt(process.env.MCQ_BLOCK_SIZE || "60", 10);
-const SLEEP_MS = parseInt(process.env.MCQ_LOOP_SLEEP_MS || "800", 10);
-const LOCK_TTL_MIN = parseInt(process.env.MCQ_LOCK_TTL_MIN || "15", 10);
+const LIMIT = parseInt(process.env.TOPIC_LIMIT || "180", 10);
+const BLOCK_SIZE = parseInt(process.env.TOPIC_BLOCK_SIZE || "60", 10);
+const SLEEP_MS = parseInt(process.env.TOPIC_LOOP_SLEEP_MS || "800", 10);
+const LOCK_TTL_MIN = parseInt(process.env.TOPIC_LOCK_TTL_MIN || "15", 10);
 
 function sleep(ms) {
   return new Promise(res => setTimeout(res, ms));
 }
 
+// 🔹 Fetch batch of MCQs that need topics
 async function fetchBatch() {
-  const { rows } = await client.query(`
-    with cte as (
-      select id, mcq
-      from public.mcq_bank
-      where topic is null
-      order by id
-      limit $1
-      for update skip locked
-    )
-    update public.mcq_bank as m
-    set locked_at = now()
-    from cte
-    where m.id = cte.id
-    returning m.id, m.mcq;
-  `, [LIMIT]);
-  return rows;
+  const { data, error } = await supabase
+    .from("mcq_bank")
+    .select("id, mcq, topic_lock, topic_locked_at")
+    .is("topic", null)
+    .or(`topic_lock.is.null,topic_locked_at.lt.${new Date(
+      Date.now() - LOCK_TTL_MIN * 60 * 1000
+    ).toISOString()}`)
+    .order("id", { ascending: true })
+    .limit(LIMIT);
+
+  if (error) throw error;
+
+  // Lock them so no other worker takes the same rows
+  if (data.length > 0) {
+    const ids = data.map(r => r.id);
+    await supabase
+      .from("mcq_bank")
+      .update({
+        topic_lock: "locked",
+        topic_locked_at: new Date().toISOString(),
+      })
+      .in("id", ids);
+  }
+
+  return data;
 }
 
+// 🔹 Send MCQs to GPT and update topics back in DB
 async function classifyAndUpdate(batch) {
   const inputs = batch.map(r => r.mcq);
+
   const response = await openai.chat.completions.create({
     model: MODEL,
     messages: [
-      { role: "user", content: `
+      {
+        role: "user",
+        content: `
 You are an expert NEETPG & USMLE medical teacher with 20+ years of experience.
 I will give you a list of raw MCQ texts (from the mcq_bank table, column mcq).
 
@@ -55,25 +71,28 @@ Your task:
 
 Here are the inputs:
 ${JSON.stringify(inputs, null, 2)}
-      `}
+        `,
+      },
     ],
-    response_format: { type: "json_object" }
+    response_format: { type: "json_object" },
   });
 
   const parsed = JSON.parse(response.choices[0].message.content);
+
   for (const row of parsed) {
-    await client.query(
-      `update public.mcq_bank set topic = $1, locked_at = null where id = (
-         select id from public.mcq_bank 
-         where mcq = $2 
-         order by created_at asc 
-         limit 1
-       )`,
-      [row.topic, row.mcq_text]
-    );
+    const { error } = await supabase
+      .from("mcq_bank")
+      .update({ topic: row.topic, topic_lock: null, topic_locked_at: null })
+      .eq("mcq", row.mcq_text)
+      .limit(1);
+
+    if (error) {
+      console.error(`❌ Failed to update topic for MCQ: ${row.mcq_text}`, error);
+    }
   }
 }
 
+// 🔹 Loop forever
 async function loop() {
   while (true) {
     const batch = await fetchBatch();
@@ -83,7 +102,7 @@ async function loop() {
       continue;
     }
 
-    // break into BLOCK_SIZE chunks
+    // break into chunks for GPT
     for (let i = 0; i < batch.length; i += BLOCK_SIZE) {
       const slice = batch.slice(i, i + BLOCK_SIZE);
       try {

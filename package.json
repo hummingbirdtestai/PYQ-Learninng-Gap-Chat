@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "",
+  "type": "module",
   "main": "index.js",
   "directories": {
     "doc": "docs"
@@ -16,6 +17,7 @@
     "worker:level1": "node workers/level1Worker.js",
     "worker:level2": "node workers/level2Worker.js",
     "worker:subject": "node workers/subjectWorker.js",
+    "worker:topic": "node workers/topicWorker.js",
     "start:lg": "node workers/learningGapWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },

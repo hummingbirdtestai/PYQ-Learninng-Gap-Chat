@@ -27,7 +27,6 @@
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "openai": "^5.10.2",
-    "pg": "^8.16.3",
     "swagger-ui-express": "^5.0.1",
     "twilio": "^5.8.0",
     "uuid": "^9.0.1",

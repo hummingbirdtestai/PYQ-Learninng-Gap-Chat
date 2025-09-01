@@ -22,16 +22,16 @@ From the RAW MCQ text provided as input, create exactly 20 Questions and Answers
 2. At the top level, include a key "topic" = the most specific, high-yield subject of the primary MCQ (e.g., "Pulmonary Circulation", "Beta Blockers", "Renal Physiology").  
 3. Also include a key "questions" = array of exactly 20 objects.  
 4. Each object in "questions" must have exactly these keys:  
-   - "question": Rewrite the MCQ into a **3–4 sentence clinical vignette style active recall question** (standard of NBME, Amboss, UWorld, USMLERx). Must be **exam-oriented, very specific, and high-yield**.  
-   - "answer": Provide the **precise, high-yield answer** (not generic).  
+   - "question": Rewrite the MCQ into a **3–4 sentence clinical vignette style active recall question**.  
+   - "answer": Provide the **precise, high-yield answer**.  
 5. Do **NOT format as MCQs**. Each must be in **Question–Answer format**.  
-6. Use **Markdown bold** to highlight important words, numbers, anatomical structures, diseases, drugs, and exam-relevant facts in both the **question** and the **answer**.  
+6. Use **Markdown bold** to highlight important exam facts.  
 7. Do not include UUIDs. Supabase will auto-generate them.  
-8. Do not include any text outside the JSON (no commentary, no explanations, no headings).  
-9. Questions must **not be repeated** — instead, create **recursive remediation questions** that expand into the most relevant connected high-yield concepts that logically follow from the primary MCQ.  
-10. If a **clinical vignette is not possible** (low-yield recall fact), frame a **direct NEETPG-style high-yield Q&A** instead.  
-11. Ensure all questions and answers are **unique, non-repetitive, and exam-style**.  
-12. Start with the **primary fact tested in the raw MCQ**, and then branch into **18–19 progressively related high-yield concepts**.  
+8. Do not include any text outside the JSON.  
+9. Questions must **not be repeated** — instead, create **recursive remediation questions**.  
+10. If a vignette is not possible, frame a **direct NEETPG-style high-yield Q&A** instead.  
+11. Ensure all questions and answers are **unique and exam-style**.  
+12. Start with the **primary fact tested in the raw MCQ**, then branch into **18–19 related high-yield concepts**.  
 13. Maintain the same JSON structure strictly for every output.  
 
 ### Output JSON Format Example
@@ -39,10 +39,7 @@ From the RAW MCQ text provided as input, create exactly 20 Questions and Answers
 {
   "topic": "Pulmonary Circulation",
   "questions": [
-    {
-      "question": "",
-      "answer": ""
-    }
+    { "question": "", "answer": "" }
   ]
 }
 `;
@@ -84,8 +81,8 @@ async function callOpenAI(mcqText, attempt = 1) {
       messages: [
         { role: "system", content: PROMPT_TEMPLATE },
         { role: "user", content: mcqText }
-      ],
-      temperature: 0
+      ]
+      // ❌ removed temperature (not supported in gpt-5-mini)
     });
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {

@@ -1,7 +1,6 @@
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
-const { v4: uuidv4 } = require("uuid"); // still here if needed for debug, not used
 
 /* -------- Settings -------- */
 const GEN_MODEL        = process.env.GEN_MODEL || "gpt-5-mini";
@@ -19,28 +18,33 @@ You are a NEETPG & USMLE expert medical teacher with 20 years of experience.
 From the RAW MCQ text provided as input, create exactly 20 Questions and Answers for NEETPG/USMLE preparation.
 
 ### Rules
-1. Output must be a **valid JSON array only**.  
-2. Each Question and Answer must be a JSON object with exactly these keys:  
+1. Output must be a **valid JSON object only**.  
+2. At the top level, include a key "topic" = the most specific, high-yield subject of the primary MCQ (e.g., "Pulmonary Circulation", "Beta Blockers", "Renal Physiology").  
+3. Also include a key "questions" = array of exactly 20 objects.  
+4. Each object in "questions" must have exactly these keys:  
    - "question": Rewrite the MCQ into a **3–4 sentence clinical vignette style active recall question** (standard of NBME, Amboss, UWorld, USMLERx). Must be **exam-oriented, very specific, and high-yield**.  
    - "answer": Provide the **precise, high-yield answer** (not generic).  
-3. Do **NOT format as MCQs**. Each must be in **Question–Answer format**.  
-4. Use **Markdown bold** to highlight important words, numbers, anatomical structures, diseases, drugs, and exam-relevant facts in both the **question** and the **answer**.  
-5. Do not include UUIDs. Supabase will auto-generate them.  
-6. Do not include any text outside the JSON (no commentary, no explanations, no headings).  
-7. Questions must **not be repeated** — instead, create **recursive remediation questions** that expand into the most relevant connected high-yield concepts that logically follow from the primary MCQ, as appropriate for the subject.  
-8. If a **clinical vignette is not possible** (low-yield recall fact), frame a **direct NEETPG-style high-yield Q&A** instead.  
-9. Ensure all questions and answers are **unique, non-repetitive, and exam-style**.  
-10. Start with the **primary fact tested in the raw MCQ**, and then branch into **18–19 progressively related high-yield concepts** for active recall and spaced repetition.  
-11. Maintain the same JSON structure strictly for every output.  
+5. Do **NOT format as MCQs**. Each must be in **Question–Answer format**.  
+6. Use **Markdown bold** to highlight important words, numbers, anatomical structures, diseases, drugs, and exam-relevant facts in both the **question** and the **answer**.  
+7. Do not include UUIDs. Supabase will auto-generate them.  
+8. Do not include any text outside the JSON (no commentary, no explanations, no headings).  
+9. Questions must **not be repeated** — instead, create **recursive remediation questions** that expand into the most relevant connected high-yield concepts that logically follow from the primary MCQ.  
+10. If a **clinical vignette is not possible** (low-yield recall fact), frame a **direct NEETPG-style high-yield Q&A** instead.  
+11. Ensure all questions and answers are **unique, non-repetitive, and exam-style**.  
+12. Start with the **primary fact tested in the raw MCQ**, and then branch into **18–19 progressively related high-yield concepts**.  
+13. Maintain the same JSON structure strictly for every output.  
 
 ### Output JSON Format Example
 
-[
-  {
-    "question": "",
-    "answer": ""
-  }
-]
+{
+  "topic": "Pulmonary Circulation",
+  "questions": [
+    {
+      "question": "",
+      "answer": ""
+    }
+  ]
+}
 `;
 
 /* -------- Helpers -------- */
@@ -52,13 +56,7 @@ function cleanAndParseJSON(raw) {
     .replace(/^```\s*/i, "")
     .replace(/```$/, "")
     .trim();
-
-  let parsed = JSON.parse(t);
-
-  if (!Array.isArray(parsed)) {
-    parsed = [parsed];
-  }
-  return parsed;
+  return JSON.parse(t);
 }
 
 async function asyncPool(limit, items, iter) {
@@ -103,13 +101,11 @@ async function callOpenAI(mcqText, attempt = 1) {
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - GEN_LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // release stale locks
   await supabase
     .from("learning_gap_vertical")
     .update({ topic_lock: null, topic_locked_at: null })
     .lt("topic_locked_at", cutoff);
 
-  // find free candidates
   const { data: candidates, error: e1 } = await supabase
     .from("learning_gap_vertical")
     .select("id, mcq_json")
@@ -124,7 +120,6 @@ async function claimRows(limit) {
 
   const ids = candidates.map(r => r.id);
 
-  // claim them
   const { data: locked, error: e2 } = await supabase
     .from("learning_gap_vertical")
     .update({
@@ -152,7 +147,9 @@ async function clearLocks(ids) {
 /* -------- Per-Row Processor -------- */
 async function processRow(row) {
   try {
-    const raw = await callOpenAI(JSON.stringify(row.mcq_json));
+    const raw = await callOpenAI(
+      typeof row.mcq_json === "string" ? row.mcq_json : JSON.stringify(row.mcq_json)
+    );
 
     console.log("🔎 Raw GPT output for row", row.id, ":", (raw || "").slice(0, 400));
 
@@ -160,15 +157,11 @@ async function processRow(row) {
     try {
       parsed = cleanAndParseJSON(raw);
     } catch (e) {
-      console.error("❌ JSON parse error", e.message);
+      console.error("❌ JSON parse error for row", row.id, "output:", raw);
       throw e;
     }
 
-    // safer topic extraction
-    const firstQ = parsed[0]?.question || "";
-    let topicGuess = "General";
-    const match = firstQ.match(/\b([A-Z][a-zA-Z]+)\b/); // crude: first capitalized word
-    if (match) topicGuess = match[1];
+    const topicGuess = parsed.topic || "General";
 
     const { error: upErr } = await supabase
       .from("learning_gap_vertical")
@@ -183,11 +176,11 @@ async function processRow(row) {
 
     return { ok: true, id: row.id };
   } catch (e) {
+    console.error("❌ processRow failed", row.id, e.message);
     await clearLocks([row.id]);
     return { ok: false, id: row.id, error: e.message || String(e) };
   }
 }
-
 
 /* -------- Main Loop -------- */
 (async function main() {

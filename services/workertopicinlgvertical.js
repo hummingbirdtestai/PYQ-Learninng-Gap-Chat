@@ -3,58 +3,29 @@ const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
 
 /* -------- Settings -------- */
-const GEN_MODEL        = process.env.GEN_MODEL || "gpt-5-mini";
-const GEN_LIMIT        = parseInt(process.env.GEN_LIMIT || "120", 10);
-const GEN_CONCURRENCY  = parseInt(process.env.GEN_CONCURRENCY || "5", 10);
-const GEN_LOCK_TTL_MIN = parseInt(process.env.GEN_LOCK_TTL_MIN || "45", 10);
-const SLEEP_EMPTY_MS   = parseInt(process.env.GEN_LOOP_SLEEP_MS || "800", 10);
-const WORKER_ID        = process.env.WORKER_ID || `lg-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+const MODEL        = process.env.CLASSIFY_MODEL || "gpt-5-mini";
+const LIMIT        = parseInt(process.env.TOPIC_LIMIT || "180", 10);
+const BLOCK_SIZE   = parseInt(process.env.TOPIC_BLOCK_SIZE || "60", 10);
+const SLEEP_MS     = parseInt(process.env.TOPIC_LOOP_SLEEP_MS || "800", 10);
+const LOCK_TTL_MIN = parseInt(process.env.TOPIC_LOCK_TTL_MIN || "15", 10);
+const WORKER_ID    = process.env.WORKER_ID || `lg-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 /* -------- Prompt Template -------- */
 const PROMPT_TEMPLATE = `
-You are a NEETPG & USMLE expert medical teacher with 20 years of experience.
+You are an expert NEETPG & USMLE medical teacher with 20+ years of experience.  
+I will give you a list of raw MCQ texts (from the learning_gap_vertical table, column mcq_json).
 
-### Task
-From the RAW MCQ text provided as input, create exactly 20 Questions and Answers for NEETPG/USMLE preparation.
-
-### Rules
-1. Output must be a **valid JSON object only**.  
-2. At the top level, include a key "topic" = the most specific, high-yield subject of the primary MCQ (e.g., "Pulmonary Circulation", "Beta Blockers", "Renal Physiology").  
-3. Also include a key "questions" = array of exactly 20 objects.  
-4. Each object in "questions" must have exactly these keys:  
-   - "question": Rewrite the MCQ into a **3–4 sentence clinical vignette style active recall question**.  
-   - "answer": Provide the **precise, high-yield answer**.  
-5. Do **NOT format as MCQs**. Each must be in **Question–Answer format**.  
-6. Use **Markdown bold** to highlight important exam facts.  
-7. Do not include UUIDs. Supabase will auto-generate them.  
-8. Do not include any text outside the JSON.  
-9. Questions must **not be repeated** — instead, create **recursive remediation questions**.  
-10. If a vignette is not possible, frame a **direct NEETPG-style high-yield Q&A** instead.  
-11. Ensure all questions and answers are **unique and exam-style**.  
-12. Start with the **primary fact tested in the raw MCQ**, then branch into **18–19 related high-yield concepts**.  
-13. Maintain the same JSON structure strictly for every output.  
-
-### Output JSON Format Example
-
-{
-  "topic": "Pulmonary Circulation",
-  "questions": [
-    { "question": "", "answer": "" }
-  ]
-}
+Your task:
+- For EACH input row, identify the **single most relevant high-yield topic**.  
+- The topic must be **exactly 1–3 words**, like textbook headings (e.g., "Myocardial Infarction", "Elbow Dislocation").  
+- Be consistent: always use the same canonical phrase (never synonyms).  
+- If drug-related → exact drug/class (e.g., "Metformin").  
+- Output one topic **per line**, in the same order as inputs.  
+- Do not output numbers, JSON, extra text, or explanations — only plain topic names, one per line.
 `;
 
 /* -------- Helpers -------- */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-function cleanAndParseJSON(raw) {
-  let t = (raw || "").trim()
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```$/, "")
-    .trim();
-  return JSON.parse(t);
-}
 
 async function asyncPool(limit, items, iter) {
   const out = [];
@@ -74,21 +45,21 @@ function isRetryable(e) {
   return /timeout|ETIMEDOUT|429|rate limit|temporar|unavailable|ECONNRESET/i.test(s);
 }
 
-async function callOpenAI(mcqText, attempt = 1) {
+/* -------- OpenAI Call -------- */
+async function callOpenAI(inputText, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
-      model: GEN_MODEL,
+      model: MODEL,
       messages: [
         { role: "system", content: PROMPT_TEMPLATE },
-        { role: "user", content: mcqText }
+        { role: "user", content: inputText }
       ]
-      // ❌ removed temperature (not supported in gpt-5-mini)
     });
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
     if (isRetryable(e) && attempt <= 3) {
       await sleep(400 * attempt);
-      return callOpenAI(mcqText, attempt + 1);
+      return callOpenAI(inputText, attempt + 1);
     }
     throw e;
   }
@@ -96,7 +67,7 @@ async function callOpenAI(mcqText, attempt = 1) {
 
 /* -------- Locking & Claiming -------- */
 async function claimRows(limit) {
-  const cutoff = new Date(Date.now() - GEN_LOCK_TTL_MIN * 60 * 1000).toISOString();
+  const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
 
   await supabase
     .from("learning_gap_vertical")
@@ -148,17 +119,10 @@ async function processRow(row) {
       typeof row.mcq_json === "string" ? row.mcq_json : JSON.stringify(row.mcq_json)
     );
 
-    console.log("🔎 Raw GPT output for row", row.id, ":", (raw || "").slice(0, 400));
+    console.log("🔎 Raw GPT output for row", row.id, ":", raw);
 
-    let parsed;
-    try {
-      parsed = cleanAndParseJSON(raw);
-    } catch (e) {
-      console.error("❌ JSON parse error for row", row.id, "output:", raw);
-      throw e;
-    }
-
-    const topicGuess = parsed.topic || "General";
+    // take the first non-empty line as topic
+    const topicGuess = raw.split("\n").map(l => l.trim()).filter(Boolean)[0] || "General";
 
     const { error: upErr } = await supabase
       .from("learning_gap_vertical")
@@ -179,21 +143,58 @@ async function processRow(row) {
   }
 }
 
+/* -------- Batch Processor -------- */
+async function classifyAndUpdate(batch) {
+  // break into blocks for GPT
+  for (let i = 0; i < batch.length; i += BLOCK_SIZE) {
+    const slice = batch.slice(i, i + BLOCK_SIZE);
+    const inputs = slice.map(r => 
+      typeof r.mcq_json === "string" ? r.mcq_json : JSON.stringify(r.mcq_json)
+    );
+
+    try {
+      const resp = await callOpenAI(inputs.join("\n"));
+      const topics = resp.split("\n").map(t => t.trim()).filter(Boolean);
+
+      for (let j = 0; j < slice.length; j++) {
+        const id = slice[j].id;
+        const topic = topics[j] || "General";
+
+        const { error } = await supabase
+          .from("learning_gap_vertical")
+          .update({
+            topic,
+            topic_lock: null,
+            topic_locked_at: null
+          })
+          .eq("id", id);
+
+        if (error) {
+          console.error(`❌ Failed to update topic for ID: ${id}`, error);
+        } else {
+          console.log(`✅ Updated topic for ID: ${id} → ${topic}`);
+        }
+      }
+    } catch (err) {
+      console.error("❌ classifyAndUpdate error:", err.message);
+    }
+    await sleep(SLEEP_MS);
+  }
+}
+
 /* -------- Main Loop -------- */
 (async function main() {
-  console.log(`🧵 Topic Worker ${WORKER_ID} | model=${GEN_MODEL} | limit=${GEN_LIMIT} | conc=${GEN_CONCURRENCY} | ttl=${GEN_LOCK_TTL_MIN}m`);
+  console.log(`🧵 Topic Worker ${WORKER_ID} | model=${MODEL} | limit=${LIMIT} | block=${BLOCK_SIZE} | ttl=${LOCK_TTL_MIN}m`);
   while (true) {
     try {
-      const claimed = await claimRows(GEN_LIMIT);
+      const claimed = await claimRows(LIMIT);
       if (!claimed.length) {
-        await sleep(SLEEP_EMPTY_MS);
+        console.log("😴 No rows found, sleeping...");
+        await sleep(SLEEP_MS * 10);
         continue;
       }
       console.log(`⚙️ claimed=${claimed.length}`);
-      const results = await asyncPool(GEN_CONCURRENCY, claimed, r => processRow(r));
-      const ok = results.filter(r => r.status === "fulfilled" && r.value?.ok).length;
-      const fail = results.length - ok;
-      console.log(`✅ ok=${ok} ❌ fail=${fail}`);
+      await classifyAndUpdate(claimed);
     } catch (e) {
       console.error("Loop error:", e.message || e);
       await sleep(1000);

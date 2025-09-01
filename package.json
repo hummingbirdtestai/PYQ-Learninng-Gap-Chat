@@ -18,8 +18,8 @@
     "worker:level2": "node workers/level2Worker.js",
     "worker:subject": "node workers/subjectWorker.js",
     "worker:topic": "node workers/topicWorker.js",
+    "worker:lg-vertical": "node workers/workertopicinlgvertical.js",
     "start:lg": "node workers/learningGapWorker.js",
-    "start:lg": "node workers/workertopicinlgvertical.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

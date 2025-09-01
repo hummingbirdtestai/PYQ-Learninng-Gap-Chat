@@ -152,16 +152,23 @@ async function clearLocks(ids) {
 /* -------- Per-Row Processor -------- */
 async function processRow(row) {
   try {
-    const raw = await callOpenAI(row.mcq_json);
+    const raw = await callOpenAI(JSON.stringify(row.mcq_json));
 
     console.log("🔎 Raw GPT output for row", row.id, ":", (raw || "").slice(0, 400));
 
-    const parsed = cleanAndParseJSON(raw);
+    let parsed;
+    try {
+      parsed = cleanAndParseJSON(raw);
+    } catch (e) {
+      console.error("❌ JSON parse error", e.message);
+      throw e;
+    }
 
-    // for this worker, we just extract a topic name
-    // simplest approach: take first Q's main keyword as topic
+    // safer topic extraction
     const firstQ = parsed[0]?.question || "";
-    const topicGuess = firstQ.split(" ")[0]?.trim() || "General";
+    let topicGuess = "General";
+    const match = firstQ.match(/\b([A-Z][a-zA-Z]+)\b/); // crude: first capitalized word
+    if (match) topicGuess = match[1];
 
     const { error: upErr } = await supabase
       .from("learning_gap_vertical")
@@ -180,6 +187,7 @@ async function processRow(row) {
     return { ok: false, id: row.id, error: e.message || String(e) };
   }
 }
+
 
 /* -------- Main Loop -------- */
 (async function main() {

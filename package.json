@@ -19,6 +19,7 @@
     "worker:subject": "node workers/subjectWorker.js",
     "worker:topic": "node workers/topicWorker.js",
     "start:lg": "node workers/learningGapWorker.js",
+    "start:lg": "node workers/workertopicinlgvertical.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

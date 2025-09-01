@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "",
-  "type": "module",
+  "type": "commonjs",
   "main": "index.js",
   "directories": {
     "doc": "docs"

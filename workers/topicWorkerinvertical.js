@@ -4,12 +4,12 @@ const { supabase } = require('../config/supabaseClient');
 const openai = require('../config/openaiClient');
 
 // ---------- Settings ----------
-const TOPIC_MODEL        = process.env.TOPIC_MODEL || 'gpt-5-mini';
-const TOPIC_LIMIT        = parseInt(process.env.TOPIC_LIMIT || '120', 10);
-const TOPIC_BLOCK_SIZE   = parseInt(process.env.TOPIC_BLOCK_SIZE || '40', 10);
-const TOPIC_LOCK_TTL_MIN = parseInt(process.env.TOPIC_LOCK_TTL_MIN || '15', 10);
-const TOPIC_SLEEP_MS     = parseInt(process.env.TOPIC_LOOP_SLEEP_MS || '800', 10);
-const WORKER_ID          = process.env.WORKER_ID || `topic-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+const MODEL        = process.env.CLASSIFY_MODEL || "gpt-5-mini";
+const LIMIT        = parseInt(process.env.TOPIC_LIMIT || "180", 10);      // rows to claim per loop
+const BLOCK_SIZE   = parseInt(process.env.TOPIC_BLOCK_SIZE || "60", 10);  // rows per LLM call
+const SLEEP_MS     = parseInt(process.env.TOPIC_LOOP_SLEEP_MS || "800", 10);
+const LOCK_TTL_MIN = parseInt(process.env.TOPIC_LOCK_TTL_MIN || "15", 10);
+const WORKER_ID    = process.env.WORKER_ID || `lg-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 const TOPICS = [
   "Nephron","Hypoxia","Blood Flow Regulation","Spirometry","Oxygen Dissociation Curve","BP",

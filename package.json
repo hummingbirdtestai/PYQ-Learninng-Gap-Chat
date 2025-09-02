@@ -20,6 +20,7 @@
     "worker:topic": "node workers/topicWorker.js",
     "worker:lg-vertical": "node services/workertopicinlgvertical.js",
     "start:lg": "node workers/learningGapWorker.js",
+    "start:topic": "node workers/topicWorkerinvertical.js"
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

@@ -1,16 +1,15 @@
-// workers/topicWorker.js
+// workers/topicWorkerinvertical.js
 require('dotenv').config();
 const { supabase } = require('../config/supabaseClient');
 const openai = require('../config/openaiClient');
 
 // ---------- Settings ----------
-const TOPIC_MODEL    = process.env.TOPIC_MODEL || "gpt-5-mini";
-const TOPIC_LIMIT    = parseInt(process.env.TOPIC_LIMIT || "180", 10);
-const TOPIC_BLOCK_SIZE = parseInt(process.env.TOPIC_BLOCK_SIZE || "60", 10);
-const TOPIC_SLEEP_MS = parseInt(process.env.TOPIC_LOOP_SLEEP_MS || "800", 10);
+const TOPIC_MODEL       = process.env.TOPIC_MODEL || "gpt-5-mini";
+const TOPIC_LIMIT       = parseInt(process.env.TOPIC_LIMIT || "180", 10);
+const TOPIC_BLOCK_SIZE  = parseInt(process.env.TOPIC_BLOCK_SIZE || "60", 10);
+const TOPIC_SLEEP_MS    = parseInt(process.env.TOPIC_LOOP_SLEEP_MS || "800", 10);
 const TOPIC_LOCK_TTL_MIN = parseInt(process.env.TOPIC_LOCK_TTL_MIN || "15", 10);
-const WORKER_ID      = process.env.WORKER_ID || `lg-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
-
+const WORKER_ID         = process.env.WORKER_ID || `lg-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 const TOPICS = [
   "Nephron","Hypoxia","Blood Flow Regulation","Spirometry","Oxygen Dissociation Curve","BP",
@@ -34,7 +33,8 @@ function extractStem(mcqJson) {
   return String(mcqJson);
 }
 
-const truncate = (s, n = 600) => (String(s || '').length > n ? String(s).slice(0, n) + ' …' : String(s || ''));
+const truncate = (s, n = 600) =>
+  (String(s || '').length > n ? String(s).slice(0, n) + ' …' : String(s || ''));
 
 function buildPrompt(items) {
   const header = `
@@ -49,7 +49,9 @@ Return format:
 - No numbering, no extra words.
 `.trim();
 
-  const body = items.map((it, i) => `${i + 1}) ${truncate(extractStem(it.mcq_json))}`).join('\n\n');
+  const body = items.map((it, i) =>
+    `${i + 1}) ${truncate(extractStem(it.mcq_json))}`).join('\n\n');
+
   return `${header}\n\nMCQs:\n\n${body}\n\nRemember: output exactly ${items.length} lines, one topic per line.`;
 }
 
@@ -80,7 +82,6 @@ async function callOpenAI(messages, attempt = 1) {
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - TOPIC_LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // free stale locks
   await supabase
     .from('learning_gap_vertical')
     .update({ chapter_lock: null, chapter_lock_at: null })
@@ -138,10 +139,13 @@ async function processBlock(block) {
   }
 
   if (updates.length) {
-    const { error: upErr } = await supabase
-      .from('learning_gap_vertical')
-      .upsert(updates, { onConflict: 'id', ignoreDuplicates: false });
-    if (upErr) throw upErr;
+    for (const u of updates) {
+      const { error: upErr } = await supabase
+        .from('learning_gap_vertical')
+        .update({ chapter: u.chapter })
+        .eq('id', u.id);
+      if (upErr) throw upErr;
+    }
   }
 
   await clearLocks(block.map(r => r.id));

@@ -23,7 +23,7 @@
 
     "start:lg": "node workers/learningGapWorker.js",
     "start:topic": "node workers/topicWorkerinvertical.js",
-    "start:final": "node workers/finalChapterWorker.js"
+    "start:final": "node workers/finalChapterWorker.js",
 
     "test": "echo \"No tests\" && exit 0"
   },

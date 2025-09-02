@@ -2,7 +2,7 @@
   "name": "mcq-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "",
+  "description": "Backend workers for MCQ classification and learning gap processing",
   "type": "commonjs",
   "main": "index.js",
   "directories": {
@@ -13,15 +13,17 @@
   },
   "scripts": {
     "start": "node index.js",
+
     "worker:primary": "node workers/primaryWorker.js",
     "worker:level1": "node workers/level1Worker.js",
     "worker:level2": "node workers/level2Worker.js",
     "worker:subject": "node workers/subjectWorker.js",
     "worker:topic": "node workers/topicWorker.js",
     "worker:lg-vertical": "node services/workertopicinlgvertical.js",
+
     "start:lg": "node workers/learningGapWorker.js",
     "start:topic": "node workers/topicWorkerinvertical.js",
-    "start:biochem": "node workers/topicWorkerinbiochem.js",
+
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

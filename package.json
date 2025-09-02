@@ -21,6 +21,7 @@
     "worker:lg-vertical": "node services/workertopicinlgvertical.js",
     "start:lg": "node workers/learningGapWorker.js",
     "start:topic": "node workers/topicWorkerinvertical.js",
+    "start:biochem": "node workers/topicWorkerinbiochem.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

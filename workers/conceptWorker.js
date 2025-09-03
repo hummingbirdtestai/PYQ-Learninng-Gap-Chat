@@ -6,8 +6,8 @@ const { v4: uuidv4 } = require("uuid");
 
 // ---------- Settings ----------
 const CONCEPT_MODEL        = process.env.CONCEPT_MODEL || "gpt-5";
-const CONCEPT_LIMIT        = parseInt(process.env.CONCEPT_LIMIT || "100", 10);   // claim per loop
-const CONCEPT_BLOCK_SIZE   = parseInt(process.env.CONCEPT_BLOCK_SIZE || "20", 10); // batch per OpenAI call
+const CONCEPT_LIMIT        = parseInt(process.env.CONCEPT_LIMIT || "100", 10);   // rows claimed per loop
+const CONCEPT_BLOCK_SIZE   = parseInt(process.env.CONCEPT_BLOCK_SIZE || "20", 10); // rows per OpenAI batch
 const CONCEPT_SLEEP_MS     = parseInt(process.env.CONCEPT_LOOP_SLEEP_MS || "800", 10);
 const CONCEPT_LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 const WORKER_ID            = process.env.WORKER_ID || `concept-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
@@ -50,6 +50,13 @@ Estimation of Hydrogen – By Liebig’s method, weight of water (w₂) is measu
   }
 ]
 
+Important:
+- Return ONLY the JSON array in the same format as above.
+- No extra text, no comments, no headings, no markdown fences.
+- Every key and value must be properly quoted.
+
+Now process this text:
+
 ${conceptRaw}
 `.trim();
 }
@@ -66,7 +73,7 @@ async function callOpenAI(messages, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: CONCEPT_MODEL,
-      messages,
+      messages
     });
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
@@ -74,6 +81,21 @@ async function callOpenAI(messages, attempt = 1) {
       await sleep(400 * attempt);
       return callOpenAI(messages, attempt + 1);
     }
+    throw e;
+  }
+}
+
+function safeParseJSON(raw) {
+  const cleaned = raw
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "");
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("❌ JSON parse error. Raw snippet:", cleaned.slice(0, 250));
     throw e;
   }
 }
@@ -86,7 +108,7 @@ async function claimRows(limit) {
   await supabase
     .from("concept_bank")
     .update({ concept_lock: null, concept_lock_at: null })
-    .is("concept_1", null) // free only if unprocessed
+    .is("concept_1", null)
     .lt("concept_lock_at", cutoff);
 
   const { data: candidates, error: e1 } = await supabase
@@ -128,12 +150,8 @@ async function processBlock(block) {
     try {
       const prompt = buildPrompt(row.concept_raw);
       const raw = await callOpenAI([{ role: "user", content: prompt }]);
+      const arr = safeParseJSON(raw);
 
-      // Clean and parse JSON
-      const cleaned = raw.trim().replace(/^```json\n?|```$/g, "");
-      const arr = JSON.parse(cleaned);
-
-      // Build update object for supabase
       const updateData = {};
       arr.slice(0, 30).forEach((obj, idx) => {
         updateData[`concept_${idx + 1}`] = {
@@ -150,7 +168,6 @@ async function processBlock(block) {
     }
   }
 
-  // Bulk update supabase
   for (const u of updates) {
     const { error: upErr } = await supabase
       .from("concept_bank")

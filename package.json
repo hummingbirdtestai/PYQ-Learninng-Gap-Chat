@@ -24,6 +24,7 @@
     "start:lg": "node workers/learningGapWorker.js",
     "start:topic": "node workers/topicWorkerinvertical.js",
     "start:final": "node workers/finalChapterWorker.js",
+    "start": "node workers/conceptWorker.js",
 
     "test": "echo \"No tests\" && exit 0"
   },

@@ -2,18 +2,21 @@
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
-const { v4: uuidv4 } = require("uuid");
 
 // ---------- Settings ----------
 const CONCEPT_MODEL        = process.env.CONCEPT_MODEL || "gpt-5";
-const CONCEPT_LIMIT        = parseInt(process.env.CONCEPT_LIMIT || "100", 10);   // rows claimed per loop
-const CONCEPT_BLOCK_SIZE   = parseInt(process.env.CONCEPT_BLOCK_SIZE || "20", 10); // rows per OpenAI batch
+const CONCEPT_LIMIT        = parseInt(process.env.CONCEPT_LIMIT || "100", 10);
+const CONCEPT_BLOCK_SIZE   = parseInt(process.env.CONCEPT_BLOCK_SIZE || "20", 10);
 const CONCEPT_SLEEP_MS     = parseInt(process.env.CONCEPT_LOOP_SLEEP_MS || "800", 10);
 const CONCEPT_LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 const WORKER_ID            = process.env.WORKER_ID || `concept-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // ---------- Prompt Builder ----------
 function buildPrompt(conceptRaw) {
+  const rawText = typeof conceptRaw === "string"
+    ? conceptRaw
+    : JSON.stringify(conceptRaw, null, 2);
+
   return `
 You are a 20-years experienced NEET Chemistry teacher.  
 I will give you raw study material that contains multiple chemistry concepts.  
@@ -23,8 +26,8 @@ Your task is to **reorganize the text into structured JSON**.
 ### Rules:
 1. Output must be a **valid JSON array** only.  
 2. Each object must have exactly two keys:  
-   - "Concept" = short title of the concept (from the heading or main idea).  
-   - "Explanation" = the detailed explanation for that concept.  
+   - "Concept" = short title of the concept.  
+   - "Explanation" = detailed explanation.  
 3. Use **Markdown bold** to highlight:  
    - Important terms (Carbon, Nitrogen, Oxygen, Hybridisation, Isomerism, etc.)  
    - **Formulas, equations, numbers, years, and scientist names**.  
@@ -51,13 +54,12 @@ Estimation of Hydrogen – By Liebig’s method, weight of water (w₂) is measu
 ]
 
 Important:
-- Return ONLY the JSON array in the same format as above.
-- No extra text, no comments, no headings, no markdown fences.
-- Every key and value must be properly quoted.
+- Return ONLY the JSON array above. Nothing else.
+- Do not add comments, explanations, or markdown fences.
 
 Now process this text:
 
-${conceptRaw}
+${rawText}
 `.trim();
 }
 
@@ -89,7 +91,7 @@ function safeParseJSON(raw) {
   const cleaned = raw
     .trim()
     .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
+    .replace(/^```/i, "")
     .replace(/```$/i, "");
 
   try {
@@ -107,14 +109,14 @@ async function claimRows(limit) {
   // free stale locks
   await supabase
     .from("concept_bank")
-    .update({ concept_lock: null, concept_lock_at: null })
-    .is("concept_1", null)
-    .lt("concept_lock_at", cutoff);
+    .update({ all_concepts_json_lock: null, all_concepts_json_lock_at: null })
+    .is("all_concepts_json", null)
+    .lt("all_concepts_json_lock_at", cutoff);
 
   const { data: candidates, error: e1 } = await supabase
     .from("concept_bank")
     .select("concept_id, concept_raw")
-    .is("concept_1", null)
+    .is("all_concepts_json", null)
     .order("concept_id", { ascending: true })
     .limit(limit);
   if (e1) throw e1;
@@ -124,10 +126,10 @@ async function claimRows(limit) {
 
   const { data: locked, error: e2 } = await supabase
     .from("concept_bank")
-    .update({ concept_lock: WORKER_ID, concept_lock_at: new Date().toISOString() })
+    .update({ all_concepts_json_lock: WORKER_ID, all_concepts_json_lock_at: new Date().toISOString() })
     .in("concept_id", ids)
-    .is("concept_1", null)
-    .is("concept_lock", null)
+    .is("all_concepts_json", null)
+    .is("all_concepts_json_lock", null)
     .select("concept_id, concept_raw");
   if (e2) throw e2;
 
@@ -138,7 +140,7 @@ async function clearLocks(ids) {
   if (!ids.length) return;
   await supabase
     .from("concept_bank")
-    .update({ concept_lock: null, concept_lock_at: null })
+    .update({ all_concepts_json_lock: null, all_concepts_json_lock_at: null })
     .in("concept_id", ids);
 }
 
@@ -152,16 +154,7 @@ async function processBlock(block) {
       const raw = await callOpenAI([{ role: "user", content: prompt }]);
       const arr = safeParseJSON(raw);
 
-      const updateData = {};
-      arr.slice(0, 30).forEach((obj, idx) => {
-        updateData[`concept_${idx + 1}`] = {
-          uuid: uuidv4(),
-          Concept: obj.Concept,
-          Explanation: obj.Explanation
-        };
-      });
-
-      updates.push({ id: row.concept_id, data: updateData });
+      updates.push({ id: row.concept_id, data: { all_concepts_json: arr } });
     } catch (e) {
       console.error(`❌ Error processing row ${row.concept_id}:`, e.message || e);
       await clearLocks([row.concept_id]);

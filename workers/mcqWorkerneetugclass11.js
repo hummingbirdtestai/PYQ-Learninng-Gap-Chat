@@ -204,11 +204,26 @@ async function clearLocks(ids) {
 async function processBlock(block) {
   const updates = [];
 
-  for (const row of block) {
+  for (const [i, row] of block.entries()) {
     try {
+      console.log(`📝 [${i + 1}/${block.length}] Processing row ${row.vertical_id}`);
+
       const prompt = buildPrompt(row.concept_json);
+      console.log(`   🔑 Prompt built for row ${row.vertical_id}`);
+
       const raw = await callOpenAI([{ role: "user", content: prompt }]);
+      console.log(`   📥 OpenAI returned output for row ${row.vertical_id} (length=${raw.length})`);
+
       const obj = safeParseJSON(raw);
+      console.log(`   ✅ JSON parsed successfully for row ${row.vertical_id}`);
+
+      // attach UUIDs
+      if (Array.isArray(obj)) {
+        obj.forEach(mcq => {
+          if (!mcq.uuid) mcq.uuid = uuidv4();
+        });
+        console.log(`   🆔 Added UUIDs to ${obj.length} MCQs for row ${row.vertical_id}`);
+      }
 
       updates.push({ id: row.vertical_id, data: { mcq: obj } });
     } catch (e) {
@@ -218,11 +233,13 @@ async function processBlock(block) {
   }
 
   for (const u of updates) {
+    console.log(`   💾 Writing MCQs back to Supabase for row ${u.id}`);
     const { error: upErr } = await supabase
       .from("concepts_vertical")
       .update(u.data)
       .eq("vertical_id", u.id);
     if (upErr) throw upErr;
+    console.log(`   📌 Row ${u.id} updated successfully`);
   }
 
   await clearLocks(block.map(r => r.vertical_id));

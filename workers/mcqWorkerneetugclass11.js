@@ -21,18 +21,22 @@ You are an Expert NEET Chemistry Teacher.
 You are given the JSON of Concept and Explanation. 
 Based on this Concept and Explanation, create 6 NEET Chemistry MCQs.  
 
-Create them of NEET Exam standard and toughness level.  
+Create them of NEET Exam standard.  
 
 The first MCQ, called mcq_1, will be based on the Concept and Explanation.  
 For mcq_1, add a learning_gap on what is the confusing point or underlying conceptual deficit due to which that mcq_1 will be answered wrong by a NEET Chemistry preparing student.  
 
 Next, mcq_2 should be recursively based on the learning_gap of mcq_1.  
 Every MCQ created will be recursively based to detect deeper levels of learning gaps.  
-The same rule follows until mcq_6.  
+The same rule follows when creating mcq_2 based on the learning_gap of mcq_1 and so on until mcq_6.  
+
+🎯 The purpose of recursive MCQs is to dig deeper to know whether the connected concepts are missing that are taught in Class X, Class IX, Class VIII, and Class VII in NCERT Chemistry book.  
 
 Always generate exactly 6 levels of learning gaps.  
-- Level 1 = exact confusion of the primary MCQ.  
-- Levels 2–6 = progressively deeper, fundamental gaps, each logically explaining the previous one.  
+- Level 1 = exact confusion of the Concept and Explanation  
+- Levels 2–6 = progressively deeper, easier, fundamental gaps, each logically explaining the previous one, based on the concepts discussed in Class X, IX, VIII, and VII in NCERT Chemistry book  
+
+Mention which MCQ it is (mcq_1 … mcq_6) on mcq_key.  
 
 Each MCQ must contain the following keys:  
 - stem  
@@ -43,16 +47,68 @@ Each MCQ must contain the following keys:
 - learning_gap  
 - correct_answer  
 
-🚨 Rules (must follow):  
-- Clear NEET exam standard stem.  
+🚨 Uncompromising MCQ Rules (must follow verbatim):  
+- Clear stem of MCQ of NEET actual exam standard.  
 - 4 balanced options (A–D).  
-- stem must use **bold buzzwords** and *italics*.  
-- correct_answer is single uppercase letter.  
-- feedback.correct: ✅ empathetic, 3–5 live sentences.  
-- feedback.wrong: ❌ empathetic, 3–5 live sentences.  
-- learning_gap: one concise sentence.  
+- Correct answer mapped.  
+- stem: Markdown **bold buzzwords** and *italics*.  
+- correct_answer: single uppercase letter.  
+- feedback.correct: ✅ acknowledgement, praise, high-yield reinforcement, mnemonic/tip; 3–5 empathetic, live sentences.  
+- feedback.wrong: ❌ acknowledgement, why it seems logical, correction, mnemonic/hook; 3–5 empathetic, live sentences.  
+- learning_gap: one concise sentence explaining the misconception and learning gap responsible for the error.  
 
-🎯 TASK: Given the following Concept JSON, generate 6 recursively linked MCQs and return valid JSON array ready to insert into the 'mcq' column.
+👉 Output must be strict JSON in the following format (array of 6 objects):  
+
+[
+  {
+    "stem": "",
+    "mcq_key": "mcq_1",
+    "options": { "A": "", "B": "", "C": "", "D": "" },
+    "correct_answer": "",
+    "feedback": { "correct": "", "wrong": "" },
+    "learning_gap": ""
+  },
+  {
+    "stem": "",
+    "mcq_key": "mcq_2",
+    "options": { "A": "", "B": "", "C": "", "D": "" },
+    "correct_answer": "",
+    "feedback": { "correct": "", "wrong": "" },
+    "learning_gap": ""
+  },
+  {
+    "stem": "",
+    "mcq_key": "mcq_3",
+    "options": { "A": "", "B": "", "C": "", "D": "" },
+    "correct_answer": "",
+    "feedback": { "correct": "", "wrong": "" },
+    "learning_gap": ""
+  },
+  {
+    "stem": "",
+    "mcq_key": "mcq_4",
+    "options": { "A": "", "B": "", "C": "", "D": "" },
+    "correct_answer": "",
+    "feedback": { "correct": "", "wrong": "" },
+    "learning_gap": ""
+  },
+  {
+    "stem": "",
+    "mcq_key": "mcq_5",
+    "options": { "A": "", "B": "", "C": "", "D": "" },
+    "correct_answer": "",
+    "feedback": { "correct": "", "wrong": "" },
+    "learning_gap": ""
+  },
+  {
+    "stem": "",
+    "mcq_key": "mcq_6",
+    "options": { "A": "", "B": "", "C": "", "D": "" },
+    "correct_answer": "",
+    "feedback": { "correct": "", "wrong": "" },
+    "learning_gap": ""
+  }
+]
 
 INPUT Concept JSON:  
 ${raw}

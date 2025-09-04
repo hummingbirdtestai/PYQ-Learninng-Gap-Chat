@@ -5,7 +5,7 @@ const openai = require("../config/openaiClient");
 const { v4: uuidv4 } = require("uuid");
 
 // ---------- Settings ----------
-const MCQ_MODEL        = process.env.MCQ_MODEL || "gpt-5";
+const MCQ_MODEL        = process.env.MCQ_MODEL || "gpt-5-mini"; // use mini model
 const MCQ_LIMIT        = parseInt(process.env.MCQ_LIMIT || "50", 10);
 const MCQ_BLOCK_SIZE   = parseInt(process.env.MCQ_BLOCK_SIZE || "10", 10);
 const MCQ_SLEEP_MS     = parseInt(process.env.MCQ_LOOP_SLEEP_MS || "800", 10);
@@ -17,98 +17,22 @@ function buildPrompt(conceptJson) {
   const raw = JSON.stringify(conceptJson, null, 2);
 
   return `
-You are an Expert NEET Chemistry Teacher. 
-You are given the JSON of Concept and Explanation. 
-Based on this Concept and Explanation, create 6 NEET Chemistry MCQs.  
+You are an Expert NEET Chemistry Teacher.  
+Given a JSON with a Concept and Explanation, identify the most **critical learning gap** that a NEET student may face, and create **one NEET-standard Chemistry MCQ** (mcq_1) targeting that gap.
 
-Create them of NEET Exam standard.  
+Rules:
+- Use the Concept + Explanation as the base.  
+- The MCQ must reveal the most likely confusion or misconception (critical learning gap).  
+- Output strictly in JSON with keys:
+  stem, mcq_key ("mcq_1"), options (A–D), correct_answer, feedback.correct, feedback.wrong, learning_gap.  
 
-The first MCQ, called mcq_1, will be based on the Concept and Explanation.  
-For mcq_1, add a learning_gap on what is the confusing point or underlying conceptual deficit due to which that mcq_1 will be answered wrong by a NEET Chemistry preparing student.  
-
-Next, mcq_2 should be recursively based on the learning_gap of mcq_1.  
-Every MCQ created will be recursively based to detect deeper levels of learning gaps.  
-The same rule follows when creating mcq_2 based on the learning_gap of mcq_1 and so on until mcq_6.  
-
-🎯 The purpose of recursive MCQs is to dig deeper to know whether the connected concepts are missing that are taught in Class X, Class IX, Class VIII, and Class VII in NCERT Chemistry book.  
-
-Always generate exactly 6 levels of learning gaps.  
-- Level 1 = exact confusion of the Concept and Explanation  
-- Levels 2–6 = progressively deeper, easier, fundamental gaps, each logically explaining the previous one, based on the concepts discussed in Class X, IX, VIII, and VII in NCERT Chemistry book  
-
-Mention which MCQ it is (mcq_1 … mcq_6) on mcq_key.  
-
-Each MCQ must contain the following keys:  
-- stem  
-- mcq_key  
-- options  
-- feedback.wrong  
-- feedback.correct  
-- learning_gap  
-- correct_answer  
-
-🚨 Uncompromising MCQ Rules (must follow verbatim):  
-- Clear stem of MCQ of NEET actual exam standard.  
-- 4 balanced options (A–D).  
-- Correct answer mapped.  
-- stem: Markdown **bold buzzwords** and *italics*.  
+Formatting:
+- stem: NEET-level with **bold buzzwords** and *italics*.  
+- options: 4 balanced choices.  
 - correct_answer: single uppercase letter.  
-- feedback.correct: ✅ acknowledgement, praise, high-yield reinforcement, mnemonic/tip; 3–5 empathetic, live sentences.  
-- feedback.wrong: ❌ acknowledgement, why it seems logical, correction, mnemonic/hook; 3–5 empathetic, live sentences.  
-- learning_gap: one concise sentence explaining the misconception and learning gap responsible for the error.  
-
-👉 Output must be strict JSON in the following format (array of 6 objects):  
-
-[
-  {
-    "stem": "",
-    "mcq_key": "mcq_1",
-    "options": { "A": "", "B": "", "C": "", "D": "" },
-    "correct_answer": "",
-    "feedback": { "correct": "", "wrong": "" },
-    "learning_gap": ""
-  },
-  {
-    "stem": "",
-    "mcq_key": "mcq_2",
-    "options": { "A": "", "B": "", "C": "", "D": "" },
-    "correct_answer": "",
-    "feedback": { "correct": "", "wrong": "" },
-    "learning_gap": ""
-  },
-  {
-    "stem": "",
-    "mcq_key": "mcq_3",
-    "options": { "A": "", "B": "", "C": "", "D": "" },
-    "correct_answer": "",
-    "feedback": { "correct": "", "wrong": "" },
-    "learning_gap": ""
-  },
-  {
-    "stem": "",
-    "mcq_key": "mcq_4",
-    "options": { "A": "", "B": "", "C": "", "D": "" },
-    "correct_answer": "",
-    "feedback": { "correct": "", "wrong": "" },
-    "learning_gap": ""
-  },
-  {
-    "stem": "",
-    "mcq_key": "mcq_5",
-    "options": { "A": "", "B": "", "C": "", "D": "" },
-    "correct_answer": "",
-    "feedback": { "correct": "", "wrong": "" },
-    "learning_gap": ""
-  },
-  {
-    "stem": "",
-    "mcq_key": "mcq_6",
-    "options": { "A": "", "B": "", "C": "", "D": "" },
-    "correct_answer": "",
-    "feedback": { "correct": "", "wrong": "" },
-    "learning_gap": ""
-  }
-]
+- feedback.correct: ✅ 3–5 sentences (praise + mnemonic/tip).  
+- feedback.wrong: ❌ 3–5 sentences (explain mistake + correction).  
+- learning_gap: concise description of misconception.  
 
 INPUT Concept JSON:  
 ${raw}
@@ -144,7 +68,9 @@ function safeParseJSON(raw) {
     .trim()
     .replace(/^```json\s*/i, "")
     .replace(/^```/i, "")
-    .replace(/```$/i, "");
+    .replace(/```$/i, "")
+    .replace(/,\s*}/g, "}")
+    .replace(/,\s*]/g, "]");
 
   try {
     return JSON.parse(cleaned);
@@ -158,7 +84,7 @@ function safeParseJSON(raw) {
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - MCQ_LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // free stale locks
+  // free stale locks on rows where mcq IS NULL
   await supabase
     .from("concepts_vertical")
     .update({ mcq_lock: null, mcq_lock_at: null })
@@ -217,15 +143,13 @@ async function processBlock(block) {
       const obj = safeParseJSON(raw);
       console.log(`   ✅ JSON parsed successfully for row ${row.vertical_id}`);
 
-      // attach UUIDs
-      if (Array.isArray(obj)) {
-        obj.forEach(mcq => {
-          if (!mcq.uuid) mcq.uuid = uuidv4();
-        });
-        console.log(`   🆔 Added UUIDs to ${obj.length} MCQs for row ${row.vertical_id}`);
+      // attach UUID if missing
+      if (obj && typeof obj === "object" && !obj.uuid) {
+        obj.uuid = uuidv4();
       }
 
-      updates.push({ id: row.vertical_id, data: { mcq: obj } });
+      // 🔑 Save into mcq_1 column (not mcq)
+      updates.push({ id: row.vertical_id, data: { mcq_1: obj } });
     } catch (e) {
       console.error(`❌ Error processing row ${row.vertical_id}:`, e.message || e);
       await clearLocks([row.vertical_id]);
@@ -233,7 +157,7 @@ async function processBlock(block) {
   }
 
   for (const u of updates) {
-    console.log(`   💾 Writing MCQs back to Supabase for row ${u.id}`);
+    console.log(`   💾 Writing MCQ_1 back to Supabase for row ${u.id}`);
     const { error: upErr } = await supabase
       .from("concepts_vertical")
       .update(u.data)

@@ -96,15 +96,15 @@ async function claimRows(limit) {
 
   const { data: candidates, error: e1 } = await supabase
     .from("concepts_vertical")
-    .select("concept_id, concept_json")
+    .select("vertical_id, concept_json")
     .not("concept_json", "is", null)
     .is("conversation", null)
-    .order("concept_id", { ascending: true })
+    .order("vertical_id", { ascending: true })
     .limit(limit);
   if (e1) throw e1;
   if (!candidates?.length) return [];
 
-  const ids = candidates.map(r => r.concept_id);
+  const ids = candidates.map(r => r.vertical_id);
 
   const { data: locked, error: e2 } = await supabase
     .from("concepts_vertical")
@@ -112,10 +112,10 @@ async function claimRows(limit) {
       conversation_lock: WORKER_ID,
       conversation_lock_at: new Date().toISOString()
     })
-    .in("concept_id", ids)
+    .in("vertical_id", ids)
     .is("conversation", null)
     .is("conversation_lock", null)
-    .select("concept_id, concept_json");
+    .select("vertical_id, concept_json");
   if (e2) throw e2;
 
   return locked || [];
@@ -126,7 +126,7 @@ async function clearLocks(ids) {
   await supabase
     .from("concepts_vertical")
     .update({ conversation_lock: null, conversation_lock_at: null })
-    .in("concept_id", ids);
+    .in("vertical_id", ids);
 }
 
 // ---------- Process one block ----------
@@ -139,13 +139,15 @@ async function processBlock(block) {
       const raw = await callOpenAI([{ role: "user", content: prompt }]);
       const obj = safeParseJSON(raw);
 
-      // enforce uuid if not present
-      if (!obj.uuid) obj.uuid = uuidv4();
+      // enforce uuid
+      if (!obj.uuid) {
+        obj.uuid = row.concept_json?.uuid || uuidv4();
+      }
 
-      updates.push({ id: row.concept_id, data: { conversation: obj } });
+      updates.push({ id: row.vertical_id, data: { conversation: obj } });
     } catch (e) {
-      console.error(`❌ Error processing row ${row.concept_id}:`, e.message || e);
-      await clearLocks([row.concept_id]);
+      console.error(`❌ Error processing row ${row.vertical_id}:`, e.message || e);
+      await clearLocks([row.vertical_id]);
     }
   }
 
@@ -153,11 +155,11 @@ async function processBlock(block) {
     const { error: upErr } = await supabase
       .from("concepts_vertical")
       .update(u.data)
-      .eq("concept_id", u.id);
+      .eq("vertical_id", u.id);
     if (upErr) throw upErr;
   }
 
-  await clearLocks(block.map(r => r.concept_id));
+  await clearLocks(block.map(r => r.vertical_id));
   return { updated: updates.length, total: block.length };
 }
 
@@ -183,7 +185,7 @@ async function processBlock(block) {
           console.log(`   block ${i / CONVERSATION_BLOCK_SIZE + 1}: updated ${r.updated}/${r.total}`);
         } catch (e) {
           console.error("   block error:", e.message || e);
-          await clearLocks(block.map(r => r.concept_id));
+          await clearLocks(block.map(r => r.vertical_id));
         }
       }
 

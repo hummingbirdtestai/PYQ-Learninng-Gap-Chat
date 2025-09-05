@@ -84,18 +84,20 @@ function safeParseJSON(raw) {
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - MCQ_LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // free stale locks on rows where mcq IS NULL
+  // free stale locks on rows where mcq + mcq_1 are NULL
   await supabase
     .from("concepts_vertical")
     .update({ mcq_lock: null, mcq_lock_at: null })
     .is("mcq", null)
+    .is("mcq_1", null)
     .lt("mcq_lock_at", cutoff);
 
   const { data: candidates, error: e1 } = await supabase
     .from("concepts_vertical")
     .select("vertical_id, concept_json")
     .not("concept_json", "is", null)
-    .is("mcq", null)
+    .is("mcq", null)     // only if mcq is null
+    .is("mcq_1", null)   // only if mcq_1 is null
     .order("vertical_id", { ascending: true })
     .limit(limit);
   if (e1) throw e1;
@@ -111,6 +113,7 @@ async function claimRows(limit) {
     })
     .in("vertical_id", ids)
     .is("mcq", null)
+    .is("mcq_1", null)
     .is("mcq_lock", null)
     .select("vertical_id, concept_json");
   if (e2) throw e2;
@@ -148,7 +151,7 @@ async function processBlock(block) {
         obj.uuid = uuidv4();
       }
 
-      // 🔑 Save into mcq_1 column (not mcq)
+      // 🔑 Save into mcq_1 column
       updates.push({ id: row.vertical_id, data: { mcq_1: obj } });
     } catch (e) {
       console.error(`❌ Error processing row ${row.vertical_id}:`, e.message || e);

@@ -27,6 +27,7 @@
     "start:conversation": "node workers/conversationWorker.js",
     "start:mcq": "node workers/mcqWorkerneetugclass11.js",
     "start:mcq2": "node workers/mcq2Workerneetugclass11.js",
+    "start:mcq3to6": "node workers/mcq3to6Worker.js",
 
     "test": "echo \"No tests\" && exit 0"
   },

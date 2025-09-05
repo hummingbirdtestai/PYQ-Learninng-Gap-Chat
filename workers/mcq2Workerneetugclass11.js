@@ -62,7 +62,6 @@ async function callOpenAI(messages, attempt = 1) {
     const resp = await openai.chat.completions.create({
       model: MCQ_MODEL,
       messages,
-      temperature: 0.2
     });
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {

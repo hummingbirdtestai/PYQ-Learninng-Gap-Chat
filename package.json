@@ -29,6 +29,7 @@
     "start:mcq2": "node workers/mcq2Workerneetugclass11.js",
     "start:mcq3to6": "node workers/mcq3to6Worker.js",
     "start:flash": "node workers/flashCardWorker.js",
+    "start:media": "node workers/mediaLibraryWorker.js",
 
     "test": "echo \"No tests\" && exit 0"
   },

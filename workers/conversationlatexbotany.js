@@ -78,18 +78,21 @@ function safeParseObject(raw) {
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // free stale locks
+  // free stale locks (only Botany)
   await supabase
     .from("concepts_vertical")
-    .update({ mcq_lock: null, mcq_lock_at: null })
+    .update({ conversation_lock: null, conversation_lock_at: null })
     .is("conversation_latex", null)
-    .lt("mcq_lock_at", cutoff);
+    .eq("subject_name", "Botany")
+    .lt("conversation_lock_at", cutoff);
 
+  // fetch candidate rows
   const { data: candidates, error: e1 } = await supabase
     .from("concepts_vertical")
     .select("vertical_id, concept_json")
     .is("conversation_latex", null)
-    .is("mcq_lock", null)
+    .is("conversation_lock", null)
+    .eq("subject_name", "Botany")
     .order("vertical_id", { ascending: true })
     .limit(limit);
 
@@ -98,15 +101,17 @@ async function claimRows(limit) {
 
   const ids = candidates.map(r => r.vertical_id);
 
+  // claim locks
   const { data: locked, error: e2 } = await supabase
     .from("concepts_vertical")
     .update({
-      mcq_lock: WORKER_ID,
-      mcq_lock_at: new Date().toISOString()
+      conversation_lock: WORKER_ID,
+      conversation_lock_at: new Date().toISOString()
     })
     .in("vertical_id", ids)
     .is("conversation_latex", null)
-    .is("mcq_lock", null)
+    .is("conversation_lock", null)
+    .eq("subject_name", "Botany")
     .select("vertical_id, concept_json");
 
   if (e2) throw e2;
@@ -117,7 +122,7 @@ async function clearLocks(ids) {
   if (!ids.length) return;
   await supabase
     .from("concepts_vertical")
-    .update({ mcq_lock: null, mcq_lock_at: null })
+    .update({ conversation_lock: null, conversation_lock_at: null })
     .in("vertical_id", ids);
 }
 

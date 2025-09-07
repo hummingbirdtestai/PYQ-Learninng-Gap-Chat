@@ -1,4 +1,4 @@
-// workers/flashCardWorker.js
+// workers/flashCardWorkerBotany.js
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
@@ -19,7 +19,7 @@ function buildPrompt(conceptJson) {
   return `
 You are a 40-year experienced NEET Botany teacher.  
 
-From the Concept + Explanation below, create **10 unique high-yield NEET flashcards** for **active recall & spaced repetition**.  
+From the Concept JSON below, create **10 unique high-yield NEET flashcards** for **active recall & spaced repetition**.  
 
 Rules:  
 - Output = JSON array of 10 objects → { "Question": "", "Answer": "" }  
@@ -89,11 +89,11 @@ async function claimRows(limit) {
     .eq("subject_name", "Botany")
     .lt("mcq_lock_at", cutoff);
 
-  // fetch candidates (only Botany)
+  // fetch candidates (only Botany, from concept_json)
   const { data: candidates, error: e1 } = await supabase
     .from("concepts_vertical")
-    .select("vertical_id, concept_exp")
-    .not("concept_exp", "is", null)
+    .select("vertical_id, concept_json")
+    .not("concept_json", "is", null)
     .is("flash_cards", null)
     .is("mcq_lock", null)
     .eq("subject_name", "Botany")
@@ -116,7 +116,7 @@ async function claimRows(limit) {
     .is("flash_cards", null)
     .is("mcq_lock", null)
     .eq("subject_name", "Botany")
-    .select("vertical_id, concept_exp");
+    .select("vertical_id, concept_json");
 
   if (e2) throw e2;
   return locked || [];
@@ -132,7 +132,7 @@ async function clearLocks(ids) {
 
 // ---------- Process one row ----------
 async function processRow(row) {
-  const prompt = buildPrompt(row.concept_exp);
+  const prompt = buildPrompt(row.concept_json);
   const raw = await callOpenAI([{ role: "user", content: prompt }]);
   const cards = safeParseArray(raw);
 
@@ -152,7 +152,7 @@ async function processRow(row) {
 
 // ---------- Main Loop ----------
 (async function main() {
-  console.log(`🧵 FlashCard Worker (Botany) ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
+  console.log(`🧵 FlashCard Worker (Botany, from concept_json) ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
 
   while (true) {
     try {

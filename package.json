@@ -32,6 +32,7 @@
     "start:media": "node workers/mediaLibraryWorker.js",
     "start:allconceptjson": "node workers/allConceptsJsonWorker.js",
     "start:conceptLatexWorker": "node workers/conceptLatexWorker.js",
+    "start:conversationlatexbotany": "node workers/conversationlatexbotany.js",
 
     "test": "echo \"No tests\" && exit 0"
   },

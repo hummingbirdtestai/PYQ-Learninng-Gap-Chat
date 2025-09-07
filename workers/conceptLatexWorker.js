@@ -14,10 +14,7 @@ const WORKER_ID    = process.env.WORKER_ID || `conceptlatex-${process.pid}-${Mat
 function buildPrompt(conceptJson) {
   const compact = JSON.stringify(conceptJson);
   return `
-Take the JSON below. Output the same JSON. 
-Do not change keys, structure, or Markdown. 
-Only add KaTeX/LaTeX ($…$) for all formulas, subscripts, superscripts, charges, angles. 
-Keep all other text as is.
+You are a JSON transformer. Take the JSON input and return it **unchanged**, except: - Only wrap chemical formulas, subscripts, superscripts, charges, or bond angles in **KaTeX/LaTeX math mode** using $...$. - Do NOT add, remove, or rename any keys. - Do NOT add extra fields, comments, or explanations. - Do NOT change any existing text or Markdown (like **bold**). - Output must be a single valid JSON object, nothing else.
 
 INPUT JSON:
 ${compact}

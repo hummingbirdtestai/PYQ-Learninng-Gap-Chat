@@ -31,7 +31,7 @@
     "start:flash": "node workers/flashCardWorker.js",
     "start:media": "node workers/mediaLibraryWorker.js",
     "start:allconceptjson": "node workers/allConceptsJsonWorker.js",
-    "start:allconceptjson": "node workers/conceptLatexWorker.js",
+    "start:conceptLatexWorker": "node workers/conceptLatexWorker.js",
 
     "test": "echo \"No tests\" && exit 0"
   },

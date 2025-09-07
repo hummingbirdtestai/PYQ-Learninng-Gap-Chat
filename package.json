@@ -33,6 +33,7 @@
     "start:allconceptjson": "node workers/allConceptsJsonWorker.js",
     "start:conceptLatexWorker": "node workers/conceptLatexWorker.js",
     "start:conversationlatexbotany": "node workers/conversationlatexbotany.js",
+    "start:flashbotany": "node workers/flashCardWorkerBotany.js",
 
     "test": "echo \"No tests\" && exit 0"
   },

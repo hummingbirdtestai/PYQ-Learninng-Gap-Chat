@@ -84,10 +84,10 @@ async function claimRows(limit) {
   // free stale locks (only Botany)
   await supabase
     .from("concepts_vertical")
-    .update({ flash_card_lock: null, flash_card_lock_at: null })
+    .update({ mcq_lock: null, mcq_lock_at: null })
     .is("flash_cards", null)
     .eq("subject_name", "Botany")
-    .lt("flash_card_lock_at", cutoff);
+    .lt("mcq_lock_at", cutoff);
 
   // fetch candidates (only Botany)
   const { data: candidates, error: e1 } = await supabase
@@ -95,7 +95,7 @@ async function claimRows(limit) {
     .select("vertical_id, concept_exp")
     .not("concept_exp", "is", null)
     .is("flash_cards", null)
-    .is("flash_card_lock", null)
+    .is("mcq_lock", null)
     .eq("subject_name", "Botany")
     .order("vertical_id", { ascending: true })
     .limit(limit);
@@ -109,12 +109,12 @@ async function claimRows(limit) {
   const { data: locked, error: e2 } = await supabase
     .from("concepts_vertical")
     .update({
-      flash_card_lock: WORKER_ID,
-      flash_card_lock_at: new Date().toISOString()
+      mcq_lock: WORKER_ID,
+      mcq_lock_at: new Date().toISOString()
     })
     .in("vertical_id", ids)
     .is("flash_cards", null)
-    .is("flash_card_lock", null)
+    .is("mcq_lock", null)
     .eq("subject_name", "Botany")
     .select("vertical_id, concept_exp");
 
@@ -126,7 +126,7 @@ async function clearLocks(ids) {
   if (!ids.length) return;
   await supabase
     .from("concepts_vertical")
-    .update({ flash_card_lock: null, flash_card_lock_at: null })
+    .update({ mcq_lock: null, mcq_lock_at: null })
     .in("vertical_id", ids);
 }
 

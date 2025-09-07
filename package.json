@@ -30,6 +30,7 @@
     "start:mcq3to6": "node workers/mcq3to6Worker.js",
     "start:flash": "node workers/flashCardWorker.js",
     "start:media": "node workers/mediaLibraryWorker.js",
+    "start:allconceptjson": "node workers/allConceptsJsonWorker.js",
 
     "test": "echo \"No tests\" && exit 0"
   },

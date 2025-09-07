@@ -1,14 +1,13 @@
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
-const { v4: uuidv4 } = require("uuid");
 
 // ---------- Settings ----------
-const MODEL        = process.env.CONCEPT_MODEL || "gpt-5-mini";
-const LIMIT        = parseInt(process.env.CONCEPT_LIMIT || "50", 10);
-const BATCH_SIZE   = parseInt(process.env.CONCEPT_BATCH_SIZE || "10", 10);
-const SLEEP_MS     = parseInt(process.env.CONCEPT_LOOP_SLEEP_MS || "500", 10);
-const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
+const MODEL        = process.env.CONCEPT_LATEX_MODEL || "gpt-5-mini";
+const LIMIT        = parseInt(process.env.CONCEPT_LATEX_LIMIT || "50", 10);
+const BATCH_SIZE   = parseInt(process.env.CONCEPT_LATEX_BATCH_SIZE || "10", 10);
+const SLEEP_MS     = parseInt(process.env.CONCEPT_LATEX_LOOP_SLEEP_MS || "500", 10);
+const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LATEX_LOCK_TTL_MIN || "15", 10);
 const WORKER_ID    = process.env.WORKER_ID || `conceptlatex-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // ---------- Prompt Builder ----------
@@ -119,12 +118,17 @@ async function processRow(row) {
   const raw = await callOpenAI([{ role: "user", content: prompt }]);
   const parsed = safeParseObject(raw);
 
-  const final = { uuid: uuidv4(), data: parsed };
-
-  await supabase
+  // ✅ Directly save parsed JSON into concept_latex_json
+  const { error } = await supabase
     .from("concepts_vertical")
-    .update({ concept_latex_json: final })
+    .update({ concept_latex_json: parsed })
     .eq("vertical_id", row.vertical_id);
+
+  if (error) {
+    console.error(`❌ Update error for vertical_id=${row.vertical_id}:`, error.message);
+    await clearLocks([row.vertical_id]);
+    return { updated: 0, total: 1 };
+  }
 
   await clearLocks([row.vertical_id]);
   return { updated: 1, total: 1 };

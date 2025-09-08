@@ -15,12 +15,9 @@ const WORKER_ID    = process.env.WORKER_ID || `unicode-concept-${process.pid}-${
 // ---------- Prompt ----------
 function buildPrompt(conceptJson) {
   const compact = JSON.stringify(conceptJson);
-  return [
-    { role: "system", content:
-`You are a JSON fixer.
-Return ONLY valid JSON (no code fences).` },
-    { role: "user", content:
-`Input = JSON (from DB column).
+  return `
+You are a JSON fixer.
+Input = JSON (from DB column).
 
 Rules:
 1) Keep keys, structure, order, Markdown, emojis exactly.
@@ -30,8 +27,8 @@ Rules:
 4) Do NOT add/remove keys or any extra text.
 5) Output only valid JSON.
 
-${compact}` }
-  ];
+${compact}
+`.trim();
 }
 
 // ---------- Helpers ----------
@@ -41,41 +38,29 @@ function isRetryable(e) {
   return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(s);
 }
 
-async function callOpenAI(messages, attempt = 1) {
+async function callOpenAI(prompt, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
-      temperature: 0,
-      max_tokens: 2048,
-      response_format: { type: "json_object" }, // enforce JSON output
-      messages
+      response_format: { type: "json_object" }, // enforce JSON
+      messages: [{ role: "user", content: prompt }]
     });
-    return resp.choices?.[0]?.message?.content ?? "";
+    return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
     if (isRetryable(e) && attempt <= 3) {
       await sleep(400 * attempt);
-      return callOpenAI(messages, attempt + 1);
+      return callOpenAI(prompt, attempt + 1);
     }
     throw e;
   }
 }
 
-function toJsonObjectOrThrow(raw, ctx = "") {
+function safeParseJson(raw) {
   const cleaned = raw.trim()
     .replace(/^```json\s*/i, "")
     .replace(/^```/i, "")
     .replace(/```$/i, "");
-
-  try {
-    const obj = JSON.parse(cleaned);
-    if (obj == null || typeof obj !== "object" || Array.isArray(obj)) {
-      throw new Error(`Non-object JSON for ${ctx}`);
-    }
-    return obj;
-  } catch (e) {
-    const preview = cleaned.slice(0, 300);
-    throw new Error(`Invalid JSON for ${ctx}. Preview: ${preview}`);
-  }
+  return JSON.parse(cleaned);
 }
 
 // ---------- Locking ----------
@@ -88,14 +73,12 @@ async function freeStaleLocks() {
     .lt("conversation_lock_at", cutoff);
 
   if (SUBJECT_FILTER) q = q.eq("subject_name", SUBJECT_FILTER);
-  const { error } = await q;
-  if (error) throw error;
+  await q;
 }
 
 async function claimRows(limit) {
   await freeStaleLocks();
 
-  // Fetch candidates: concept_json present, concept_json_unicode missing, unlocked
   let q = supabase
     .from("concepts_vertical")
     .select("vertical_id, concept_json")
@@ -107,12 +90,11 @@ async function claimRows(limit) {
 
   if (SUBJECT_FILTER) q = q.eq("subject_name", SUBJECT_FILTER);
 
-  const { data: candidates, error: e1 } = await q;
-  if (e1) throw e1;
+  const { data: candidates, error } = await q;
+  if (error) throw error;
   if (!candidates?.length) return [];
 
   const ids = candidates.map(r => r.vertical_id);
-
   const { data: locked, error: e2 } = await supabase
     .from("concepts_vertical")
     .update({
@@ -138,9 +120,9 @@ async function clearLocks(ids) {
 
 // ---------- Process ----------
 async function processRow(row) {
-  const messages = buildPrompt(row.concept_json);
-  const raw = await callOpenAI(messages);
-  const jsonOut = toJsonObjectOrThrow(raw, `vertical_id=${row.vertical_id}`);
+  const prompt = buildPrompt(row.concept_json);
+  const raw = await callOpenAI(prompt);
+  const jsonOut = safeParseJson(raw);
 
   if (JSON.stringify(jsonOut).includes("$")) {
     throw new Error(`Output still contains '$' for vertical_id=${row.vertical_id}`);
@@ -156,33 +138,10 @@ async function processRow(row) {
     .eq("vertical_id", row.vertical_id);
 
   if (upErr) {
-    const preview = JSON.stringify(jsonOut).slice(0, 300);
+    const preview = JSON.stringify(jsonOut).slice(0, 200);
     throw new Error(`Update failed for vertical_id=${row.vertical_id}: ${upErr.message}. Preview: ${preview}`);
   }
-
   return { updated: 1, total: 1 };
-}
-
-async function processBatch(rows) {
-  const chunks = [];
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    chunks.push(rows.slice(i, i + BATCH_SIZE));
-  }
-
-  let updated = 0;
-  for (const chunk of chunks) {
-    const results = await Promise.allSettled(chunk.map(processRow));
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i];
-      if (r.status === "fulfilled") {
-        updated += r.value.updated;
-      } else {
-        console.error("Row error:", r.reason?.message || r.reason);
-        await clearLocks([chunk[i].vertical_id]);
-      }
-    }
-  }
-  return updated;
 }
 
 // ---------- Main ----------
@@ -196,7 +155,15 @@ async function processBatch(rows) {
         continue;
       }
       console.log(`⚙️ claimed=${claimed.length}`);
-      const updated = await processBatch(claimed);
+      const results = await Promise.allSettled(claimed.map(processRow));
+      let updated = 0;
+      results.forEach((r, idx) => {
+        if (r.status === "fulfilled") updated += r.value.updated;
+        else {
+          console.error(`   row ${idx + 1} error:`, r.reason?.message || r.reason);
+          clearLocks([claimed[idx].vertical_id]);
+        }
+      });
       console.log(`✅ loop updated=${updated} of ${claimed.length}`);
     } catch (e) {
       console.error("Loop error:", e.message || e);

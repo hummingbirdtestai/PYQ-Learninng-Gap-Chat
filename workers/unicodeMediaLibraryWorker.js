@@ -42,7 +42,15 @@ async function callOpenAI(prompt, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
-      response_format: { type: "json_object" }, // enforce JSON
+      max_completion_tokens: 1500,   // ✅ instead of unlimited
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "flashcards_array",
+          schema: { type: "array", items: { type: "object" } },
+          strict: true
+        }
+      },
       messages: [{ role: "user", content: prompt }]
     });
     return resp.choices?.[0]?.message?.content || "";

@@ -35,6 +35,7 @@
     "start:conversationlatexbotany": "node workers/conversationlatexbotany.js",
     "start:flashbotany": "node workers/flashCardWorkerBotany.js",
     "start:mediabotany": "node workers/mediaLibraryWorkerbotany.js",
+    "start:uniconcept": "node workers/unicodeConceptWorker.js",
 
     "test": "echo \"No tests\" && exit 0"
   },

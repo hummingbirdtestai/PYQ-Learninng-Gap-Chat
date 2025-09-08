@@ -25,7 +25,7 @@ Rules:
    Ex: H2O -> H₂O, Fe3+ -> Fe³⁺, SO4^2− -> SO₄²⁻, Na+ -> Na⁺, O2− -> O₂⁻, 104.5^\\circ -> 104.5°.
 3) Do NOT leave any $...$ fragments.
 4) Do NOT add/remove keys or any extra text.
-5) Output only valid JSON.
+5) Output only valid JSON (array if input is array).
 
 ${compact}
 `.trim();
@@ -144,6 +144,29 @@ async function processRow(row) {
   return { updated: 1, total: 1 };
 }
 
+// ---------- Batch ----------
+async function processBatch(rows) {
+  const chunks = [];
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    chunks.push(rows.slice(i, i + BATCH_SIZE));
+  }
+
+  let updated = 0;
+  for (const chunk of chunks) {
+    const results = await Promise.allSettled(chunk.map(processRow));
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === "fulfilled") {
+        updated += r.value.updated;
+      } else {
+        console.error(`   row ${i + 1} error:`, r.reason?.message || r.reason);
+        await clearLocks([chunk[i].vertical_id]);
+      }
+    }
+  }
+  return updated;
+}
+
 // ---------- Main ----------
 (async function main() {
   console.log(`🧵 Unicode FlashCards Worker ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
@@ -155,15 +178,7 @@ async function processRow(row) {
         continue;
       }
       console.log(`⚙️ claimed=${claimed.length}`);
-      const results = await Promise.allSettled(claimed.map(processRow));
-      let updated = 0;
-      results.forEach((r, idx) => {
-        if (r.status === "fulfilled") updated += r.value.updated;
-        else {
-          console.error(`   row ${idx + 1} error:`, r.reason?.message || r.reason);
-          clearLocks([claimed[idx].vertical_id]);
-        }
-      });
+      const updated = await processBatch(claimed);
       console.log(`✅ loop updated=${updated} of ${claimed.length}`);
     } catch (e) {
       console.error("Loop error:", e.message || e);

@@ -38,7 +38,7 @@
     "start:uniconcept": "node workers/unicodeConceptWorker.js",
     "start:unimedia": "node workers/unicodeMediaLibraryWorker.js",
     "start:uniflash": "node workers/unicodeFlashCardsWorker.js",
-    "start:uniconceptjson": "node workers/conceptJsonWorker.js",
+    "start:mcqbankconceptjson": "node workers/conceptJsonWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

@@ -40,6 +40,7 @@
     "start:uniflash": "node workers/unicodeFlashCardsWorker.js",
     "start:mcqbankconceptjson": "node workers/conceptJsonWorker.js",
     "start:mcq_1_6_unicode": "node workers/unicodeMcqWorker.js",
+    "start:zoologymediaunicode": "node workers/unicodeZoologyMediaLibraryWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

@@ -14,21 +14,17 @@ const WORKER_ID    = process.env.WORKER_ID || `unicode-mcq-${process.pid}-${Math
 
 // ---------- Prompt ----------
 function buildPrompt(mcqJson) {
-  const compact = JSON.stringify(mcqJson);
   return `
-You are a JSON fixer.
-Input = JSON (from DB column).
-
-Rules:
-1) Keep keys, structure, order, Markdown, emojis exactly.
-2) Replace all KaTeX/LaTeX ($…$) with Unicode subscripts/superscripts.
-   Ex: H2O -> H₂O, Fe3+ -> Fe³⁺, SO4^2− -> SO₄²⁻, Na+ -> Na⁺, O2− -> O₂⁻, 104.5^\\circ -> 104.5°.
-3) Do NOT leave any $...$ fragments.
-4) Do NOT add/remove keys or any extra text.
-5) Output only valid JSON (array if input is array).
-
-${compact}
-`.trim();
+  Fix JSON by replacing all LaTeX ($…$) with Unicode subscripts/superscripts.
+  Rules:
+  - Keep keys, order, Markdown, emojis exactly.
+  - Replace: H2O→H₂O, Fe3+→Fe³⁺, SO4^2−→SO₄²⁻, Na+→Na⁺, O2−→O₂⁻, ^\\circ→°.
+  - Do not add/remove keys.
+  - Output only valid JSON.
+  
+  Input:
+  ${JSON.stringify(mcqJson)}
+  `.trim();
 }
 
 // ---------- Helpers ----------

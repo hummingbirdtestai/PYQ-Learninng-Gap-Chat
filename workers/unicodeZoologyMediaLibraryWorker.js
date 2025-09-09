@@ -17,10 +17,11 @@ function buildPrompt(conceptJson) {
   const compact = JSON.stringify(conceptJson);
   return `
 You are a 40-year experienced NEET Zoology teacher. 
-From the Concept JSON below, create **3 Google Image searches** and **3 YouTube video searches**, each with a short description. 
+From the Concept JSON below, create **3 Google Image searches** and **3 YouTube video searches**, each with a short description.
 
-Rules: 
-- Output JSON only → { "ImageSearches": [...], "YouTubeSearches": [...] } 
+Rules:
+- Output JSON only → { "uuid": "...", "ImageSearches": [...], "YouTubeSearches": [...] } 
+- Use the same **uuid** provided in the input.
 - Each item → { "Search": "", "Description": "" } 
 - Use **Markdown** for emphasis of *bold*, *italic* and **Unicode** for formulas, subscripts, superscripts, bond angles. 
 - Each search must cover a **unique high-yield aspect** (no repetition).
@@ -41,9 +42,48 @@ async function callOpenAI(prompt, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
-      max_completion_tokens: 1200,
+      max_completion_tokens: 1500,
       messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json" }
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "media_library",
+          schema: {
+            type: "object",
+            properties: {
+              uuid: { type: "string" },
+              ImageSearches: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    Search: { type: "string" },
+                    Description: { type: "string" }
+                  },
+                  required: ["Search", "Description"]
+                },
+                minItems: 3,
+                maxItems: 3
+              },
+              YouTubeSearches: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    Search: { type: "string" },
+                    Description: { type: "string" }
+                  },
+                  required: ["Search", "Description"]
+                },
+                minItems: 3,
+                maxItems: 3
+              }
+            },
+            required: ["uuid", "ImageSearches", "YouTubeSearches"]
+          },
+          strict: true
+        }
+      }
     });
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {

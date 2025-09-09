@@ -5,7 +5,7 @@ const openai = require("../config/openaiClient");
 const { v4: uuidv4 } = require("uuid");
 
 // ---------- Settings ----------
-const CONVERSATION_MODEL        = process.env.CONVERSATION_MODEL || "gpt-5";
+const CONVERSATION_MODEL        = process.env.CONVERSATION_MODEL || "gpt-5-mini";
 const CONVERSATION_LIMIT        = parseInt(process.env.CONVERSATION_LIMIT || "50", 10);
 const CONVERSATION_BLOCK_SIZE   = parseInt(process.env.CONVERSATION_BLOCK_SIZE || "10", 10);
 const CONVERSATION_SLEEP_MS     = parseInt(process.env.CONVERSATION_LOOP_SLEEP_MS || "800", 10);

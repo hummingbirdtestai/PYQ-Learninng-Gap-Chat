@@ -60,7 +60,8 @@ async function callOpenAI(prompt, attempt = 1) {
                     Search: { type: "string" },
                     Description: { type: "string" }
                   },
-                  required: ["Search", "Description"]
+                  required: ["Search", "Description"],
+                  additionalProperties: false
                 },
                 minItems: 3,
                 maxItems: 3
@@ -73,13 +74,15 @@ async function callOpenAI(prompt, attempt = 1) {
                     Search: { type: "string" },
                     Description: { type: "string" }
                   },
-                  required: ["Search", "Description"]
+                  required: ["Search", "Description"],
+                  additionalProperties: false
                 },
                 minItems: 3,
                 maxItems: 3
               }
             },
-            required: ["uuid", "ImageSearches", "YouTubeSearches"]
+            required: ["uuid", "ImageSearches", "YouTubeSearches"],
+            additionalProperties: false   // ✅ must be false at root level
           },
           strict: true
         }

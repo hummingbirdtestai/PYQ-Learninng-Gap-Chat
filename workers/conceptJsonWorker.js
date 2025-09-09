@@ -16,6 +16,7 @@ const WORKER_ID    = process.env.WORKER_ID || `concept-json-${process.pid}-${Mat
 function buildPrompt(mcqText) {
   return `
 You are a senior NEETPG mentor (30+ yrs, mastery of UWorld/FirstAid/Amboss/Marrow).
+
 Input: Single MCQ.
 
 Task: Output only strict JSON in format:
@@ -23,13 +24,13 @@ Task: Output only strict JSON in format:
 
 Rules:
 - Be *very specific* and exam-oriented.
-- Use markup *bold/italic* for key words in concept and Explanation.
-- Use proper Unicode for subscripts/superscripts (H₂O, Na⁺, Ca²⁺).
+- Use markup *bold/italic* for key words in Concept and Explanation.
+- Use Unicode for subscripts/superscripts (H₂O, Na⁺, Ca²⁺).
 - In "Explanation":
-  • Define the core concept clearly.
-  • Add 5–6 High-Yield Facts repeatedly tested in NEETPG/INICET/FMGE (specific to the concept).
-- Do NOT explicitly state the “correct option/answer”.
-- Output must be *only JSON*, no extra notes or text.
+  • First, give a 1–2 line **definition** of the core concept.  
+  • Then add **exactly 5 High-Yield Facts**, each in one short line (NEETPG/INICET/FMGE relevant).  
+- Do NOT explain options or state the correct answer.  
+- Output must be only valid JSON (no code fences, no extra text).
 
 MCQ:
 ${mcqText}

@@ -4,7 +4,7 @@ const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
 
 // ---------- Settings ----------
-const CONCEPT_MODEL        = process.env.CONCEPT_MODEL || "gpt-5";
+const CONCEPT_MODEL        = process.env.CONCEPT_MODEL || "gpt-5-mini";
 const CONCEPT_LIMIT        = parseInt(process.env.CONCEPT_LIMIT || "100", 10);
 const CONCEPT_BLOCK_SIZE   = parseInt(process.env.CONCEPT_BLOCK_SIZE || "20", 10);
 const CONCEPT_SLEEP_MS     = parseInt(process.env.CONCEPT_LOOP_SLEEP_MS || "800", 10);

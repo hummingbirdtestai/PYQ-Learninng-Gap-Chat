@@ -116,31 +116,49 @@ async function clearLocks(ids) {
 
 // ---------- Process ----------
 async function processRow(row) {
-  const prompt = buildPrompt(row.conversation_unicode);
-  console.log(`🚦 Processing vertical_id=${row.vertical_id}, prompt length=${prompt.length} chars`);
-
-  const raw = await callOpenAI(prompt);
-
-  if (!raw) {
-    console.error(`⚠️ Empty response for vertical_id=${row.vertical_id}`);
+  const original = row.conversation_unicode;
+  if (!original?.HYFs) {
+    console.error(`⚠️ Skipping vertical_id=${row.vertical_id} (no HYFs)`);
     return { updated: 0, total: 1 };
   }
 
-  const jsonOut = safeParseJson(raw, row.vertical_id);
+  let fixedHYFs = [];
+  for (let i = 0; i < original.HYFs.length; i++) {
+    const hyf = original.HYFs[i];
+    const prompt = buildPrompt({ HYFs: [hyf] });
+    console.log(`   → HYF ${i+1}/${original.HYFs.length}, length=${prompt.length}`);
+    const raw = await callOpenAI(prompt);
+
+    if (!raw) {
+      console.error(`⚠️ Empty response for vertical_id=${row.vertical_id}, HYF=${i+1}`);
+      fixedHYFs.push(hyf); // fallback
+      continue;
+    }
+
+    try {
+      const parsed = safeParseJson(raw, row.vertical_id);
+      if (parsed?.HYFs?.[0]) {
+        fixedHYFs.push(parsed.HYFs[0]);
+      } else {
+        fixedHYFs.push(hyf); // fallback
+      }
+    } catch (e) {
+      fixedHYFs.push(hyf); // fallback on parse error
+    }
+  }
+
+  const fixedJson = { HYFs: fixedHYFs };
 
   const { error: upErr } = await supabase
     .from("concepts_vertical")
     .update({
-      correct_jsons: jsonOut,
+      correct_jsons: fixedJson,
       conversation_lock: null,
       conversation_lock_at: null
     })
     .eq("vertical_id", row.vertical_id);
 
-  if (upErr) {
-    const preview = JSON.stringify(jsonOut).slice(0, 200);
-    throw new Error(`Update failed for vertical_id=${row.vertical_id}: ${upErr.message}. Preview: ${preview}`);
-  }
+  if (upErr) throw new Error(`Update failed for vertical_id=${row.vertical_id}: ${upErr.message}`);
   return { updated: 1, total: 1 };
 }
 

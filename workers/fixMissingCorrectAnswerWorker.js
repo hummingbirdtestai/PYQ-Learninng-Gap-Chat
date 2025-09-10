@@ -54,11 +54,11 @@ async function callOpenAI(prompt, attempt = 1) {
   }
 }
 
-function safeParseJson(raw) {
+function safeParseJson(raw, verticalId) {
   try {
     return JSON.parse(raw);
   } catch (e) {
-    console.error("❌ JSON parse failed. Raw output:", raw.slice(0, 300));
+    console.error(`❌ JSON parse failed for vertical_id=${verticalId}. Raw output:`, raw.slice(0, 300));
     throw e;
   }
 }
@@ -117,8 +117,16 @@ async function clearLocks(ids) {
 // ---------- Process ----------
 async function processRow(row) {
   const prompt = buildPrompt(row.conversation_unicode);
+  console.log(`🚦 Processing vertical_id=${row.vertical_id}, prompt length=${prompt.length} chars`);
+
   const raw = await callOpenAI(prompt);
-  const jsonOut = safeParseJson(raw);
+
+  if (!raw) {
+    console.error(`⚠️ Empty response for vertical_id=${row.vertical_id}`);
+    return { updated: 0, total: 1 };
+  }
+
+  const jsonOut = safeParseJson(raw, row.vertical_id);
 
   const { error: upErr } = await supabase
     .from("concepts_vertical")

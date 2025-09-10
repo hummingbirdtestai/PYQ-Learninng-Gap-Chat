@@ -42,6 +42,7 @@ async function callOpenAI(prompt, attempt = 1) {
       model: MODEL,
       max_completion_tokens: 2000,
       messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" }   // ✅ guarantee valid JSON
     });
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
@@ -54,11 +55,12 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 function safeParseJson(raw) {
-  const cleaned = raw.trim()
-    .replace(/^```json\s*/i, "")
-    .replace(/^```/i, "")
-    .replace(/```$/i, "");
-  return JSON.parse(cleaned);
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error("❌ JSON parse failed. Raw output:", raw.slice(0, 300));
+    throw e;
+  }
 }
 
 // ---------- Locking ----------

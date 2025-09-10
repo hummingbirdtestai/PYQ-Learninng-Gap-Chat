@@ -44,6 +44,7 @@
     "start:updatedconversation": "node workers/updatedConversationUnicodeWorker.js",
     "start:updatedconversationzoology": "node workers/zoologyUnicodeWorkerConversation.js",
     "start:updatedconversationbotony": "node workers/botanyUnicodeWorkerConversation.js",
+    "start:zoologyflashcard": "node workers/zoologyUnicodeWorkerFlashCard.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

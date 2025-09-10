@@ -1,5 +1,6 @@
-import fetch from "node-fetch";
-import { createClient } from "@supabase/supabase-js";
+// services/openaiUsageService.js
+//const fetch = require("node-fetch");
+const { createClient } = require("@supabase/supabase-js");
 
 // --- ENV Vars ---
 const API_KEY = process.env.OPENAI_API_KEY; // org-level key
@@ -9,7 +10,7 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // --- Init Supabase ---
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// --- Pricing Table (adjust if you use more models) ---
+// --- Pricing Table ---
 const PRICING = {
   "gpt-4o-mini": { prompt: 0.00015, completion: 0.0006 },
   "gpt-4o": { prompt: 0.0025, completion: 0.01 },
@@ -27,7 +28,7 @@ function calculateCost(record) {
   );
 }
 
-export async function refreshUsage({ startDate, endDate }) {
+async function refreshUsage({ startDate, endDate }) {
   const url = `https://api.openai.com/v1/organization/usage?start_date=${startDate}&end_date=${endDate}`;
 
   const res = await fetch(url, {
@@ -63,7 +64,7 @@ export async function refreshUsage({ startDate, endDate }) {
   return rows;
 }
 
-export async function getLatestCost(apiKeyId) {
+async function getLatestCost(apiKeyId) {
   const { data, error } = await supabase
     .from("openai_usage")
     .select("cost")
@@ -74,3 +75,5 @@ export async function getLatestCost(apiKeyId) {
   if (error) throw error;
   return data.length ? data[0].cost : 0;
 }
+
+module.exports = { refreshUsage, getLatestCost };

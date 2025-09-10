@@ -4,13 +4,13 @@ const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
 
 // ---------- Settings ----------
-const MODEL        = process.env.CONV_UNICODE_MODEL || "gpt-5-mini";
-const LIMIT        = parseInt(process.env.CONV_UNICODE_LIMIT || "100", 10);
-const BATCH_SIZE   = parseInt(process.env.CONV_UNICODE_BATCH_SIZE || "5", 10);
-const SLEEP_MS     = parseInt(process.env.CONV_UNICODE_LOOP_SLEEP_MS || "500", 10);
-const LOCK_TTL_MIN = parseInt(process.env.CONV_UNICODE_LOCK_TTL_MIN || "15", 10);
-const SUBJECT_FILTER = process.env.CONV_UNICODE_SUBJECT || null;
-const WORKER_ID    = process.env.WORKER_ID || `updated-conv-unicode-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+const MODEL        = process.env.CHEM_CONVERSATION_UNICODE_MODEL || "gpt-5-mini";
+const LIMIT        = parseInt(process.env.CHEM_CONVERSATION_UNICODE_LIMIT || "100", 10);
+const BATCH_SIZE   = parseInt(process.env.CHEM_CONVERSATION_UNICODE_BATCH_SIZE || "5", 10);
+const SLEEP_MS     = parseInt(process.env.CHEM_CONVERSATION_UNICODE_LOOP_SLEEP_MS || "500", 10);
+const LOCK_TTL_MIN = parseInt(process.env.CHEM_CONVERSATION_UNICODE_LOCK_TTL_MIN || "15", 10);
+const SUBJECT_FILTER = "Chemistry"; // 🔒 Hard-locked to Chemistry
+const WORKER_ID    = process.env.WORKER_ID || `chem-conv-unicode-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // ---------- Prompt ----------
 function buildMessages(conceptJson) {
@@ -19,7 +19,7 @@ function buildMessages(conceptJson) {
     {
       role: "system",
       content: `
-You are a senior NEET Zoology teacher with 30+ yrs experience.
+You are a senior NEET Chemistry teacher with 30+ yrs experience.
 Always return **strict JSON only** with this schema:
 
 {
@@ -89,28 +89,26 @@ function safeParseJson(raw) {
 // ---------- Locking ----------
 async function freeStaleLocks() {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
-  let q = supabase
+  await supabase
     .from("concepts_vertical")
     .update({ conversation_unicode_lock: null, conversation_unicode_lock_at: null })
     .is("conversation_unicode", null)
-    .lt("conversation_unicode_lock_at", cutoff);
-  if (SUBJECT_FILTER) q = q.eq("subject_name", SUBJECT_FILTER);
-  await q;
+    .lt("conversation_unicode_lock_at", cutoff)
+    .eq("subject_name", SUBJECT_FILTER);
 }
 
 async function claimRows(limit) {
   await freeStaleLocks();
-  let q = supabase
+  const { data: candidates, error } = await supabase
     .from("concepts_vertical")
     .select("vertical_id, concept_json_unicode")
     .not("concept_json_unicode", "is", null)
     .is("conversation_unicode", null)
     .is("conversation_unicode_lock", null)
+    .eq("subject_name", SUBJECT_FILTER) // Chemistry only
     .order("vertical_id", { ascending: true })
     .limit(limit);
-  if (SUBJECT_FILTER) q = q.eq("subject_name", SUBJECT_FILTER);
 
-  const { data: candidates, error } = await q;
   if (error) throw error;
   if (!candidates?.length) return [];
 
@@ -134,7 +132,8 @@ async function clearLocks(ids) {
   await supabase
     .from("concepts_vertical")
     .update({ conversation_unicode_lock: null, conversation_unicode_lock_at: null })
-    .in("vertical_id", ids);
+    .in("vertical_id", ids)
+    .eq("subject_name", SUBJECT_FILTER);
 }
 
 // ---------- Process ----------
@@ -150,7 +149,8 @@ async function processRow(row) {
       conversation_unicode_lock: null,
       conversation_unicode_lock_at: null
     })
-    .eq("vertical_id", row.vertical_id);
+    .eq("vertical_id", row.vertical_id)
+    .eq("subject_name", SUBJECT_FILTER);
 
   if (upErr) {
     const preview = JSON.stringify(jsonOut).slice(0, 200);
@@ -180,7 +180,7 @@ async function processBatch(rows) {
 
 // ---------- Main ----------
 (async function main() {
-  console.log(`🧵 Updated Conversation Unicode Worker ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
+  console.log(`🧵 Chemistry Conversation Unicode Worker ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);

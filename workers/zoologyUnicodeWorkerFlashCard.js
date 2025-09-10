@@ -43,7 +43,7 @@ async function callOpenAI(prompt, attempt = 1) {
     const resp = await openai.chat.completions.create({
       model: MODEL,
       messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" }
+      response_format: { type: "text" } // ✅ plain text, not json_object
     });
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
@@ -55,9 +55,16 @@ async function callOpenAI(prompt, attempt = 1) {
   }
 }
 
-function safeParseJson(raw) {
-  const cleaned = raw.trim().replace(/^```json\s*/i, "").replace(/```$/i, "");
-  return JSON.parse(cleaned);
+function safeParseJson(raw, vertical_id) {
+  try {
+    const cleaned = raw.trim()
+      .replace(/^```json\s*/i, "")
+      .replace(/^```/, "")
+      .replace(/```$/, "");
+    return JSON.parse(cleaned);
+  } catch (err) {
+    throw new Error(`❌ Failed to parse JSON for vertical_id=${vertical_id}: ${err.message}. Raw: ${raw.slice(0,200)}`);
+  }
 }
 
 // ---------- Locks ----------
@@ -107,9 +114,13 @@ async function clearLocks(ids) {
 async function processRow(row) {
   const prompt = buildPrompt(row.concept_json_unicode);
   const raw = await callOpenAI(prompt);
-  let jsonOut = safeParseJson(raw);
+  let jsonOut = safeParseJson(raw, row.vertical_id);
 
-  // Ensure UUIDs
+  if (!Array.isArray(jsonOut)) {
+    throw new Error(`❌ Expected array but got ${typeof jsonOut} for vertical_id=${row.vertical_id}`);
+  }
+
+  // Ensure UUIDs exist
   jsonOut = jsonOut.map(card => ({
     uuid: card.uuid || uuidv4(),
     Question: card.Question,
@@ -140,7 +151,7 @@ async function processBatch(rows) {
       const r = results[i];
       if (r.status === "fulfilled") updated += r.value.updated;
       else {
-        console.error("❌ row error:", r.reason?.message);
+        console.error(r.reason?.message || r.reason);
         await clearLocks([chunk[i].vertical_id]);
       }
     }

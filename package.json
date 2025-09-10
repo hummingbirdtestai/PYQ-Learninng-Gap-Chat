@@ -42,6 +42,7 @@
     "start:mcq_1_6_unicode": "node workers/unicodeMcqWorker.js",
     "start:zoologymediaunicode": "node workers/unicodeZoologyMediaLibraryWorker.js",
     "start:updatedconversation": "node workers/updatedConversationUnicodeWorker.js",
+    "start:updatedconversationzoology": "node workers/zoologyUnicodeWorkerConversation.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

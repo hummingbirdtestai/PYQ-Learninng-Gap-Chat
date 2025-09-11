@@ -24,18 +24,18 @@ Schema:
 {
   "HYFs": [
     {
-      "HYF": "string (one high-yield fact, with **bold/italic** markup for key terms)",
+      "HYF": "string (high-yield fact, with **bold/italic** markup for key terms)",
       "MCQs": [
         {
           "id": "UUID",
           "stem": "string (clinical vignette with **bold/italic** key terms)",
-          "mcq_key": "mcq_1 | mcq_2 | mcq_3",
+          "mcq_key": "mcq_1 | mcq_2",
           "options": { "A": "string", "B": "string", "C": "string", "D": "string" },
           "feedback": { 
-            "wrong": "❌ string with explanation (must include **bold/italic** terms)",
-            "correct": "✅ string with explanation (must include **bold/italic** terms)" 
+            "wrong": "❌ string (must include **bold/italic** terms)",
+            "correct": "✅ string (must include **bold/italic** terms)" 
           },
-          "learning_gap": "string (concise conceptual gap if missed, with **bold/italic** terms)",
+          "learning_gap": "string (concise conceptual gap with **bold/italic** terms)",
           "correct_answer": "A | B | C | D"
         }
       ]
@@ -44,9 +44,10 @@ Schema:
 }
 
 Rules:
-- Always output exactly 8 HYFs.
-- Each HYF must have exactly 3 MCQs.
+- Always output exactly 4 HYFs.
+- Each HYF must have exactly 2 MCQs.
 - Every MCQ must include ALL required keys (id, stem, mcq_key, options[A–D], feedback{wrong,correct}, learning_gap, correct_answer).
+- mcq_key must only be "mcq_1" or "mcq_2".
 - No keys may be omitted or renamed.
 - No extra keys or commentary outside JSON.
 - Use valid UUID v4 for "id".
@@ -93,17 +94,17 @@ function safeParseJson(raw) {
 // ---------- Validator ----------
 function validateJson(jsonOut) {
   if (!jsonOut || !jsonOut.HYFs || !Array.isArray(jsonOut.HYFs)) return false;
-  if (jsonOut.HYFs.length !== 8) return false;
+  if (jsonOut.HYFs.length !== 4) return false;
 
   for (const hyf of jsonOut.HYFs) {
     if (typeof hyf.HYF !== "string") return false;
-    if (!hyf.MCQs || !Array.isArray(hyf.MCQs) || hyf.MCQs.length !== 3) return false;
+    if (!hyf.MCQs || !Array.isArray(hyf.MCQs) || hyf.MCQs.length !== 2) return false;
 
     for (const mcq of hyf.MCQs) {
       if (!(mcq.id && mcq.stem && mcq.mcq_key && mcq.options && mcq.feedback && mcq.learning_gap && mcq.correct_answer)) {
         return false;
       }
-      if (!["mcq_1","mcq_2","mcq_3"].includes(mcq.mcq_key)) return false;
+      if (!["mcq_1","mcq_2"].includes(mcq.mcq_key)) return false;
       if (!mcq.options.A || !mcq.options.B || !mcq.options.C || !mcq.options.D) return false;
       if (!(mcq.feedback.wrong && mcq.feedback.correct)) return false;
     }

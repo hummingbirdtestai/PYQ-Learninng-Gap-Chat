@@ -17,42 +17,47 @@ function buildMessages(conceptJson) {
     {
       role: "system",
       content: `
-You are a senior NEETPG mentor (30+ yrs exp, mastery of UWorld, First Aid, Amboss, NBME, Marrow, Prepladder).
+You are a senior NEETPG mentor (30+ yrs exp).
+You must output **strict JSON only** with the exact schema below.
 
-Output = **strict JSON only**:
-
+Schema:
 {
   "HYFs": [
     {
-      "HYF": "High-yield fact (with **bold/italic** for key terms)",
+      "HYF": "string (one high-yield fact, with **bold/italic** markup for key terms)",
       "MCQs": [
         {
           "id": "UUID",
-          "stem": "Clinical vignette (with **bold/italic** on key words)",
-          "mcq_key": "mcq_1",
-          "options": { "A": "...", "B": "...", "C": "...", "D": "..." },
+          "stem": "string (clinical vignette with **bold/italic** key terms)",
+          "mcq_key": "mcq_1 | mcq_2 | mcq_3",
+          "options": { "A": "string", "B": "string", "C": "string", "D": "string" },
           "feedback": { 
-            "wrong": "❌ why wrong (with **bold/italic** terms)",
-            "correct": "✅ why correct (with **bold/italic** terms)" 
+            "wrong": "❌ string with explanation (must include **bold/italic** terms)",
+            "correct": "✅ string with explanation (must include **bold/italic** terms)" 
           },
-          "learning_gap": "Conceptual gap if missed (with **bold/italic** terms)",
-          "correct_answer": "B"
-        },
-        { ... mcq_2 ... },
-        { ... mcq_3 ... }
+          "learning_gap": "string (concise conceptual gap if missed, with **bold/italic** terms)",
+          "correct_answer": "A | B | C | D"
+        }
       ]
     }
   ]
 }
 
 Rules:
-- Exactly 8 HYFs, each with 3 recursive MCQs (mcq_1 → mcq_3).
-- Use Unicode for subscripts/superscripts (H₂O, Na⁺, Ca²⁺).
-- Apply **bold/italic** markup in HYF, stem, learning_gap, feedback (NOT in options).
-- No extra keys or text outside JSON.
+- Always output exactly 8 HYFs.
+- Each HYF must have exactly 3 MCQs.
+- Every MCQ must include ALL required keys (id, stem, mcq_key, options[A–D], feedback{wrong,correct}, learning_gap, correct_answer).
+- No keys may be omitted or renamed.
+- No extra keys or commentary outside JSON.
+- Use valid UUID v4 for "id".
+- Use **Unicode subscripts/superscripts** (H₂O, Na⁺, Ca²⁺).
+- Apply **bold/italic** ONLY in HYF, stem, feedback, learning_gap (never in options).
 `
     },
-    { role: "user", content: JSON.stringify(conceptJson || {}) }
+    {
+      role: "user",
+      content: JSON.stringify(conceptJson || {})
+    }
   ];
 }
 
@@ -83,6 +88,27 @@ function safeParseJson(raw) {
     .replace(/^```/i, "")
     .replace(/```$/i, "");
   return JSON.parse(cleaned);
+}
+
+// ---------- Validator ----------
+function validateJson(jsonOut) {
+  if (!jsonOut || !jsonOut.HYFs || !Array.isArray(jsonOut.HYFs)) return false;
+  if (jsonOut.HYFs.length !== 8) return false;
+
+  for (const hyf of jsonOut.HYFs) {
+    if (typeof hyf.HYF !== "string") return false;
+    if (!hyf.MCQs || !Array.isArray(hyf.MCQs) || hyf.MCQs.length !== 3) return false;
+
+    for (const mcq of hyf.MCQs) {
+      if (!(mcq.id && mcq.stem && mcq.mcq_key && mcq.options && mcq.feedback && mcq.learning_gap && mcq.correct_answer)) {
+        return false;
+      }
+      if (!["mcq_1","mcq_2","mcq_3"].includes(mcq.mcq_key)) return false;
+      if (!mcq.options.A || !mcq.options.B || !mcq.options.C || !mcq.options.D) return false;
+      if (!(mcq.feedback.wrong && mcq.feedback.correct)) return false;
+    }
+  }
+  return true;
 }
 
 // ---------- Locking ----------
@@ -137,6 +163,12 @@ async function processRow(row) {
   const messages = buildMessages(row.concept_json);
   const raw = await callOpenAI(messages);
   const jsonOut = safeParseJson(raw);
+
+  if (!validateJson(jsonOut)) {
+    console.error(`❌ Validation failed for id=${row.id}, skipping save`);
+    await clearLocks([row.id]);
+    return { updated: 0 };
+  }
 
   const { error: upErr } = await supabase
     .from("mcq_bank")

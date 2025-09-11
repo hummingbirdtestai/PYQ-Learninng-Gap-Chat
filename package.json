@@ -48,6 +48,7 @@
     "start:fixMissingCorrectAns": "node workers/fixMissingCorrectAnswerWorker.js",
     "start:pgunicodeflashcard": "node workers/pgunicodeFlashCardsWorker.js",
     "start:fixCorrectJsonsWorker": "node workers/fixCorrectJsonsWorker.js",
+    "start:pgconversationworker": "node workers/pgConversationUnicodeWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

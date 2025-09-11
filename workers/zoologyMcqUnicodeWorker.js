@@ -50,7 +50,7 @@ async function callOpenAI(prompt, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
-      response_format: { type: "json" },
+      response_format: { type: "json_object" },
       messages: [{ role: "user", content: prompt }]
     });
     return resp.choices?.[0]?.message?.content || "";

@@ -49,6 +49,7 @@
     "start:pgunicodeflashcard": "node workers/pgunicodeFlashCardsWorker.js",
     "start:fixCorrectJsonsWorker": "node workers/fixCorrectJsonsWorker.js",
     "start:pgconversationworker": "node workers/pgConversationUnicodeWorker.js",
+    "start:zoologymcqworker": "node workers/zoologyMcqUnicodeWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

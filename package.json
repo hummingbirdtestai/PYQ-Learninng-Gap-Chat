@@ -47,6 +47,7 @@
     "start:zoologyflashcard": "node workers/zoologyUnicodeWorkerFlashCard.js",
     "start:fixMissingCorrectAns": "node workers/fixMissingCorrectAnswerWorker.js",
     "start:pgunicodeflashcard": "node workers/pgunicodeFlashCardsWorker.js",
+    "start:fixCorrectJsonsWorker": "node workers/fixCorrectJsonsWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

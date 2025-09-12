@@ -50,6 +50,7 @@
     "start:fixCorrectJsonsWorker": "node workers/fixCorrectJsonsWorker.js",
     "start:pgconversationworker": "node workers/pgConversationUnicodeWorker.js",
     "start:zoologymcqworker": "node workers/zoologyMcqUnicodeWorker.js",
+    "start:botonymcqworker": "node workers/botanyMcqUnicodeWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

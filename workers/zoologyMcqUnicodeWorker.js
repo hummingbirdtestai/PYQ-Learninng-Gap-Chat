@@ -50,7 +50,7 @@ async function callOpenAI(prompt, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
-      response_format: { type: "json_object" },
+      response_format: { type: "text" }, // flexible, parse manually
       messages: [{ role: "user", content: prompt }]
     });
     return resp.choices?.[0]?.message?.content || "";
@@ -78,7 +78,8 @@ async function freeStaleLocks() {
     .from("concepts_vertical")
     .update({ mcq_1_6_lock: null, mcq_1_6_lock_at: null })
     .is("mcq_1_6_unicode", null)
-    .lt("mcq_1_6_lock_at", cutoff);
+    .lt("mcq_1_6_lock_at", cutoff)
+    .eq("subject_name", "Zoology");
 }
 
 async function claimRows(limit) {
@@ -144,19 +145,27 @@ async function processRow(row) {
     const preview = JSON.stringify(jsonOut).slice(0, 200);
     throw new Error(`Update failed for vertical_id=${row.vertical_id}: ${upErr.message}. Preview: ${preview}`);
   }
-  return { updated: 1 };
+  return { updated: 1, total: 1 };
 }
 
 // ---------- Batch ----------
 async function processBatch(rows) {
+  const chunks = [];
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    chunks.push(rows.slice(i, i + BATCH_SIZE));
+  }
+
   let updated = 0;
-  for (const chunk of rows) {
-    try {
-      const res = await processRow(chunk);
-      updated += res.updated;
-    } catch (e) {
-      console.error(`   error vertical_id=${chunk.vertical_id}:`, e.message);
-      await clearLocks([chunk.vertical_id]);
+  for (const chunk of chunks) {
+    const results = await Promise.allSettled(chunk.map(processRow));
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === "fulfilled") {
+        updated += r.value.updated;
+      } else {
+        console.error(`   row ${i + 1} error:`, r.reason?.message || r.reason);
+        await clearLocks([chunk[i].vertical_id]);
+      }
     }
   }
   return updated;
@@ -164,7 +173,7 @@ async function processBatch(rows) {
 
 // ---------- Main ----------
 (async function main() {
-  console.log(`🧵 Zoology Unicode MCQ Worker ${WORKER_ID} | model=${MODEL}`);
+  console.log(`🧵 Zoology MCQ Unicode Worker ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);

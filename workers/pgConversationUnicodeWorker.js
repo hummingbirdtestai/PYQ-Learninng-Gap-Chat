@@ -32,8 +32,8 @@ Schema:
           "mcq_key": "mcq_1 | mcq_2",
           "options": { "A": "string", "B": "string", "C": "string", "D": "string" },
           "feedback": { 
-            "wrong": "❌ string (must include **bold/italic** terms)",
-            "correct": "✅ string (must include **bold/italic** terms)" 
+            "wrong": "❌ string (with **bold/italic** terms)",
+            "correct": "✅ string (with **bold/italic** terms)" 
           },
           "learning_gap": "string (concise conceptual gap with **bold/italic** terms)",
           "correct_answer": "A | B | C | D"
@@ -46,13 +46,13 @@ Schema:
 Rules:
 - Always output exactly 4 HYFs.
 - Each HYF must have exactly 2 MCQs.
-- Every MCQ must include ALL required keys (id, stem, mcq_key, options[A–D], feedback{wrong,correct}, learning_gap, correct_answer).
+- Every MCQ must include ALL required keys listed above.
 - mcq_key must only be "mcq_1" or "mcq_2".
-- No keys may be omitted or renamed.
-- No extra keys or commentary outside JSON.
-- Use valid UUID v4 for "id".
+- correct_answer must be one of "A","B","C","D".
+- Use valid UUID v4 format for "id".
 - Use **Unicode subscripts/superscripts** (H₂O, Na⁺, Ca²⁺).
 - Apply **bold/italic** ONLY in HYF, stem, feedback, learning_gap (never in options).
+- Output must be valid JSON only, no extra text.
 `
     },
     {
@@ -92,21 +92,62 @@ function safeParseJson(raw) {
 }
 
 // ---------- Validator ----------
-function validateJson(jsonOut) {
-  if (!jsonOut || !jsonOut.HYFs || !Array.isArray(jsonOut.HYFs)) return false;
-  if (jsonOut.HYFs.length !== 4) return false;
+function validateJson(jsonOut, rowId) {
+  const uuidV4Regex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-  for (const hyf of jsonOut.HYFs) {
-    if (typeof hyf.HYF !== "string") return false;
-    if (!hyf.MCQs || !Array.isArray(hyf.MCQs) || hyf.MCQs.length !== 2) return false;
+  if (!jsonOut || !jsonOut.HYFs || !Array.isArray(jsonOut.HYFs)) {
+    console.error(`❌ Row ${rowId} invalid: HYFs missing or not array`);
+    return false;
+  }
+  if (jsonOut.HYFs.length !== 4) {
+    console.error(`❌ Row ${rowId} invalid: HYF count != 4`);
+    return false;
+  }
+
+  for (const [i, hyf] of jsonOut.HYFs.entries()) {
+    if (typeof hyf.HYF !== "string" || !hyf.HYF.trim()) {
+      console.error(`❌ Row ${rowId} HYF[${i}] missing or empty HYF`);
+      return false;
+    }
+    if (!hyf.MCQs || !Array.isArray(hyf.MCQs) || hyf.MCQs.length !== 2) {
+      console.error(`❌ Row ${rowId} HYF[${i}] invalid MCQ count`);
+      return false;
+    }
 
     for (const mcq of hyf.MCQs) {
-      if (!(mcq.id && mcq.stem && mcq.mcq_key && mcq.options && mcq.feedback && mcq.learning_gap && mcq.correct_answer)) {
+      if (!mcq.id || !uuidV4Regex.test(mcq.id)) {
+        console.error(`❌ Row ${rowId} has invalid UUID: ${mcq.id}`);
         return false;
       }
-      if (!["mcq_1","mcq_2"].includes(mcq.mcq_key)) return false;
-      if (!mcq.options.A || !mcq.options.B || !mcq.options.C || !mcq.options.D) return false;
-      if (!(mcq.feedback.wrong && mcq.feedback.correct)) return false;
+      if (typeof mcq.stem !== "string" || !mcq.stem.trim()) {
+        console.error(`❌ Row ${rowId} MCQ missing/empty stem`);
+        return false;
+      }
+      if (!["mcq_1","mcq_2"].includes(mcq.mcq_key)) {
+        console.error(`❌ Row ${rowId} MCQ invalid mcq_key: ${mcq.mcq_key}`);
+        return false;
+      }
+      if (!mcq.options || !mcq.options.A || !mcq.options.B || !mcq.options.C || !mcq.options.D) {
+        console.error(`❌ Row ${rowId} MCQ options incomplete`);
+        return false;
+      }
+      if (![mcq.options.A, mcq.options.B, mcq.options.C, mcq.options.D].every(v => typeof v === "string" && v.trim())) {
+        console.error(`❌ Row ${rowId} MCQ has empty option text`);
+        return false;
+      }
+      if (!mcq.feedback || !mcq.feedback.wrong || !mcq.feedback.correct) {
+        console.error(`❌ Row ${rowId} MCQ feedback missing`);
+        return false;
+      }
+      if (typeof mcq.learning_gap !== "string" || !mcq.learning_gap.trim()) {
+        console.error(`❌ Row ${rowId} MCQ missing/empty learning_gap`);
+        return false;
+      }
+      if (!["A","B","C","D"].includes(mcq.correct_answer)) {
+        console.error(`❌ Row ${rowId} MCQ invalid correct_answer: ${mcq.correct_answer}`);
+        return false;
+      }
     }
   }
   return true;
@@ -128,7 +169,7 @@ async function claimRows(limit) {
     .from("mcq_bank")
     .select("id, concept_json")
     .not("concept_json", "is", null)
-    .is("conversation_unicode", null)
+    .is("conversation_unicode", null) // only null rows
     .is("concept_json_lock", null)
     .order("id", { ascending: true })
     .limit(limit);
@@ -165,7 +206,7 @@ async function processRow(row) {
   const raw = await callOpenAI(messages);
   const jsonOut = safeParseJson(raw);
 
-  if (!validateJson(jsonOut)) {
+  if (!validateJson(jsonOut, row.id)) {
     console.error(`❌ Validation failed for id=${row.id}, skipping save`);
     await clearLocks([row.id]);
     return { updated: 0 };
@@ -178,7 +219,8 @@ async function processRow(row) {
       concept_json_lock: null,
       concept_json_locked_at: null
     })
-    .eq("id", row.id);
+    .eq("id", row.id)
+    .is("conversation_unicode", null); // safeguard, only update null rows
 
   if (upErr) {
     const preview = JSON.stringify(jsonOut).slice(0, 200);

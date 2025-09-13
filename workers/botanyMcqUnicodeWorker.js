@@ -46,13 +46,21 @@ function isRetryable(e) {
   return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(s);
 }
 
+// check which models allow temperature
+function modelSupportsTemperature(model) {
+  return /^gpt-4/.test(model) || /4o-mini/.test(model);
+}
+
 async function callOpenAI(prompt, attempt = 1) {
   try {
-    const resp = await openai.chat.completions.create({
+    const params = {
       model: MODEL,
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-    });
+    };
+    if (modelSupportsTemperature(MODEL)) {
+      params.temperature = 0.7;
+    }
+    const resp = await openai.chat.completions.create(params);
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
     if (isRetryable(e) && attempt <= 3) {

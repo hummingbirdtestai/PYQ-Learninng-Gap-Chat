@@ -10,7 +10,7 @@ const LIMIT        = parseInt(process.env.MENTOR_INTRO_LIMIT || "100", 10);
 const BATCH_SIZE   = parseInt(process.env.MENTOR_INTRO_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.MENTOR_INTRO_LOOP_SLEEP_MS || "500", 10);
 const LOCK_TTL_MIN = parseInt(process.env.MENTOR_INTRO_LOCK_TTL_MIN || "15", 10);
-const SUBJECT      = process.env.MENTOR_INTRO_SUBJECT || "NEET-PG"; // optional filter if you later partition by subject
+const SUBJECT      = process.env.MENTOR_INTRO_SUBJECT || "NEET-PG";
 const WORKER_ID    = process.env.WORKER_ID || `mentor-intro-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // ---------- Prompt ----------
@@ -68,7 +68,7 @@ function safeParseJson(raw, id) {
 async function freeStaleLocks() {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
   await supabase
-    .from("phase_json")
+    .from("concept_phase_final")
     .update({ mentor_lock: null, mentor_lock_at: null })
     .is("mentor_reply", null)
     .lt("mentor_lock_at", cutoff);
@@ -77,7 +77,7 @@ async function freeStaleLocks() {
 async function claimRows(limit) {
   await freeStaleLocks();
   const { data, error } = await supabase
-    .from("phase_json")
+    .from("concept_phase_final")
     .select("id, phase_json")
     .is("mentor_reply", null)
     .is("mentor_lock", null)
@@ -87,7 +87,7 @@ async function claimRows(limit) {
 
   const ids = data.map(r => r.id);
   const { data: locked, error: e2 } = await supabase
-    .from("phase_json")
+    .from("concept_phase_final")
     .update({ mentor_lock: WORKER_ID, mentor_lock_at: new Date().toISOString() })
     .in("id", ids)
     .is("mentor_reply", null)
@@ -100,7 +100,7 @@ async function claimRows(limit) {
 async function clearLocks(ids) {
   if (!ids.length) return;
   await supabase
-    .from("phase_json")
+    .from("concept_phase_final")
     .update({ mentor_lock: null, mentor_lock_at: null })
     .in("id", ids);
 }
@@ -116,7 +116,7 @@ async function processRow(row) {
   }
 
   const { error } = await supabase
-    .from("phase_json")
+    .from("concept_phase_final")
     .update({
       mentor_reply: jsonOut,
       mentor_lock: null,

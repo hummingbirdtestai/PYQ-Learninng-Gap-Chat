@@ -51,6 +51,7 @@
     "start:pgconversationworker": "node workers/pgConversationUnicodeWorker.js",
     "start:zoologymcqworker": "node workers/zoologyMcqUnicodeWorker.js",
     "start:botonymcqworker": "node workers/botanyMcqUnicodeWorker.js",
+    "start:mentorUnicodeMultiWorker": "node workers/mentorUnicodeMultiWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

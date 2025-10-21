@@ -54,6 +54,7 @@
     "start:mentorUnicodeMultiWorker": "node workers/mentorUnicodeMultiWorker.js",
     "start:pgflashcardworker": "node workers/paragraphflashcardWorker.js",
     "start:mentorFlashcardMultiWorker": "node workers/mentorIntroFlashcardMultiWorker.js",
+    "start:imageConceptMultiWorker": "node workers/imageConceptMultiWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

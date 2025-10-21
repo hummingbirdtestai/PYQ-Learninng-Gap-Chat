@@ -15,28 +15,46 @@ const WORKER_ID    = process.env.WORKER_ID || `image-concept-${process.pid}-${Ma
 function buildPrompt(subject, chapter) {
   return `
 You are an expert NEET-PG / USMLE / NBME question-bank creator. 
-
-INPUT: A JSON object containing the current subject and chapter:
-{ "subject": "${subject}", "chapter": "${chapter}" }
+INPUT: A JSON object containing the current subject and chapter: 
+{ "subject": "${subject}", "chapter": "${chapter}" } 
 
 TASK: Using the CHAPTER context, generate a JSON array with exactly 25 UNIQUE elements. 
-Each element represents a high-yield, image-based question concept relevant to that chapter.
+Each element represents a **high-yield, image-based question concept** relevant to that chapter. 
 
-Each element must strictly follow this structure:
-{
-  "subject": "${subject}",
-  "keyword": "<precise 2–4 word image search phrase>",
-  "concept": "<one-line tested concept>",
-  "image_description": "<vignette-style clinical image description>"
-}
+Each element must strictly follow this structure: 
+{ 
+  - subject = current subject passed in. 
+  - keyword = Give a precise 2–4 word phrase that can be directly searched on Google Images or Wikimedia Commons to obtain the classical diagnostic or anatomic image used in question banks. Example: *“Tentorium cerebelli MRI”*, *“Cherry red spot fundus”*, *“Basal cell carcinoma histology”*, etc. 
+  - concept = Describe in one line the exact concept that is tested from that image (e.g., “Transtentorial herniation compressing CN III causes dilated pupil”). This should represent the factual learning point tested in NBME-style questions. 
+  - image_description = Write the precise, vignette-ready description of the image as it would appear in a clinical stem. Example: *“MRI brain showing a space-occupying lesion in the right cerebellar hemisphere causing upward displacement of the cerebellar tissue through the tentorial notch, compressing the midbrain and oculomotor nerve → pupillary dilatation and ptosis.”* 
+} 
 
-RULES:
-- The “subject” must always match the input subject.
-- The “keyword” must be specific, concise, and image-searchable (e.g., "Cherry red spot fundus").
-- The “concept” should represent the exact tested principle.
-- The “image_description” should be exam-style, short, and vignette-ready.
-- Avoid repetition across 25 objects.
-- Output pure JSON array only — no commentary, markdown, or numbering.
+RULES: 
+- The “subject” must always match the input subject. 
+- The “keyword” must be specific, concise, and image-searchable (e.g., "Cherry red spot fundus", "Basal cell carcinoma histology"). 
+- The “concept” should represent the exact tested principle in one factual line. 
+- The “image_description” should be exam-style, short, and vignette-ready (e.g., “MRI brain showing…” or “Histology showing…”). 
+- Avoid repetition across the 25 objects. 
+- Do NOT include any extra commentary, explanation, markdown, or numbering outside the JSON array. 
+- Keep phrasing crisp, high-yield, and NBME/NEET-PG standard. 
+
+OUTPUT FORMAT: 
+A pure JSON array of 25 objects, e.g. 
+[ 
+  { 
+    "subject": "Pathology", 
+    "keyword": "Reed Sternberg cell histology", 
+    "concept": "Hodgkin lymphoma features Reed–Sternberg cells (CD15+, CD30+)", 
+    "image_description": "Microscopic image showing large binucleate cells with prominent eosinophilic nucleoli ('owl’s eye' appearance) in a background of lymphocytes and eosinophils." 
+  }, 
+  { 
+    "subject": "Pathology", 
+    "keyword": "Mallory bodies liver histology", 
+    "concept": "Alcoholic hepatitis shows Mallory–Denk bodies from cytokeratin accumulation", 
+    "image_description": "Liver biopsy showing ballooned hepatocytes with irregular eosinophilic cytoplasmic inclusions surrounded by neutrophils." 
+  }, 
+  ... 
+]
 `.trim();
 }
 

@@ -55,6 +55,7 @@
     "start:pgflashcardworker": "node workers/paragraphflashcardWorker.js",
     "start:mentorFlashcardMultiWorker": "node workers/mentorIntroFlashcardMultiWorker.js",
     "start:imageConceptMultiWorker": "node workers/imageConceptMultiWorker.js",
+    "start:conceptformatter": "node workers/concept_formatter_worker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

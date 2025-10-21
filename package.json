@@ -53,6 +53,7 @@
     "start:botonymcqworker": "node workers/botanyMcqUnicodeWorker.js",
     "start:mentorUnicodeMultiWorker": "node workers/mentorUnicodeMultiWorker.js",
     "start:pgflashcardworker": "node workers/paragraphflashcardWorker.js",
+    "start:mentorFlashcardMultiWorker": "node workers/mentorIntroFlashcardMultiWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

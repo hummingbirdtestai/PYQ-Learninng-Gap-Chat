@@ -1,7 +1,6 @@
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
-const { v4: uuidv4 } = require("uuid");
 
 // ---------- Settings ----------
 const MODEL        = process.env.IMAGE_CONCEPT_MODEL || "gpt-5-mini";
@@ -52,8 +51,7 @@ A pure JSON array of 25 objects, e.g.
     "keyword": "Mallory bodies liver histology", 
     "concept": "Alcoholic hepatitis shows Mallory–Denk bodies from cytokeratin accumulation", 
     "image_description": "Liver biopsy showing ballooned hepatocytes with irregular eosinophilic cytoplasmic inclusions surrounded by neutrophils." 
-  }, 
-  ... 
+  } 
 ]
 `.trim();
 }
@@ -89,7 +87,8 @@ function safeParseJson(raw, id) {
       .replace(/```$/, "");
     return JSON.parse(cleaned);
   } catch (err) {
-    throw new Error(`❌ JSON parse error id=${id}: ${err.message}\nRaw:\n${raw.slice(0,200)}`);
+    console.error(`❌ JSON parse error id=${id}: ${err.message}`);
+    return null;
   }
 }
 
@@ -142,18 +141,38 @@ async function clearLocks(ids) {
 // ---------- Core Process ----------
 async function processRow(row) {
   const subject = row.subject_name;
-  const chapters = Array.isArray(row.subject_chapter_json)
-    ? row.subject_chapter_json
-    : [];
+  let chapters = [];
+
+  try {
+    if (typeof row.subject_chapter_json === "string") {
+      const parsed = JSON.parse(row.subject_chapter_json);
+      chapters = Array.isArray(parsed) ? parsed : [parsed];
+    } else if (Array.isArray(row.subject_chapter_json)) {
+      chapters = row.subject_chapter_json;
+    } else if (row.subject_chapter_json) {
+      chapters = [row.subject_chapter_json];
+    }
+  } catch (e) {
+    console.error(`⚠️ Failed to parse subject_chapter_json for id=${row.id}: ${e.message}`);
+  }
 
   const results = [];
 
   for (const chapterObj of chapters) {
     const chapter = chapterObj.chapter || chapterObj.name || "General";
+    console.log(`🧩 Running prompt for ${subject} → ${chapter}`);
     const prompt = buildPrompt(subject, chapter);
     const raw = await callOpenAI(prompt);
     const parsed = safeParseJson(raw, row.id);
-    results.push({ chapter, concepts: parsed });
+
+    if (parsed) results.push({ chapter, concepts: parsed });
+    else {
+      // optional raw dump for debugging
+      await supabase
+        .from("subject_wise_images")
+        .update({ image_json_raw: raw })
+        .eq("id", row.id);
+    }
   }
 
   const { error } = await supabase
@@ -166,7 +185,7 @@ async function processRow(row) {
     })
     .eq("id", row.id);
 
-  if (error) throw new Error(`❌ Update failed for id=${row.id}: ${error.message}`);
+  if (error) throw new Error(`❌ Update failed id=${row.id}: ${error.message}`);
   return { updated: 1 };
 }
 

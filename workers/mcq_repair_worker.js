@@ -8,7 +8,7 @@ const LIMIT        = parseInt(process.env.MCQ_REPAIR_LIMIT || "50", 10);
 const BATCH_SIZE   = parseInt(process.env.MCQ_REPAIR_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.MCQ_REPAIR_LOOP_SLEEP_MS || "500", 10);
 const LOCK_TTL_MIN = parseInt(process.env.MCQ_REPAIR_LOCK_TTL_MIN || "15", 10);
-const WORKER_ID    = process.env.WORKER_ID || `mcq-repair-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+const WORKER_ID    = process.env.WORKER_ID || `mcq-repair-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // ---------- Prompt ----------
 function buildPrompt(mcqJson) {
@@ -72,10 +72,10 @@ function safeParseJson(raw, id) {
       .replace(/```$/, "");
     return JSON.parse(cleaned);
   } catch (err) {
-    const preview = raw ? raw.slice(0, 200).replace(/\n/g, "\\n") : "";
-    console.error("❌ Failed to parse JSON for id", id, err.message);
-    console.error("Raw:", preview);
-    throw new Error("Failed to parse JSON for id=" + id + ": " + err.message);
+    const preview = raw ? raw.slice(0, 180).replace(/\n/g, "\\n") : "";
+    console.error(`❌ [${id}] JSON parse failed →`, err.message);
+    console.error("Raw preview:", preview);
+    return null;
   }
 }
 
@@ -120,7 +120,7 @@ async function claimRows(limit) {
 }
 
 async function clearLocks(ids) {
-  if (!ids.length) return;
+  if (!ids?.length) return;
   await supabase
     .from("mock_test_mcqs_flattened")
     .update({ mcq_lock: null, mcq_lock_at: null })
@@ -129,22 +129,51 @@ async function clearLocks(ids) {
 
 // ---------- Process ----------
 async function processRow(row) {
-  const prompt = buildPrompt(row.mcq_json);
-  const raw = await callOpenAI(prompt);
-  const jsonOut = safeParseJson(raw, row.id);
+  try {
+    const prompt = buildPrompt(row.mcq_json);
+    const raw = await callOpenAI(prompt);
+    const jsonOut = safeParseJson(raw, row.id);
 
-  const { error } = await supabase
-    .from("mock_test_mcqs_flattened")
-    .update({
-      mcq_json_cleaned: jsonOut,
-      mcq_lock: null,
-      mcq_lock_at: null,
-      select: false, // ✅ mark processed
-    })
-    .eq("id", row.id);
-
-  if (error) throw new Error("Update failed id=" + row.id + ": " + error.message);
-  return { updated: 1 };
+    // ✅ Only update if valid JSON
+    if (jsonOut && Array.isArray(jsonOut)) {
+      const { error } = await supabase
+        .from("mock_test_mcqs_flattened")
+        .update({
+          mcq_json_cleaned: jsonOut,
+          mcq_lock: null,
+          mcq_lock_at: null,
+          select: false, // mark processed only when valid
+          mcq_repair_error: null,
+        })
+        .eq("id", row.id);
+      if (error) throw error;
+      console.log(`✅ Cleaned & saved → id=${row.id}`);
+      return { updated: 1 };
+    } else {
+      // ❌ invalid output
+      await supabase
+        .from("mock_test_mcqs_flattened")
+        .update({
+          mcq_lock: null,
+          mcq_lock_at: null,
+          mcq_repair_error: "Invalid or empty GPT JSON output",
+        })
+        .eq("id", row.id);
+      console.warn(`⚠️ Invalid GPT output, kept for retry → id=${row.id}`);
+      return { updated: 0 };
+    }
+  } catch (err) {
+    console.error(`💥 processRow failed id=${row.id}:`, err.message);
+    await supabase
+      .from("mock_test_mcqs_flattened")
+      .update({
+        mcq_lock: null,
+        mcq_lock_at: null,
+        mcq_repair_error: err.message,
+      })
+      .eq("id", row.id);
+    return { updated: 0 };
+  }
 }
 
 async function processBatch(rows) {
@@ -161,7 +190,7 @@ async function processBatch(rows) {
       if (r.status === "fulfilled") {
         updated += r.value.updated;
       } else {
-        console.error(r.reason?.message || r.reason);
+        console.error(`❌ Unhandled error for id=${chunk[i].id}`, r.reason?.message || r.reason);
         await clearLocks([chunk[i].id]);
       }
     }
@@ -179,9 +208,10 @@ async function processBatch(rows) {
         await sleep(SLEEP_MS);
         continue;
       }
-      console.log("⚙️ claimed =", claimed.length);
+
+      console.log(`⚙️ Claimed ${claimed.length} rows for repair`);
       const updated = await processBatch(claimed);
-      console.log("✅ updated =", updated, "of", claimed.length);
+      console.log(`✅ Batch done: cleaned ${updated} / ${claimed.length}`);
     } catch (e) {
       console.error("Loop error:", e.message || e);
       await sleep(1000);

@@ -1,3 +1,4 @@
+// /app/workers/mcq_repair_worker.js
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
@@ -29,7 +30,7 @@ Recreate the MCQ JSON in the same schema with better phrasing:
 ]
 
 🎯 STRICT OUTPUT RULES:
-• Output valid JSON only, no markdown fences or prose.
+• Output valid JSON only — no markdown fences or prose.
 • Preserve existing structure and keys.
 • Only rephrase truncated or malformed **stem** sentences.
 • Keep all Unicode, sub/superscripts, symbols (↑ ↓ α β μ Δ etc.) intact.
@@ -91,6 +92,7 @@ async function freeStaleLocks() {
 
 async function claimRows(limit) {
   await freeStaleLocks();
+
   const { data, error } = await supabase
     .from("mock_test_mcqs_flattened")
     .select("id, mcq_json")
@@ -103,6 +105,7 @@ async function claimRows(limit) {
   if (!data?.length) return [];
 
   const ids = data.map((r) => r.id);
+
   const { data: locked, error: e2 } = await supabase
     .from("mock_test_mcqs_flattened")
     .update({
@@ -134,7 +137,6 @@ async function processRow(row) {
     const raw = await callOpenAI(prompt);
     const jsonOut = safeParseJson(raw, row.id);
 
-    // ✅ Only update if valid JSON
     if (jsonOut && Array.isArray(jsonOut)) {
       const { error } = await supabase
         .from("mock_test_mcqs_flattened")
@@ -142,21 +144,19 @@ async function processRow(row) {
           mcq_json_cleaned: jsonOut,
           mcq_lock: null,
           mcq_lock_at: null,
-          select: false, // mark processed only when valid
-          mcq_repair_error: null,
+          select: false, // mark processed only if successful
         })
         .eq("id", row.id);
       if (error) throw error;
       console.log(`✅ Cleaned & saved → id=${row.id}`);
       return { updated: 1 };
     } else {
-      // ❌ invalid output
+      // Keep for retry
       await supabase
         .from("mock_test_mcqs_flattened")
         .update({
           mcq_lock: null,
           mcq_lock_at: null,
-          mcq_repair_error: "Invalid or empty GPT JSON output",
         })
         .eq("id", row.id);
       console.warn(`⚠️ Invalid GPT output, kept for retry → id=${row.id}`);
@@ -169,13 +169,13 @@ async function processRow(row) {
       .update({
         mcq_lock: null,
         mcq_lock_at: null,
-        mcq_repair_error: err.message,
       })
       .eq("id", row.id);
     return { updated: 0 };
   }
 }
 
+// ---------- Batch ----------
 async function processBatch(rows) {
   const chunks = [];
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {

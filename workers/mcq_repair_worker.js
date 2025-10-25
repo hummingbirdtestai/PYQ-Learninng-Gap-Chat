@@ -144,11 +144,11 @@ async function processRow(row) {
           mcq_json_cleaned: jsonOut,
           mcq_lock: null,
           mcq_lock_at: null,
-          select: false, // mark processed only if successful
+          // ⚠️ do NOT change the "select" flag anymore
         })
         .eq("id", row.id);
       if (error) throw error;
-      console.log(`✅ Cleaned & saved → id=${row.id}`);
+      console.log(`✅ Cleaned & saved (select kept true) → id=${row.id}`);
       return { updated: 1 };
     } else {
       // Keep for retry

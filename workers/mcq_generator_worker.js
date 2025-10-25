@@ -1,3 +1,4 @@
+// /app/workers/mcq_generator_worker.js
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
@@ -19,7 +20,7 @@ You are a **NEET-PG Exam paper setter with 30 years of experience**, deeply fami
 From the following Concept & Explanation, create **exactly 3 MCQs** (moderate-to-severe difficulty, NEET-PG / NBME style).  
 Each MCQ must be a **clinical case vignette** testing the most **high-yield concept** from the explanation.
 
-🎯 **STRICT OUTPUT RULES — Output valid JSON only, no extra text outside.**
+🎯 STRICT OUTPUT RULES — Output valid JSON only, no extra text outside.
 
 [
   {
@@ -53,13 +54,13 @@ Each MCQ must be a **clinical case vignette** testing the most **high-yield conc
   }
 ]
 
-🧩 **Guidelines:**
-• Follow NEET-PG exam phrasing — “Which of the following is most likely… / best next step… / most accurate statement…”  
-• Avoid “EXCEPT” or “All of the following”.  
-• Every stem must feel clinical, integrating **patient age, symptoms, investigations,** or **biochemical clues**.  
-• Use crisp, professional exam tone — no AI or textbook verbosity.  
-• Correct answer must be **one alphabet (A–D)** only.  
-• Each MCQ should be based on **different aspects of the concept** — not duplicates.  
+🧩 Guidelines:
+• Follow NEET-PG exam phrasing — “Which of the following is most likely… / best next step… / most accurate statement…”.
+• Avoid “EXCEPT” or “All of the following”.
+• Each stem must be clinical, including **patient age, symptoms, investigations,** or **biochemical clues**.
+• Use crisp, professional exam tone — no AI or textbook verbosity.
+• Correct answer must be a single alphabet (A–D).
+• Each MCQ should test different aspects of the same concept.
 
 Concept JSON:
 ${JSON.stringify(concept)}
@@ -67,7 +68,8 @@ ${JSON.stringify(concept)}
 }
 
 // ---------- Helpers ----------
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 function isRetryable(e) {
   return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(String(e?.message || e));
 }
@@ -91,13 +93,17 @@ async function callOpenAI(prompt, attempt = 1) {
 
 function safeParseJson(raw, id) {
   try {
-    const cleaned = raw.trim()
+    const cleaned = raw
+      .trim()
       .replace(/^```json\s*/i, "")
       .replace(/^```/, "")
       .replace(/```$/, "");
     return JSON.parse(cleaned);
   } catch (err) {
-    throw new Error(\`❌ Failed to parse JSON for id=\${id}: \${err.message}. Raw: \${raw.slice(0,200)}\`);
+    const preview = raw ? raw.slice(0, 200).replace(/\n/g, "\\n") : "";
+    console.error("❌ Failed to parse JSON for id", id, err.message);
+    console.error("Raw:", preview);
+    throw new Error("Failed to parse JSON for id=" + id + ": " + err.message);
   }
 }
 
@@ -119,17 +125,22 @@ async function claimRows(limit) {
     .is("mcq_json_raw", null)
     .is("mcq_lock", null)
     .limit(limit);
+
   if (error) throw error;
   if (!data?.length) return [];
 
-  const ids = data.map(r => r.id);
+  const ids = data.map((r) => r.id);
   const { data: locked, error: e2 } = await supabase
     .from("mock_test_mcqs_raw")
-    .update({ mcq_lock: WORKER_ID, mcq_lock_at: new Date().toISOString() })
+    .update({
+      mcq_lock: WORKER_ID,
+      mcq_lock_at: new Date().toISOString(),
+    })
     .in("id", ids)
     .is("mcq_json_raw", null)
     .is("mcq_lock", null)
     .select("id, phase_json");
+
   if (e2) throw e2;
   return locked || [];
 }
@@ -149,7 +160,7 @@ async function processRow(row) {
   const jsonOut = safeParseJson(raw, row.id);
 
   if (!Array.isArray(jsonOut)) {
-    throw new Error(\`❌ Expected array of MCQs for id=\${row.id}\`);
+    throw new Error("Expected array of MCQs for id=" + row.id);
   }
 
   const { error } = await supabase
@@ -162,22 +173,24 @@ async function processRow(row) {
     })
     .eq("id", row.id);
 
-  if (error) throw new Error(\`Update failed id=\${row.id}: \${error.message}\`);
+  if (error) throw new Error("Update failed id=" + row.id + ": " + error.message);
   return { updated: 1 };
 }
 
 async function processBatch(rows) {
   const chunks = [];
-  for (let i = 0; i < rows.length; i += BATCH_SIZE)
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     chunks.push(rows.slice(i, i + BATCH_SIZE));
+  }
 
   let updated = 0;
   for (const chunk of chunks) {
     const results = await Promise.allSettled(chunk.map(processRow));
     for (let i = 0; i < results.length; i++) {
       const r = results[i];
-      if (r.status === "fulfilled") updated += r.value.updated;
-      else {
+      if (r.status === "fulfilled") {
+        updated += r.value.updated;
+      } else {
         console.error(r.reason?.message || r.reason);
         await clearLocks([chunk[i].id]);
       }
@@ -186,9 +199,9 @@ async function processBatch(rows) {
   return updated;
 }
 
-// ---------- Main ----------
+// ---------- Main Loop ----------
 (async function main() {
-  console.log(\`🧩 MCQ Generator Worker \${WORKER_ID} | model=\${MODEL}\`);
+  console.log("🧩 MCQ Generator Worker", WORKER_ID, "| model =", MODEL);
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);
@@ -196,9 +209,9 @@ async function processBatch(rows) {
         await sleep(SLEEP_MS);
         continue;
       }
-      console.log(\`⚙️ claimed=\${claimed.length}\`);
+      console.log("⚙️ claimed =", claimed.length);
       const updated = await processBatch(claimed);
-      console.log(\`✅ updated=\${updated} of \${claimed.length}\`);
+      console.log("✅ updated =", updated, "of", claimed.length);
     } catch (e) {
       console.error("Loop error:", e.message || e);
       await sleep(1000);

@@ -57,6 +57,7 @@
     "start:imageConceptMultiWorker": "node workers/imageConceptMultiWorker.js",
     "start:conceptformatter": "node workers/concept_formatter_worker.js",
     "start:mcq_generator_worker": "node workers/mcq_generator_worker.js",
+    "start:mcq_repair_worker": "node workers/mcq_repair_worker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

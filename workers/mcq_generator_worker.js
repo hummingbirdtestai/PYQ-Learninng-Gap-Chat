@@ -14,38 +14,52 @@ const WORKER_ID    = process.env.WORKER_ID || `mcq-gen-worker-${process.pid}-${M
 // ---------- Prompt ----------
 function buildPrompt(concept) {
   return `
-You are an expert NEET-PG and USMLE question writer with 30 years of experience creating official-standard, high-yield MCQs (NEET-PG / USMLE / NBME level = moderate-hard).
-From the given Concept & Explanation, write exactly *2* MCQs that look and read like real NEET-PG PYQs.
-🎯 Output valid JSON only — no text outside.
+You are a **NEET-PG Exam paper setter with 30 years of experience**, deeply familiar with actual NEET-PG PYQs and question framing patterns seen in **AMBOSS, UWorld, NBME, and FIRST AID**.
+
+From the following Concept & Explanation, create **exactly 3 MCQs** (moderate-to-severe difficulty, NEET-PG / NBME style).  
+Each MCQ must be a **clinical case vignette** testing the most **high-yield concept** from the explanation.
+
+🎯 **STRICT OUTPUT RULES — Output valid JSON only, no extra text outside.**
 
 [
   {
-    "stem": "Real NEET-PG–style question (case or applied fact) ending with 'Which of the following…?'. Use *bold*, _italic_, arrows (→ ↑ ↓), subscripts/superscripts (₁₂³⁺⁻), minimal emojis (✅ ❌ 💡).",
     "mcq_key": "mcq_1",
-    "options": {"A": "...","B": "...","C": "...","D": "..."},
-    "feedback": {
-      "wrong": "❌ Brief rationale using **bold**, _italic_, arrows.",
-      "correct": "✅ Concise reasoning with **bold**, _italic_, arrows, subscripts/superscripts."
+    "stem": "Clinical vignette ending with 'Which of the following...?' Use **bold**, _italic_, Unicode arrows (→ ↑ ↓), subscripts/superscripts (₁₂³⁺⁻), and medical symbols (Δ, α, β, μ, etc.).",
+    "options": {
+      "A": "...",
+      "B": "...",
+      "C": "...",
+      "D": "..."
     },
-    "learning_gap": "💡 One-line high-yield takeaway with **bold**, _italic_.",
-    "correct_answer": "A"
+    "correct_answer": "A",
+    "high_yield_facts": "✅ Concise explanation covering the concept tested — key reasoning, one-line fact pearls (as seen in real NEET-PG review books). Use **bold**, _italic_, and Unicode.",
+    "learning_gap": "💡 Explain the most common confusion or trap leading to wrong answers, and how to avoid it in the real exam."
   },
   {
-    "stem": "...",
     "mcq_key": "mcq_2",
-    "options": {"A": "...","B": "...","C": "...","D": "..."},
-    "feedback": {"wrong": "...","correct": "..."},
-    "learning_gap": "...",
-    "correct_answer": "B"
+    "stem": "...",
+    "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
+    "correct_answer": "B",
+    "high_yield_facts": "...",
+    "learning_gap": "..."
+  },
+  {
+    "mcq_key": "mcq_3",
+    "stem": "...",
+    "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
+    "correct_answer": "C",
+    "high_yield_facts": "...",
+    "learning_gap": "..."
   }
 ]
 
-🧩 Guidelines:
-• Match real NEET-PG phrasing, tone, and difficulty seen in PYQs.
-• Let the question form (clinical, applied, data-based, etc.) emerge naturally from the Concept.
-• Ensure 1 correct + 3 plausible distractors.
-• Avoid “except / all of the following”; prefer “Which of the following is most likely…”.
-• Use concise, exam-oriented language — no AI or textbook tone.
+🧩 **Guidelines:**
+• Follow NEET-PG exam phrasing — “Which of the following is most likely… / best next step… / most accurate statement…”  
+• Avoid “EXCEPT” or “All of the following”.  
+• Every stem must feel clinical, integrating **patient age, symptoms, investigations,** or **biochemical clues**.  
+• Use crisp, professional exam tone — no AI or textbook verbosity.  
+• Correct answer must be **one alphabet (A–D)** only.  
+• Each MCQ should be based on **different aspects of the concept** — not duplicates.  
 
 Concept JSON:
 ${JSON.stringify(concept)}
@@ -83,7 +97,7 @@ function safeParseJson(raw, id) {
       .replace(/```$/, "");
     return JSON.parse(cleaned);
   } catch (err) {
-    throw new Error(`❌ Failed to parse JSON for id=${id}: ${err.message}. Raw: ${raw.slice(0,200)}`);
+    throw new Error(\`❌ Failed to parse JSON for id=\${id}: \${err.message}. Raw: \${raw.slice(0,200)}\`);
   }
 }
 
@@ -135,7 +149,7 @@ async function processRow(row) {
   const jsonOut = safeParseJson(raw, row.id);
 
   if (!Array.isArray(jsonOut)) {
-    throw new Error(`❌ Expected array of MCQs for id=${row.id}`);
+    throw new Error(\`❌ Expected array of MCQs for id=\${row.id}\`);
   }
 
   const { error } = await supabase
@@ -148,7 +162,7 @@ async function processRow(row) {
     })
     .eq("id", row.id);
 
-  if (error) throw new Error(`Update failed id=${row.id}: ${error.message}`);
+  if (error) throw new Error(\`Update failed id=\${row.id}: \${error.message}\`);
   return { updated: 1 };
 }
 
@@ -174,7 +188,7 @@ async function processBatch(rows) {
 
 // ---------- Main ----------
 (async function main() {
-  console.log(`🧩 MCQ Generator Worker ${WORKER_ID} | model=${MODEL}`);
+  console.log(\`🧩 MCQ Generator Worker \${WORKER_ID} | model=\${MODEL}\`);
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);
@@ -182,9 +196,9 @@ async function processBatch(rows) {
         await sleep(SLEEP_MS);
         continue;
       }
-      console.log(`⚙️ claimed=${claimed.length}`);
+      console.log(\`⚙️ claimed=\${claimed.length}\`);
       const updated = await processBatch(claimed);
-      console.log(`✅ updated=${updated} of ${claimed.length}`);
+      console.log(\`✅ updated=\${updated} of \${claimed.length}\`);
     } catch (e) {
       console.error("Loop error:", e.message || e);
       await sleep(1000);

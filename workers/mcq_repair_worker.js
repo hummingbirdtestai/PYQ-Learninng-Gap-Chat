@@ -3,15 +3,19 @@ require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
 
-// ---------- Settings ----------
+// ─────────────────────────────────────────────
+// Settings
+// ─────────────────────────────────────────────
 const MODEL        = process.env.MCQ_FINAL_MODEL || "gpt-5-mini";
-const LIMIT        = parseInt(process.env.MCQ_FINAL_LIMIT || "100", 10);
-const BATCH_SIZE   = parseInt(process.env.MCQ_FINAL_BATCH_SIZE || "5", 10);
-const SLEEP_MS     = parseInt(process.env.MCQ_FINAL_LOOP_SLEEP_MS || "500", 10);
-const LOCK_TTL_MIN = parseInt(process.env.MCQ_FINAL_LOCK_TTL_MIN || "15", 10);
+const LIMIT        = parseInt(process.env.MCQ_FINAL_LIMIT || "200", 10);     // ↑ claim more at once
+const BATCH_SIZE   = parseInt(process.env.MCQ_FINAL_BATCH_SIZE || "20", 10); // ↑ parallelism
+const SLEEP_MS     = parseInt(process.env.MCQ_FINAL_LOOP_SLEEP_MS || "200", 10);
+const LOCK_TTL_MIN = parseInt(process.env.MCQ_FINAL_LOCK_TTL_MIN || "5", 10);
 const WORKER_ID    = process.env.WORKER_ID || `mcq-final-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
-// ---------- Prompt ----------
+// ─────────────────────────────────────────────
+// Prompt builder (⚠️ unchanged)
+// ─────────────────────────────────────────────
 function buildPrompt(mcqJson) {
   return `
 THIS IS A MCQ which is malformed in the stem truncating with "Which of the following ...?".
@@ -40,7 +44,9 @@ ${JSON.stringify(mcqJson)}
 `.trim();
 }
 
-// ---------- Helpers ----------
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function isRetryable(e) {
@@ -80,7 +86,9 @@ function safeParseJson(raw, id) {
   }
 }
 
-// ---------- Locks ----------
+// ─────────────────────────────────────────────
+// Lock management
+// ─────────────────────────────────────────────
 async function freeStaleLocks() {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
   await supabase
@@ -130,7 +138,9 @@ async function clearLocks(ids) {
     .in("id", ids);
 }
 
-// ---------- Process ----------
+// ─────────────────────────────────────────────
+// Process one row
+// ─────────────────────────────────────────────
 async function processRow(row) {
   try {
     const prompt = buildPrompt(row.mcq_json_cleaned);
@@ -138,67 +148,68 @@ async function processRow(row) {
     const jsonOut = safeParseJson(raw, row.id);
 
     if (jsonOut && Array.isArray(jsonOut)) {
-      const { error } = await supabase
-        .from("mock_test_mcqs_flattened")
-        .update({
-          final_mock_mcq_json: jsonOut,
-          mcq_lock: null,
-          mcq_lock_at: null,
-        })
-        .eq("id", row.id);
-      if (error) throw error;
-      console.log(`✅ Final MCQ saved → id=${row.id}`);
-      return { updated: 1 };
+      return {
+        id: row.id,
+        json: jsonOut,
+        success: true,
+      };
     } else {
-      await supabase
-        .from("mock_test_mcqs_flattened")
-        .update({
-          mcq_lock: null,
-          mcq_lock_at: null,
-        })
-        .eq("id", row.id);
-      console.warn(`⚠️ Invalid GPT output, kept for retry → id=${row.id}`);
-      return { updated: 0 };
+      console.warn(`⚠️ Invalid GPT output → id=${row.id}`);
+      return { id: row.id, success: false };
     }
   } catch (err) {
     console.error(`💥 processRow failed id=${row.id}:`, err.message);
-    await supabase
-      .from("mock_test_mcqs_flattened")
-      .update({
-        mcq_lock: null,
-        mcq_lock_at: null,
-      })
-      .eq("id", row.id);
-    return { updated: 0 };
+    return { id: row.id, success: false };
   }
 }
 
-// ---------- Batch ----------
+// ─────────────────────────────────────────────
+// Batch processor
+// ─────────────────────────────────────────────
 async function processBatch(rows) {
   const chunks = [];
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     chunks.push(rows.slice(i, i + BATCH_SIZE));
   }
 
-  let updated = 0;
+  let totalUpdated = 0;
   for (const chunk of chunks) {
     const results = await Promise.allSettled(chunk.map(processRow));
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i];
-      if (r.status === "fulfilled") {
-        updated += r.value.updated;
-      } else {
-        console.error(`❌ Unhandled error for id=${chunk[i].id}`, r.reason?.message || r.reason);
-        await clearLocks([chunk[i].id]);
-      }
+    const successful = results
+      .filter((r) => r.status === "fulfilled" && r.value?.success)
+      .map((r) => ({ id: r.value.id, final_mock_mcq_json: r.value.json }));
+
+    if (successful.length > 0) {
+      const { error } = await supabase
+        .from("mock_test_mcqs_flattened")
+        .upsert(
+          successful.map((r) => ({
+            id: r.id,
+            final_mock_mcq_json: r.final_mock_mcq_json,
+            mcq_lock: null,
+            mcq_lock_at: null,
+          })),
+          { onConflict: "id" }
+        );
+      if (error) console.error("❌ Batch update error:", error.message);
+      totalUpdated += successful.length;
     }
+
+    // clear locks for failed ones
+    const failedIds = results
+      .filter((r) => !r.value?.success)
+      .map((r, i) => chunk[i].id);
+    if (failedIds.length > 0) await clearLocks(failedIds);
   }
-  return updated;
+
+  return totalUpdated;
 }
 
-// ---------- Main Loop ----------
+// ─────────────────────────────────────────────
+// Main loop
+// ─────────────────────────────────────────────
 (async function main() {
-  console.log("🧩 Final MCQ Worker", WORKER_ID, "| model =", MODEL);
+  console.log("🧩 Final MCQ Worker started:", WORKER_ID, "| model =", MODEL);
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);

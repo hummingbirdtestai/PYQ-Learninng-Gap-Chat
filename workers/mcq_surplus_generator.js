@@ -9,9 +9,13 @@ const LIMIT        = parseInt(process.env.MCQ_GEN_LIMIT || "100", 10);
 const BATCH_SIZE   = parseInt(process.env.MCQ_GEN_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.MCQ_GEN_LOOP_SLEEP_MS || "500", 10);
 const LOCK_TTL_MIN = parseInt(process.env.MCQ_GEN_LOCK_TTL_MIN || "15", 10);
-const SUBJECTS     = ["Obstetrics and Gynaecology"];   // ✅ exact DB spelling
-const WORKER_ID    = process.env.WORKER_ID ||
-  `mcq-gen-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+
+// ✅ Runs for both subjects — matches DB spelling exactly
+const SUBJECTS     = ["General Surgery", "Obstetrics and Gynaecology"];
+
+const WORKER_ID    =
+  process.env.WORKER_ID ||
+  `mcq-gen-worker-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ---------- Prompt ----------
 function buildPrompt(concept) {
@@ -39,7 +43,7 @@ The output must be **one single JSON object** like this example:
 }
 
 🧩 Guidelines:
-• Each stem must form a complete, self-contained vignette ending with “Which of the following…?”.  
+• Each stem must form a complete, self-contained vignette ending naturally with “Which of the following…?”.  
 • Avoid “EXCEPT” or “All of the following”.  
 • Include patient details, investigations, and clues.  
 • Use crisp professional exam tone — no AI or textbook verbosity.  
@@ -54,7 +58,9 @@ ${JSON.stringify(concept)}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function isRetryable(e) {
-  return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(String(e?.message || e));
+  return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(
+    String(e?.message || e)
+  );
 }
 
 async function callOpenAI(prompt, attempt = 1) {
@@ -96,7 +102,7 @@ async function freeStaleLocks() {
   await supabase
     .from("mock_test_mcqs_raw")
     .update({ mcq_lock: null, mcq_lock_at: null })
-    .is("surplus_mcq_json", null)
+    .is("more_surplus_mcq_json", null)
     .lt("mcq_lock_at", cutoff);
 }
 
@@ -107,7 +113,7 @@ async function claimRows(limit) {
     .from("mock_test_mcqs_raw")
     .select("id, phase_json, subject")
     .in("subject", SUBJECTS)
-    .is("surplus_mcq_json", null)
+    .is("more_surplus_mcq_json", null)
     .is("mcq_lock", null)
     .limit(limit);
 
@@ -122,7 +128,7 @@ async function claimRows(limit) {
       mcq_lock_at: new Date().toISOString(),
     })
     .in("id", ids)
-    .is("surplus_mcq_json", null)
+    .is("more_surplus_mcq_json", null)
     .is("mcq_lock", null)
     .select("id, phase_json, subject");
 
@@ -151,7 +157,7 @@ async function processRow(row) {
   const { error } = await supabase
     .from("mock_test_mcqs_raw")
     .update({
-      surplus_mcq_json: jsonOut,
+      more_surplus_mcq_json: jsonOut, // ✅ new column
       mcq_lock: null,
       mcq_lock_at: null,
       updated_at: new Date().toISOString(),

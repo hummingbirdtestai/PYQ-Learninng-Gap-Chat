@@ -60,6 +60,7 @@
     "start:mcq_repair_worker": "node workers/mcq_repair_worker.js",
     "start:mcq_surplus_generator": "node workers/mcq_surplus_generator.js",
     "start:subjectImageTopicWorker": "node workers/subjectImageTopicWorker.js",
+    "start:subjectImageMCQWorker": "node workers/subjectImageMCQWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

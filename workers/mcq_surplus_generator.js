@@ -13,7 +13,7 @@ const LOCK_TTL_MIN = parseInt(process.env.MCQ_GEN_LOCK_TTL_MIN || "15", 10);
 // ✅ Runs for both subjects — matches DB spelling exactly
 const SUBJECTS     = ["General Surgery", "Obstetrics and Gynaecology"];
 
-const WORKER_ID    =
+const WORKER_ID =
   process.env.WORKER_ID ||
   `mcq-gen-worker-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -102,7 +102,7 @@ async function freeStaleLocks() {
   await supabase
     .from("mock_test_mcqs_raw")
     .update({ mcq_lock: null, mcq_lock_at: null })
-    .is("more_surplus_mcq_json", null)
+    .is("more_surplus_mcq_json", null)  // ✅ changed column here
     .lt("mcq_lock_at", cutoff);
 }
 
@@ -113,7 +113,7 @@ async function claimRows(limit) {
     .from("mock_test_mcqs_raw")
     .select("id, phase_json, subject")
     .in("subject", SUBJECTS)
-    .is("more_surplus_mcq_json", null)
+    .is("more_surplus_mcq_json", null)   // ✅ changed column here
     .is("mcq_lock", null)
     .limit(limit);
 
@@ -128,7 +128,7 @@ async function claimRows(limit) {
       mcq_lock_at: new Date().toISOString(),
     })
     .in("id", ids)
-    .is("more_surplus_mcq_json", null)
+    .is("more_surplus_mcq_json", null)   // ✅ changed column here
     .is("mcq_lock", null)
     .select("id, phase_json, subject");
 
@@ -157,14 +157,15 @@ async function processRow(row) {
   const { error } = await supabase
     .from("mock_test_mcqs_raw")
     .update({
-      more_surplus_mcq_json: jsonOut, // ✅ new column
+      more_surplus_mcq_json: jsonOut, // ✅ writes to new column
       mcq_lock: null,
       mcq_lock_at: null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", row.id);
 
-  if (error) throw new Error("Update failed id=" + row.id + ": " + error.message);
+  if (error)
+    throw new Error("Update failed id=" + row.id + ": " + error.message);
   return { updated: 1 };
 }
 

@@ -91,11 +91,13 @@ async function claimRows(limit) {
     .is("phase_json", null)
     .lt("phase_json_lock_at", cutoff);
 
-  // 2. Select candidates — rows where concept is NULL
+  // 2. Select candidates — rows that HAVE concept but no phase_json yet
   const { data: candidates, error: e1 } = await supabase
     .from("flashcard_raw")
     .select("id, concept")
-    .is("concept", null)
+    .not("concept", "is", null)
+    .not("concept", "eq", "")
+    .is("phase_json", null)
     .is("phase_json_lock", null)
     .order("id", { ascending: true })
     .limit(limit);

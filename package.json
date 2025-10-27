@@ -63,6 +63,7 @@
     "start:subjectImageMCQWorker": "node workers/subjectImageMCQWorker.js",
     "start:subjectImageMCQFinalWorker": "node workers/subjectImageMCQFinalWorker.js",
     "start:medicineImageMCQFinalWorker": "node workers/medicineImageMCQFinalWorker.js",
+    "start:medicineImageMCQCorrectorWorker": "node workers/medicineImageMCQCorrectorWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

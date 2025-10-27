@@ -1,15 +1,15 @@
-// /app/workers/mcq_repair_worker.js
+// /app/workers/mcq_final_worker.js
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
 
 // ---------- Settings ----------
-const MODEL        = process.env.MCQ_REPAIR_MODEL || "gpt-5-mini";
-const LIMIT        = parseInt(process.env.MCQ_REPAIR_LIMIT || "50", 10);
-const BATCH_SIZE   = parseInt(process.env.MCQ_REPAIR_BATCH_SIZE || "5", 10);
-const SLEEP_MS     = parseInt(process.env.MCQ_REPAIR_LOOP_SLEEP_MS || "500", 10);
-const LOCK_TTL_MIN = parseInt(process.env.MCQ_REPAIR_LOCK_TTL_MIN || "15", 10);
-const WORKER_ID    = process.env.WORKER_ID || `mcq-repair-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+const MODEL        = process.env.MCQ_FINAL_MODEL || "gpt-5-mini";
+const LIMIT        = parseInt(process.env.MCQ_FINAL_LIMIT || "50", 10);
+const BATCH_SIZE   = parseInt(process.env.MCQ_FINAL_BATCH_SIZE || "5", 10);
+const SLEEP_MS     = parseInt(process.env.MCQ_FINAL_LOOP_SLEEP_MS || "500", 10);
+const LOCK_TTL_MIN = parseInt(process.env.MCQ_FINAL_LOCK_TTL_MIN || "15", 10);
+const WORKER_ID    = process.env.WORKER_ID || `mcq-final-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // ---------- Prompt ----------
 function buildPrompt(mcqJson) {
@@ -86,7 +86,7 @@ async function freeStaleLocks() {
   await supabase
     .from("mock_test_mcqs_flattened")
     .update({ mcq_lock: null, mcq_lock_at: null })
-    .is("mcq_json_cleaned", null)
+    .is("final_mock_mcq_json", null)
     .lt("mcq_lock_at", cutoff);
 }
 
@@ -95,10 +95,10 @@ async function claimRows(limit) {
 
   const { data, error } = await supabase
     .from("mock_test_mcqs_flattened")
-    .select("id, mcq_json")
+    .select("id, mcq_json_cleaned")
     .eq("select", true)
     .is("mcq_lock", null)
-    .is("mcq_json_cleaned", null)
+    .is("final_mock_mcq_json", null)
     .limit(limit);
 
   if (error) throw error;
@@ -114,9 +114,9 @@ async function claimRows(limit) {
     })
     .in("id", ids)
     .eq("select", true)
-    .is("mcq_json_cleaned", null)
+    .is("final_mock_mcq_json", null)
     .is("mcq_lock", null)
-    .select("id, mcq_json");
+    .select("id, mcq_json_cleaned");
 
   if (e2) throw e2;
   return locked || [];
@@ -133,7 +133,7 @@ async function clearLocks(ids) {
 // ---------- Process ----------
 async function processRow(row) {
   try {
-    const prompt = buildPrompt(row.mcq_json);
+    const prompt = buildPrompt(row.mcq_json_cleaned);
     const raw = await callOpenAI(prompt);
     const jsonOut = safeParseJson(raw, row.id);
 
@@ -141,17 +141,15 @@ async function processRow(row) {
       const { error } = await supabase
         .from("mock_test_mcqs_flattened")
         .update({
-          mcq_json_cleaned: jsonOut,
+          final_mock_mcq_json: jsonOut,
           mcq_lock: null,
           mcq_lock_at: null,
-          // ⚠️ do NOT change the "select" flag anymore
         })
         .eq("id", row.id);
       if (error) throw error;
-      console.log(`✅ Cleaned & saved (select kept true) → id=${row.id}`);
+      console.log(`✅ Final MCQ saved → id=${row.id}`);
       return { updated: 1 };
     } else {
-      // Keep for retry
       await supabase
         .from("mock_test_mcqs_flattened")
         .update({
@@ -200,7 +198,7 @@ async function processBatch(rows) {
 
 // ---------- Main Loop ----------
 (async function main() {
-  console.log("🧩 MCQ Repair Worker", WORKER_ID, "| model =", MODEL);
+  console.log("🧩 Final MCQ Worker", WORKER_ID, "| model =", MODEL);
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);
@@ -209,9 +207,9 @@ async function processBatch(rows) {
         continue;
       }
 
-      console.log(`⚙️ Claimed ${claimed.length} rows for repair`);
+      console.log(`⚙️ Claimed ${claimed.length} rows for final processing`);
       const updated = await processBatch(claimed);
-      console.log(`✅ Batch done: cleaned ${updated} / ${claimed.length}`);
+      console.log(`✅ Batch done: finalized ${updated} / ${claimed.length}`);
     } catch (e) {
       console.error("Loop error:", e.message || e);
       await sleep(1000);

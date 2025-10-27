@@ -10,8 +10,8 @@ const BATCH_SIZE   = parseInt(process.env.MCQ_GEN_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.MCQ_GEN_LOOP_SLEEP_MS || "500", 10);
 const LOCK_TTL_MIN = parseInt(process.env.MCQ_GEN_LOCK_TTL_MIN || "15", 10);
 
-// ✅ Runs for both subjects — matches DB spelling exactly
-const SUBJECTS     = ["General Surgery", "Obstetrics and Gynaecology"];
+// ✅ Now runs only for "General Surgery"
+const SUBJECTS     = ["General Surgery"];
 
 const WORKER_ID =
   process.env.WORKER_ID ||
@@ -29,17 +29,17 @@ Each MCQ must be a **clinical case vignette** testing the most **high-yield conc
 The output must be **one single JSON object** like this example:
 
 {
-  "stem": "A 12-year-old girl presents for school medical clearance but has no vaccination records. On exam there is a healed 4–5 mm scar over the left deltoid consistent with prior intradermal injection. Parents report the child received a vaccine as a neonate but cannot recall which one. Regarding the observed scar and BCG vaccination, **which of the following...?**",
+  "stem": "A 35-year-old man presents with epigastric pain radiating to the back after heavy alcohol use...",
   "mcq_key": "mcq_3",
   "options": {
-    "A": "Presence of the deltoid scar excludes the need for any further TB testing because it proves lifelong immunity.",
-    "B": "Absence of a scar reliably excludes prior BCG vaccination and indicates the child was not immunized.",
-    "C": "A healed intradermal scar is commonly used as evidence of prior *BCG* vaccination, but absence of a scar does not definitively exclude prior vaccination.",
-    "D": "A BCG scar indicates vaccine failure and predicts higher risk of severe childhood TB."
+    "A": "Acute cholecystitis",
+    "B": "Acute pancreatitis",
+    "C": "Peptic ulcer disease",
+    "D": "Perforated duodenal ulcer"
   },
-  "learning_gap": "💡 Trap: Interpreting the scar too rigidly. Do not assume absence of scar = no vaccination, nor assume scar = complete protection. Use scar as supportive history; combine with exposure, symptoms, and testing when deciding further evaluation.",
-  "correct_answer": "C",
-  "high_yield_facts": "✅ Typical local reaction: intradermal papule → ulcer → healed **scar**. The scar is **commonly used as evidence** of prior BCG, but **no scar does not reliably rule out** past vaccination. Scar presence ≠ guaranteed sterilizing immunity."
+  "learning_gap": "💡 Core clue: Epigastric pain radiating to back, ↑ serum lipase — classic for pancreatitis.",
+  "correct_answer": "B",
+  "high_yield_facts": "✅ Causes include alcohol & gallstones. Pathophysiology: premature activation of pancreatic enzymes → autodigestion."
 }
 
 🧩 Guidelines:
@@ -102,7 +102,7 @@ async function freeStaleLocks() {
   await supabase
     .from("mock_test_mcqs_raw")
     .update({ mcq_lock: null, mcq_lock_at: null })
-    .is("more_surplus_mcq_json", null)  // ✅ changed column here
+    .is("unique_row", null)  // ✅ only if not yet filled
     .lt("mcq_lock_at", cutoff);
 }
 
@@ -113,7 +113,7 @@ async function claimRows(limit) {
     .from("mock_test_mcqs_raw")
     .select("id, phase_json, subject")
     .in("subject", SUBJECTS)
-    .is("more_surplus_mcq_json", null)   // ✅ changed column here
+    .is("unique_row", null)   // ✅ only unfilled rows
     .is("mcq_lock", null)
     .limit(limit);
 
@@ -128,7 +128,7 @@ async function claimRows(limit) {
       mcq_lock_at: new Date().toISOString(),
     })
     .in("id", ids)
-    .is("more_surplus_mcq_json", null)   // ✅ changed column here
+    .is("unique_row", null)
     .is("mcq_lock", null)
     .select("id, phase_json, subject");
 
@@ -154,10 +154,11 @@ async function processRow(row) {
     throw new Error("Expected single JSON object for id=" + row.id);
   }
 
+  // ✅ Save output into unique_row column
   const { error } = await supabase
     .from("mock_test_mcqs_raw")
     .update({
-      more_surplus_mcq_json: jsonOut, // ✅ writes to new column
+      unique_row: jsonOut,
       mcq_lock: null,
       mcq_lock_at: null,
       updated_at: new Date().toISOString(),

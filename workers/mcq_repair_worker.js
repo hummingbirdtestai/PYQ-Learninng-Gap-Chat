@@ -5,7 +5,7 @@ const openai = require("../config/openaiClient");
 
 // ---------- Settings ----------
 const MODEL        = process.env.MCQ_FINAL_MODEL || "gpt-5-mini";
-const LIMIT        = parseInt(process.env.MCQ_FINAL_LIMIT || "50", 10);
+const LIMIT        = parseInt(process.env.MCQ_FINAL_LIMIT || "100", 10);
 const BATCH_SIZE   = parseInt(process.env.MCQ_FINAL_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.MCQ_FINAL_LOOP_SLEEP_MS || "500", 10);
 const LOCK_TTL_MIN = parseInt(process.env.MCQ_FINAL_LOCK_TTL_MIN || "15", 10);

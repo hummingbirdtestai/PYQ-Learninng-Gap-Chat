@@ -6,12 +6,13 @@ const openai = require("../config/openaiClient");
 // ─────────────────────────────────────────────
 // SETTINGS
 // ─────────────────────────────────────────────
-const MODEL        = process.env.SUBJECT_IMAGE_MCQ_MODEL || "gpt-5-mini";
-const LIMIT        = parseInt(process.env.SUBJECT_IMAGE_MCQ_LIMIT || "50", 10);
-const BATCH_SIZE   = parseInt(process.env.SUBJECT_IMAGE_MCQ_BLOCK_SIZE || "5", 10);
-const SLEEP_MS     = parseInt(process.env.SUBJECT_IMAGE_MCQ_SLEEP_MS || "1000", 10);
+const MODEL = process.env.SUBJECT_IMAGE_MCQ_MODEL || "gpt-5-mini";
+const LIMIT = parseInt(process.env.SUBJECT_IMAGE_MCQ_LIMIT || "50", 10);
+const SLEEP_MS = parseInt(process.env.SUBJECT_IMAGE_MCQ_SLEEP_MS || "1000", 10);
 const LOCK_TTL_MIN = parseInt(process.env.SUBJECT_IMAGE_MCQ_LOCK_TTL_MIN || "15", 10);
-const WORKER_ID    = process.env.WORKER_ID || `battle-mcq-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+const WORKER_ID =
+  process.env.WORKER_ID ||
+  `battle-mcq-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT BUILDER
@@ -24,7 +25,7 @@ Create **30 MCQs** in **strict JSON format** from the following concept.
 Each MCQ must test a **high-yield fact** or **clinical vignette** directly based on the concept.
 
 **Prompt Rules:**
-- Output strictly as valid JSON array of 30 objects.
+- Output strictly as a valid JSON array of 30 objects.
 - Each object must contain:
   {
     "Stem": "…",
@@ -33,7 +34,7 @@ Each MCQ must test a **high-yield fact** or **clinical vignette** directly based
   }
 - Style: Clinical Case Vignette + High-Yield Fact type.
 - Use Unicode markup for **bold**, *italic*, superscripts (Na⁺), subscripts, arrows (→), and symbols (±), equations, etc.
-- Avoid explanations or text outside JSON.
+- Do not include explanations or any text outside JSON.
 
 **INPUT CONCEPT:**
 ${conceptText}
@@ -46,7 +47,9 @@ ${conceptText}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function isRetryable(e) {
-  return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(String(e?.message || e));
+  return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(
+    String(e?.message || e)
+  );
 }
 
 async function callOpenAI(messages, attempt = 1) {
@@ -55,12 +58,14 @@ async function callOpenAI(messages, attempt = 1) {
       model: MODEL,
       messages,
     });
-    return resp.choices?.[0]?.message?.content || "";
+    return resp.choices?.[0]?.message?.content?.trim() || "";
   } catch (e) {
     if (isRetryable(e) && attempt <= 3) {
+      console.warn(`⚠️ Retry attempt ${attempt} due to transient error`);
       await sleep(400 * attempt);
       return callOpenAI(messages, attempt + 1);
     }
+    console.error("❌ OpenAI API call failed:", e.message || e);
     throw e;
   }
 }
@@ -73,11 +78,12 @@ function safeParseJSON(raw) {
     .replace(/```$/i, "")
     .replace(/,\s*}/g, "}")
     .replace(/,\s*]/g, "]");
+
   try {
     return JSON.parse(cleaned);
   } catch (e) {
-    console.error("❌ JSON parse error. Snippet:", cleaned.slice(0, 300));
-    throw e;
+    console.error("❌ JSON parse error. Snippet:", cleaned.slice(0, 200));
+    throw new Error("Invalid JSON output from OpenAI");
   }
 }
 
@@ -87,13 +93,13 @@ function safeParseJSON(raw) {
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // Clear stale locks
+  // Free stale locks
   await supabase
     .from("flashcard_raw")
     .update({ mentor_reply_lock: null, mentor_reply_lock_at: null })
     .lt("mentor_reply_lock_at", cutoff);
 
-  // Fetch rows needing battle_mcqs
+  // Get unprocessed rows
   const { data: candidates, error: e1 } = await supabase
     .from("flashcard_raw")
     .select("id, concept_final")
@@ -102,7 +108,7 @@ async function claimRows(limit) {
     .order("created_at", { ascending: true })
     .limit(limit);
 
-  if (e1) throw e1;
+  if (e1) throw new Error(e1.message);
   if (!candidates?.length) return [];
 
   const ids = candidates.map((r) => r.id);
@@ -118,12 +124,12 @@ async function claimRows(limit) {
     .is("battle_mcqs", null)
     .select("id, concept_final");
 
-  if (e2) throw e2;
+  if (e2) throw new Error(e2.message);
   return locked || [];
 }
 
 async function clearLocks(ids) {
-  if (!ids.length) return;
+  if (!ids?.length) return;
   await supabase
     .from("flashcard_raw")
     .update({ mentor_reply_lock: null, mentor_reply_lock_at: null })
@@ -141,7 +147,7 @@ async function processRow(row) {
   const raw = await callOpenAI([{ role: "user", content: prompt }]);
   const mcqJSON = safeParseJSON(raw);
 
-  await supabase
+  const { error: e3 } = await supabase
     .from("flashcard_raw")
     .update({
       battle_mcqs: mcqJSON,
@@ -151,6 +157,7 @@ async function processRow(row) {
     })
     .eq("id", row.id);
 
+  if (e3) throw new Error(e3.message);
   return { updated: 1 };
 }
 
@@ -158,34 +165,44 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🔥 BattleMCQ Generator Worker ${WORKER_ID} | model=${MODEL} | limit=${LIMIT}`);
+  console.log(
+    `🚀 BattleMCQ Generator Worker Started | model=${MODEL} | limit=${LIMIT}`
+  );
+  console.log(`Worker ID: ${WORKER_ID}`);
 
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);
       if (!claimed.length) {
+        console.log("⏸️ No unlocked rows found — sleeping...");
         await sleep(SLEEP_MS);
         continue;
       }
 
-      console.log(`⚙️ Claimed ${claimed.length} rows`);
-      const results = await Promise.allSettled(claimed.map((r) => processRow(r)));
+      console.log(`⚙️ Claimed ${claimed.length} rows for processing`);
+
+      const results = await Promise.allSettled(
+        claimed.map((r) => processRow(r))
+      );
 
       let updated = 0;
-      results.forEach((res, i) => {
+      for (let i = 0; i < results.length; i++) {
+        const res = results[i];
         if (res.status === "fulfilled") {
           console.log(`✅ Row ${i + 1}: MCQs generated`);
           updated += res.value.updated;
         } else {
-          console.error(`❌ Row ${i + 1} error:`, res.reason.message || res.reason);
-          clearLocks([claimed[i].id]);
+          console.error(
+            `❌ Row ${i + 1} failed: ${res.reason.message || res.reason}`
+          );
+          await clearLocks([claimed[i].id]);
         }
-      });
+      }
 
       console.log(`🌀 Batch complete — updated=${updated}/${claimed.length}`);
     } catch (err) {
-      console.error("💥 Loop error:", err.message || err);
-      await sleep(2000);
+      console.error("💥 Main loop error:", err.message || err);
+      await sleep(3000);
     }
   }
 })();

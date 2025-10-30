@@ -15,7 +15,7 @@ const WORKER_ID =
   `battle-mcq-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT BUILDER (✅ FINAL UPDATED)
+// PROMPT BUILDER (✅ FINAL VERSION)
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
@@ -108,11 +108,11 @@ async function claimRows(limit) {
     .update({ mentor_reply_lock: null, mentor_reply_lock_at: null })
     .lt("mentor_reply_lock_at", cutoff);
 
-  // Get unprocessed rows → only those where battle_mcqs_final is NULL
+  // 🟢 Get rows where battle_mcqs IS NULL (unprocessed)
   const { data: candidates, error: e1 } = await supabase
     .from("flashcard_raw")
     .select("id, concept_final")
-    .is("battle_mcqs_final", null)
+    .is("battle_mcqs", null)
     .is("mentor_reply_lock", null)
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -130,7 +130,7 @@ async function claimRows(limit) {
       mentor_reply_lock_at: new Date().toISOString(),
     })
     .in("id", ids)
-    .is("battle_mcqs_final", null)
+    .is("battle_mcqs", null)
     .select("id, concept_final");
 
   if (e2) throw new Error(e2.message);
@@ -156,6 +156,7 @@ async function processRow(row) {
   const raw = await callOpenAI([{ role: "user", content: prompt }]);
   const mcqJSON = safeParseJSON(raw);
 
+  // 🟣 Write output into new column battle_mcqs_final
   const { error: e3 } = await supabase
     .from("flashcard_raw")
     .update({

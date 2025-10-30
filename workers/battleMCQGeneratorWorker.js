@@ -15,7 +15,7 @@ const WORKER_ID =
   `battle-mcq-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT BUILDER (UNCHANGED — YOUR VERSION)
+// PROMPT BUILDER
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
@@ -33,18 +33,10 @@ These MCQs should be **NEETPG PYQ-based** and **could appear exactly as-is in th
     "Correct Answer": "A|B|C|D"
   }
 - Each question should sound **USMLE-styled** — logical, clinical, or concept-driven — not random trivia.
-- Each “Stem” must begin directly with the question text only.  
-  ⚠ **Do not include labels like “Clinical vignette:”, “High-yield:”, “Exam tip:”, or “Single-line fact:” — just start the question directly.**
-- Use **Unicode MarkUp** to highlight:
-  - **bold**, *italic*
-  - Superscripts (e.g., Na⁺, Ca²⁺)
-  - Subscripts (e.g., H₂O)
-  - Arrows (→)
-  - Symbols (±, ↑, ↓, ∆)
-  - Equations where appropriate
-- **No explanations**, **no commentary**, **no extra text**, and **no markdown/code fences**.
-- Output must be **pure JSON only** — a single valid JSON array enclosed in [ ] with commas between all 30 objects.
-- ⚠ Ensure there are no trailing commas and the output ends with a closing bracket (]).
+- Each “Stem” must begin directly with the question text only.
+- Use **Unicode MarkUp** for **bold**, *italic*, superscripts (Na⁺, Ca²⁺), subscripts (H₂O), arrows (→), and symbols (±, ↑, ↓, ∆).
+- **No explanations**, **no extra text**, and **no markdown fences**.
+- Output must be **pure JSON only** (single array [ ... ]) with commas between all 30 objects.
 - If you can’t make 30 due to token limit, still return valid JSON.
 
 **INPUT CONCEPT:**
@@ -56,18 +48,16 @@ ${conceptText}
 // HELPERS
 // ─────────────────────────────────────────────
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const isRetryable = (e) =>
+  /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(String(e?.message || e));
 
-function isRetryable(e) {
-  return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(String(e?.message || e));
-}
-
-// ✅ Correct parameter for GPT-5+ models
+// ✅ Correct param for GPT-5 models
 async function callOpenAI(messages, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
       messages,
-      max_completion_tokens: 4000,
+      max_completion_tokens: 6000,
     });
     return resp.choices?.[0]?.message?.content?.trim() || "";
   } catch (e) {
@@ -82,9 +72,17 @@ async function callOpenAI(messages, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// ROBUST JSON PARSER (AUTO-CORRECTS TRUNCATION)
+// ROBUST JSON PARSER
 // ─────────────────────────────────────────────
 function safeParseJSON(raw) {
+  if (!raw || raw.length < 10) return [];
+
+  // Detect obvious truncation
+  if (raw.endsWith('"') || raw.endsWith(',') || raw.endsWith('{')) {
+    console.warn("⚠️ Detected truncated output — discarding for retry");
+    return [];
+  }
+
   let cleaned = raw
     .trim()
     .replace(/^```json\s*/i, "")
@@ -104,10 +102,9 @@ function safeParseJSON(raw) {
   try {
     return JSON.parse(cleaned);
   } catch {
-    let fallback = cleaned;
-    if (!fallback.trim().endsWith("}]")) fallback = fallback.replace(/[^}]*$/, "}]");
     try {
-      return JSON.parse(fallback);
+      const fixed = cleaned.replace(/[^}]*$/, "}]");
+      return JSON.parse(fixed);
     } catch {
       console.error("❌ JSON parse error. Snippet:", cleaned.slice(0, 400));
       return [];
@@ -121,13 +118,11 @@ function safeParseJSON(raw) {
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // Free stale locks
   await supabase
     .from("flashcard_raw")
     .update({ mentor_reply_lock: null, mentor_reply_lock_at: null })
     .lt("mentor_reply_lock_at", cutoff);
 
-  // Fetch unprocessed rows
   const { data: candidates, error: e1 } = await supabase
     .from("flashcard_raw")
     .select("id, concept_final")
@@ -163,17 +158,17 @@ async function clearLocks(ids) {
 }
 
 // ─────────────────────────────────────────────
-// PROCESS ONE ROW (SAFE, SPLIT INTO 15+15)
+// PROCESS ONE ROW (split into 10+10+10)
 // ─────────────────────────────────────────────
 async function processRow(row) {
   const concept = row.concept_final;
   if (!concept || !concept.trim()) throw new Error("Empty concept_final");
 
-  async function generateBatch(batchNum) {
+  async function generateBatch(batchNum, start, end) {
     const subPrompt = `
 ${buildPrompt(concept)}
 
-Now generate only **${batchNum === 1 ? "first 15 MCQs (1–15)" : "next 15 MCQs (16–30)"}** following the same rules.
+Now generate only **MCQs ${start}–${end}** following the same rules.
 `.trim();
 
     const raw = await callOpenAI([{ role: "user", content: subPrompt }]);
@@ -182,9 +177,10 @@ Now generate only **${batchNum === 1 ? "first 15 MCQs (1–15)" : "next 15 MCQs 
 
   let allMCQs = [];
   try {
-    const part1 = await generateBatch(1);
-    const part2 = await generateBatch(2);
-    allMCQs = [...part1, ...part2];
+    const part1 = await generateBatch(1, 1, 10);
+    const part2 = await generateBatch(2, 11, 20);
+    const part3 = await generateBatch(3, 21, 30);
+    allMCQs = [...part1, ...part2, ...part3];
   } catch (err) {
     console.error(`❌ JSON parse failed for row ${row.id}: ${err.message}`);
     await supabase
@@ -200,7 +196,7 @@ Now generate only **${batchNum === 1 ? "first 15 MCQs (1–15)" : "next 15 MCQs 
     return { updated: 0 };
   }
 
-  // 🧩 Safety: Don’t save empty arrays
+  // 🧩 Safety: skip saving empty results
   if (!Array.isArray(allMCQs) || allMCQs.length === 0) {
     console.warn(`⚠️ Skipping save for row ${row.id} — empty MCQ array`);
     await supabase

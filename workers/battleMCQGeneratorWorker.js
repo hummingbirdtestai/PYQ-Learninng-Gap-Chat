@@ -15,7 +15,7 @@ const WORKER_ID =
   `battle-mcq-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT BUILDER (UNCHANGED)
+// PROMPT BUILDER (UNCHANGED FROM YOUR VERSION)
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
@@ -63,12 +63,13 @@ function isRetryable(e) {
   );
 }
 
+// ✅ FIXED: use `max_completion_tokens` instead of `max_tokens`
 async function callOpenAI(messages, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
       messages,
-      max_tokens: 4000, // give enough space to finish full JSON
+      max_completion_tokens: 4000, // <-- correct param name
     });
     return resp.choices?.[0]?.message?.content?.trim() || "";
   } catch (e) {
@@ -83,7 +84,7 @@ async function callOpenAI(messages, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// IMPROVED JSON PARSER (💪 FINAL ROBUST VERSION)
+// ROBUST JSON PARSER (AUTO-REPAIRS TRUNCATED OUTPUT)
 // ─────────────────────────────────────────────
 function safeParseJSON(raw) {
   let cleaned = raw
@@ -93,26 +94,23 @@ function safeParseJSON(raw) {
     .replace(/```$/i, "")
     .replace(/,\s*}/g, "}")
     .replace(/,\s*]/g, "]")
-    .replace(/}\s*{/g, "}, {"); // insert missing commas
+    .replace(/}\s*{/g, "}, {"); // add commas if missing
 
-  // 🧩 Ensure array boundaries
+  // Ensure array brackets
   if (!cleaned.startsWith("[")) cleaned = "[" + cleaned;
   if (!cleaned.endsWith("]")) cleaned = cleaned + "]";
 
-  // 🧩 Balance unclosed braces if truncated
+  // Count braces to close incomplete objects
   const open = (cleaned.match(/{/g) || []).length;
   const close = (cleaned.match(/}/g) || []).length;
   if (open > close) cleaned += "}".repeat(open - close);
 
-  // 🧩 Try parsing
   try {
     return JSON.parse(cleaned);
   } catch (e1) {
-    // fallback: try closing last object & array
+    // fallback attempt
     let fallback = cleaned;
-    if (!fallback.trim().endsWith("}]")) {
-      fallback = fallback.replace(/[^}]*$/, "}]");
-    }
+    if (!fallback.trim().endsWith("}]")) fallback = fallback.replace(/[^}]*$/, "}]");
     try {
       return JSON.parse(fallback);
     } catch (e2) {
@@ -134,7 +132,7 @@ async function claimRows(limit) {
     .update({ mentor_reply_lock: null, mentor_reply_lock_at: null })
     .lt("mentor_reply_lock_at", cutoff);
 
-  // 🟢 Get rows where battle_mcqs IS NULL (unprocessed)
+  // Get rows where battle_mcqs is null
   const { data: candidates, error: e1 } = await supabase
     .from("flashcard_raw")
     .select("id, concept_final")
@@ -190,7 +188,7 @@ async function processRow(row) {
       .from("flashcard_raw")
       .update({
         battle_mcqs_final: null,
-        error_log: raw.slice(0, 1000),
+        error_log: raw.slice(0, 2000),
         mentor_reply_lock: null,
         mentor_reply_lock_at: null,
         updated_at: new Date().toISOString(),

@@ -43,7 +43,9 @@ These MCQs should be **NEETPG PYQ-based** and **could appear exactly as-is in th
   - Symbols (±, ↑, ↓, ∆)
   - Equations where appropriate
 - **No explanations**, **no commentary**, **no extra text**, and **no markdown/code fences**.
-- Output must be **pure JSON only**.
+- Output must be **pure JSON only** — a single valid JSON array enclosed in [ ] with commas between all 30 objects.
+- ⚠ Ensure there are no trailing commas and the output ends with a closing bracket (]).
+- If you can’t make 30 due to token limit, still return valid JSON.
 
 **INPUT CONCEPT:**
 ${conceptText}
@@ -79,20 +81,29 @@ async function callOpenAI(messages, attempt = 1) {
   }
 }
 
+// ─────────────────────────────────────────────
+// IMPROVED JSON PARSER (✅ FIXED FOR BROKEN OUTPUT)
+// ─────────────────────────────────────────────
 function safeParseJSON(raw) {
-  const cleaned = raw
+  let cleaned = raw
     .trim()
     .replace(/^```json\s*/i, "")
     .replace(/^```/i, "")
     .replace(/```$/i, "")
     .replace(/,\s*}/g, "}")
-    .replace(/,\s*]/g, "]");
+    .replace(/,\s*]/g, "]")
+    // 🧩 Sometimes GPT forgets commas between objects → fix them
+    .replace(/}\s*{/g, "}, {");
+
+  // 🧩 Ensure array boundaries
+  if (!cleaned.startsWith("[")) cleaned = "[" + cleaned;
+  if (!cleaned.endsWith("]")) cleaned = cleaned + "]";
 
   try {
     return JSON.parse(cleaned);
   } catch (e) {
-    console.error("❌ JSON parse error. Snippet:", cleaned.slice(0, 200));
-    throw new Error("Invalid JSON output from OpenAI");
+    console.error("❌ JSON parse error after cleaning. Snippet:", cleaned.slice(0, 400));
+    throw new Error("Invalid JSON output from OpenAI after cleanup");
   }
 }
 
@@ -154,7 +165,25 @@ async function processRow(row) {
 
   const prompt = buildPrompt(concept);
   const raw = await callOpenAI([{ role: "user", content: prompt }]);
-  const mcqJSON = safeParseJSON(raw);
+
+  let mcqJSON;
+  try {
+    mcqJSON = safeParseJSON(raw);
+  } catch (err) {
+    console.error(`❌ JSON parse failed for row ${row.id}: ${err.message}`);
+    // 🧩 Log raw output for debugging if JSON fails
+    await supabase
+      .from("flashcard_raw")
+      .update({
+        battle_mcqs_final: null,
+        error_log: raw.slice(0, 1000),
+        mentor_reply_lock: null,
+        mentor_reply_lock_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+    return { updated: 0 };
+  }
 
   // 🟣 Write output into new column battle_mcqs_final
   const { error: e3 } = await supabase
@@ -191,9 +220,7 @@ async function processRow(row) {
 
       console.log(`⚙️ Claimed ${claimed.length} rows for processing`);
 
-      const results = await Promise.allSettled(
-        claimed.map((r) => processRow(r))
-      );
+      const results = await Promise.allSettled(claimed.map((r) => processRow(r)));
 
       let updated = 0;
       for (let i = 0; i < results.length; i++) {
@@ -202,9 +229,7 @@ async function processRow(row) {
           console.log(`✅ Row ${i + 1}: MCQs generated`);
           updated += res.value.updated;
         } else {
-          console.error(
-            `❌ Row ${i + 1} failed: ${res.reason.message || res.reason}`
-          );
+          console.error(`❌ Row ${i + 1} failed: ${res.reason.message || res.reason}`);
           await clearLocks([claimed[i].id]);
         }
       }

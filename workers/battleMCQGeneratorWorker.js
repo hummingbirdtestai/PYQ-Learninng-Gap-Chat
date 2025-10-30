@@ -15,33 +15,35 @@ const WORKER_ID =
   `battle-mcq-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT BUILDER (✅ UPDATED)
+// PROMPT BUILDER (✅ FINAL UPDATED)
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
-You are a **NEETPG Paper Setter with 30 Years of Experience**, trained in **USMLE-style question writing** similar to **Amboss, UWorld, First Aid, and NBME**.
+You are a **30 Years experienced NEETPG Paper Setter**, creating exam-level questions based on **NEETPG PYQs**, written in **USMLE-style** as seen in **Amboss, UWorld, First Aid, and NBME**.
 
-Create **30 NEETPG PYQ-based MCQs** that combine **Clinical Case Vignettes** and **Single Liner High-Yield Facts**, designed to test the *most exam-relevant concepts* that can appear **ditto ditto in the NEETPG Exam**.
+Create **30 MCQs** that combine **clinical case vignettes** and **single-liner high-yield facts**, covering **all the most tested and high-yield points** related to the topic given.  
+These MCQs should be **NEETPG PYQ-based** and **could appear exactly as-is in the NEETPG Exam**.
 
 **Prompt Rules:**
 - Output strictly as a **valid JSON array of 30 objects**.
-- Each object must follow this exact format:
+- Each object must follow this format:
   {
     "Stem": "…",
     "Options": { "A": "…", "B": "…", "C": "…", "D": "…" },
     "Correct Answer": "A|B|C|D"
   }
-- Each MCQ must reflect **USMLE-style clinical reasoning** or **fact-based recall** as in Amboss/UWorld.
-- Questions must integrate **NEETPG-relevant phrasing** with *short, concise, high-yield stems*.
-- Use **Unicode markup** for:
-  - **bold**, *italic*,
-  - superscripts (e.g., Na⁺, Ca²⁺),
-  - subscripts (e.g., H₂O),
-  - arrows (→),
-  - symbols (±, ↑, ↓, ∆),
-  - and simple equations where appropriate.
-- Do **NOT** include explanations, commentary, or text outside the JSON array.
-- The output must be *pure JSON only* (no markdown, no code fences).
+- Each question should sound **USMLE-styled** — logical, clinical, or concept-driven — not random trivia.
+- Each “Stem” must begin directly with the question text only.  
+  ⚠ **Do not include labels like “Clinical vignette:”, “High-yield:”, “Exam tip:”, or “Single-line fact:” — just start the question directly.**
+- Use **Unicode MarkUp** to highlight:
+  - **bold**, *italic*
+  - Superscripts (e.g., Na⁺, Ca²⁺)
+  - Subscripts (e.g., H₂O)
+  - Arrows (→)
+  - Symbols (±, ↑, ↓, ∆)
+  - Equations where appropriate
+- **No explanations**, **no commentary**, **no extra text**, and **no markdown/code fences**.
+- Output must be **pure JSON only**.
 
 **INPUT CONCEPT:**
 ${conceptText}
@@ -106,11 +108,11 @@ async function claimRows(limit) {
     .update({ mentor_reply_lock: null, mentor_reply_lock_at: null })
     .lt("mentor_reply_lock_at", cutoff);
 
-  // Get unprocessed rows
+  // Get unprocessed rows → only those where battle_mcqs_final is NULL
   const { data: candidates, error: e1 } = await supabase
     .from("flashcard_raw")
     .select("id, concept_final")
-    .is("battle_mcqs", null)
+    .is("battle_mcqs_final", null)
     .is("mentor_reply_lock", null)
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -128,7 +130,7 @@ async function claimRows(limit) {
       mentor_reply_lock_at: new Date().toISOString(),
     })
     .in("id", ids)
-    .is("battle_mcqs", null)
+    .is("battle_mcqs_final", null)
     .select("id, concept_final");
 
   if (e2) throw new Error(e2.message);
@@ -157,7 +159,7 @@ async function processRow(row) {
   const { error: e3 } = await supabase
     .from("flashcard_raw")
     .update({
-      battle_mcqs: mcqJSON,
+      battle_mcqs_final: mcqJSON,
       mentor_reply_lock: null,
       mentor_reply_lock_at: null,
       updated_at: new Date().toISOString(),

@@ -15,7 +15,7 @@ const WORKER_ID =
   `battle-mcq-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT BUILDER (UNCHANGED FROM YOUR VERSION)
+// PROMPT BUILDER (UNCHANGED — YOUR VERSION)
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
@@ -58,18 +58,16 @@ ${conceptText}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function isRetryable(e) {
-  return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(
-    String(e?.message || e)
-  );
+  return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(String(e?.message || e));
 }
 
-// ✅ FIXED: use `max_completion_tokens` instead of `max_tokens`
+// ✅ Correct parameter for GPT-5+ models
 async function callOpenAI(messages, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
       messages,
-      max_completion_tokens: 4000, // <-- correct param name
+      max_completion_tokens: 4000,
     });
     return resp.choices?.[0]?.message?.content?.trim() || "";
   } catch (e) {
@@ -84,7 +82,7 @@ async function callOpenAI(messages, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// ROBUST JSON PARSER (AUTO-REPAIRS TRUNCATED OUTPUT)
+// ROBUST JSON PARSER (AUTO-CORRECTS TRUNCATION)
 // ─────────────────────────────────────────────
 function safeParseJSON(raw) {
   let cleaned = raw
@@ -94,28 +92,25 @@ function safeParseJSON(raw) {
     .replace(/```$/i, "")
     .replace(/,\s*}/g, "}")
     .replace(/,\s*]/g, "]")
-    .replace(/}\s*{/g, "}, {"); // add commas if missing
+    .replace(/}\s*{/g, "}, {");
 
-  // Ensure array brackets
   if (!cleaned.startsWith("[")) cleaned = "[" + cleaned;
-  if (!cleaned.endsWith("]")) cleaned = cleaned + "]";
+  if (!cleaned.endsWith("]")) cleaned += "]";
 
-  // Count braces to close incomplete objects
   const open = (cleaned.match(/{/g) || []).length;
   const close = (cleaned.match(/}/g) || []).length;
   if (open > close) cleaned += "}".repeat(open - close);
 
   try {
     return JSON.parse(cleaned);
-  } catch (e1) {
-    // fallback attempt
+  } catch {
     let fallback = cleaned;
     if (!fallback.trim().endsWith("}]")) fallback = fallback.replace(/[^}]*$/, "}]");
     try {
       return JSON.parse(fallback);
-    } catch (e2) {
-      console.error("❌ JSON parse error even after cleanup. Snippet:", cleaned.slice(0, 400));
-      throw new Error("Invalid JSON output from OpenAI after cleanup attempts");
+    } catch {
+      console.error("❌ JSON parse error. Snippet:", cleaned.slice(0, 400));
+      return [];
     }
   }
 }
@@ -132,7 +127,7 @@ async function claimRows(limit) {
     .update({ mentor_reply_lock: null, mentor_reply_lock_at: null })
     .lt("mentor_reply_lock_at", cutoff);
 
-  // Get rows where battle_mcqs is null
+  // Fetch unprocessed rows
   const { data: candidates, error: e1 } = await supabase
     .from("flashcard_raw")
     .select("id, concept_final")
@@ -145,8 +140,6 @@ async function claimRows(limit) {
   if (!candidates?.length) return [];
 
   const ids = candidates.map((r) => r.id);
-
-  // Apply lock
   const { data: locked, error: e2 } = await supabase
     .from("flashcard_raw")
     .update({
@@ -170,25 +163,35 @@ async function clearLocks(ids) {
 }
 
 // ─────────────────────────────────────────────
-// PROCESS ONE ROW
+// PROCESS ONE ROW (SAFE, SPLIT INTO 15+15)
 // ─────────────────────────────────────────────
 async function processRow(row) {
   const concept = row.concept_final;
   if (!concept || !concept.trim()) throw new Error("Empty concept_final");
 
-  const prompt = buildPrompt(concept);
-  const raw = await callOpenAI([{ role: "user", content: prompt }]);
+  async function generateBatch(batchNum) {
+    const subPrompt = `
+${buildPrompt(concept)}
 
-  let mcqJSON;
+Now generate only **${batchNum === 1 ? "first 15 MCQs (1–15)" : "next 15 MCQs (16–30)"}** following the same rules.
+`.trim();
+
+    const raw = await callOpenAI([{ role: "user", content: subPrompt }]);
+    return safeParseJSON(raw);
+  }
+
+  let allMCQs = [];
   try {
-    mcqJSON = safeParseJSON(raw);
+    const part1 = await generateBatch(1);
+    const part2 = await generateBatch(2);
+    allMCQs = [...part1, ...part2];
   } catch (err) {
     console.error(`❌ JSON parse failed for row ${row.id}: ${err.message}`);
     await supabase
       .from("flashcard_raw")
       .update({
         battle_mcqs_final: null,
-        error_log: raw.slice(0, 2000),
+        error_log: `PARSE_FAIL: ${err.message}`,
         mentor_reply_lock: null,
         mentor_reply_lock_at: null,
         updated_at: new Date().toISOString(),
@@ -197,10 +200,27 @@ async function processRow(row) {
     return { updated: 0 };
   }
 
+  // 🧩 Safety: Don’t save empty arrays
+  if (!Array.isArray(allMCQs) || allMCQs.length === 0) {
+    console.warn(`⚠️ Skipping save for row ${row.id} — empty MCQ array`);
+    await supabase
+      .from("flashcard_raw")
+      .update({
+        battle_mcqs_final: null,
+        error_log: "EMPTY_ARRAY",
+        mentor_reply_lock: null,
+        mentor_reply_lock_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+    return { updated: 0 };
+  }
+
+  // ✅ Save valid MCQs
   const { error: e3 } = await supabase
     .from("flashcard_raw")
     .update({
-      battle_mcqs_final: mcqJSON,
+      battle_mcqs_final: allMCQs,
       mentor_reply_lock: null,
       mentor_reply_lock_at: null,
       updated_at: new Date().toISOString(),
@@ -228,7 +248,6 @@ async function processRow(row) {
       }
 
       console.log(`⚙️ Claimed ${claimed.length} rows for processing`);
-
       const results = await Promise.allSettled(claimed.map((r) => processRow(r)));
 
       let updated = 0;

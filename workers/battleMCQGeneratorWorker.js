@@ -15,26 +15,33 @@ const WORKER_ID =
   `battle-mcq-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT BUILDER
+// PROMPT BUILDER (✅ UPDATED)
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
-You are a **NEETPG Paper Setter with 30 Years of Experience**.
+You are a **NEETPG Paper Setter with 30 Years of Experience**, trained in **USMLE-style question writing** similar to **Amboss, UWorld, First Aid, and NBME**.
 
-Create **30 MCQs** in **strict JSON format** from the following concept.
-Each MCQ must test a **high-yield fact** or **clinical vignette** directly based on the concept.
+Create **30 NEETPG PYQ-based MCQs** that combine **Clinical Case Vignettes** and **Single Liner High-Yield Facts**, designed to test the *most exam-relevant concepts* that can appear **ditto ditto in the NEETPG Exam**.
 
 **Prompt Rules:**
-- Output strictly as a valid JSON array of 30 objects.
-- Each object must contain:
+- Output strictly as a **valid JSON array of 30 objects**.
+- Each object must follow this exact format:
   {
     "Stem": "…",
     "Options": { "A": "…", "B": "…", "C": "…", "D": "…" },
     "Correct Answer": "A|B|C|D"
   }
-- Style: Clinical Case Vignette + High-Yield Fact type.
-- Use Unicode markup for **bold**, *italic*, superscripts (Na⁺), subscripts, arrows (→), and symbols (±), equations, etc.
-- Do not include explanations or any text outside JSON.
+- Each MCQ must reflect **USMLE-style clinical reasoning** or **fact-based recall** as in Amboss/UWorld.
+- Questions must integrate **NEETPG-relevant phrasing** with *short, concise, high-yield stems*.
+- Use **Unicode markup** for:
+  - **bold**, *italic*,
+  - superscripts (e.g., Na⁺, Ca²⁺),
+  - subscripts (e.g., H₂O),
+  - arrows (→),
+  - symbols (±, ↑, ↓, ∆),
+  - and simple equations where appropriate.
+- Do **NOT** include explanations, commentary, or text outside the JSON array.
+- The output must be *pure JSON only* (no markdown, no code fences).
 
 **INPUT CONCEPT:**
 ${conceptText}

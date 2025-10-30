@@ -15,17 +15,17 @@ const WORKER_ID =
   `battle-mcq10-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT BUILDER (30 MCQs ONLY)
+// PROMPT BUILDER (10 MCQs ONLY)
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
 You are a **30 Years experienced NEETPG Paper Setter**, creating exam-level questions based on **NEETPG PYQs**, written in **USMLE-style** as seen in **Amboss, UWorld, First Aid, and NBME**.
 
-Create **30 MCQs** that combine **clinical case vignettes** and **single-liner high-yield facts**, covering **the most tested and high-yield points** related to the topic given.
+Create **10 MCQs** that combine **clinical case vignettes** and **single-liner high-yield facts**, covering **the most tested and high-yield points** related to the topic given.
 These MCQs should be **NEETPG PYQ-based** and **could appear exactly as-is in the NEETPG Exam**.
 
 **Prompt Rules:**
-- Output strictly as a **valid JSON array of 30 objects**.
+- Output strictly as a **valid JSON array of 10 objects**.
 - Each object must follow this format:
   {
     "Stem": "…",
@@ -36,7 +36,7 @@ These MCQs should be **NEETPG PYQ-based** and **could appear exactly as-is in th
 - Use **Unicode MarkUp** to highlight **bold**, *italic*, superscripts/subscripts (H₂O, Na⁺, Ca²⁺), and symbols/arrows (±, ↑, ↓, →, ∆).
 - **No explanations**, **no commentary**, **no markdown/code fences**.
 - Output must be **pure JSON only** (single array [ ... ]).
-- If fewer than 30 can be generated due to token limits, still return valid JSON.
+- If fewer than 10 can be generated due to token limits, still return valid JSON.
 
 **INPUT CONCEPT:**
 ${conceptText}
@@ -205,7 +205,7 @@ async function processRow(row) {
 // MAIN LOOP (cost-efficient & self-stopping)
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🚀 BattleMCQ (30) Generator Worker Started | model=${MODEL} | limit=${LIMIT}`);
+  console.log(`🚀 BattleMCQ (10) Generator Worker Started | model=${MODEL} | limit=${LIMIT}`);
   console.log(`Worker ID: ${WORKER_ID}`);
 
   const claimed = await claimRows(LIMIT);

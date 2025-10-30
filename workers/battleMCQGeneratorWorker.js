@@ -7,7 +7,7 @@ const openai = require("../config/openaiClient");
 // SETTINGS
 // ─────────────────────────────────────────────
 const MODEL = process.env.SUBJECT_IMAGE_MCQ_MODEL || "gpt-5-mini";
-const LIMIT = parseInt(process.env.SUBJECT_IMAGE_MCQ_LIMIT || "5", 10); // ⬅ smaller batch size
+const LIMIT = parseInt(process.env.SUBJECT_IMAGE_MCQ_LIMIT || "5", 10); // smaller batch
 const SLEEP_MS = parseInt(process.env.SUBJECT_IMAGE_MCQ_SLEEP_MS || "5000", 10);
 const LOCK_TTL_MIN = parseInt(process.env.SUBJECT_IMAGE_MCQ_LOCK_TTL_MIN || "15", 10);
 const WORKER_ID =
@@ -152,7 +152,7 @@ async function clearLocks(ids) {
 async function processRow(row) {
   const concept = row.concept_final;
 
-  // 🚫 Skip bad or placeholder data to save tokens
+  // 🚫 Skip bad or placeholder data
   if (
     !concept ||
     concept.trim().length < 20 ||
@@ -203,17 +203,15 @@ async function processRow(row) {
 }
 
 // ─────────────────────────────────────────────
-// MAIN LOOP (cost-efficient & self-stopping)
+// RUN ONE SAFE BATCH
 // ─────────────────────────────────────────────
-(async function main() {
-  console.log(`🚀 BattleMCQ (10) Generator Worker Started | model=${MODEL} | limit=${LIMIT}`);
-  console.log(`Worker ID: ${WORKER_ID}`);
-
+async function runBatch() {
   const claimed = await claimRows(LIMIT);
 
   if (!claimed.length) {
-    console.log("✅ No valid rows found — exiting to save cost.");
-    process.exit(0);
+    console.log("✅ No valid rows found — sleeping 5 min, then check again...");
+    await sleep(5 * 60 * 1000);
+    return;
   }
 
   console.log(`⚙ Claimed ${claimed.length} rows for processing`);
@@ -231,12 +229,29 @@ async function processRow(row) {
   }
 
   console.log(`🌀 Batch complete — updated=${updated}/${claimed.length}`);
+  console.log("😴 Sleeping 2 minutes before next batch...");
+  await sleep(2 * 60 * 1000);
+}
 
-  if (updated === 0) {
-    console.log("😴 No updates — sleeping 2 minutes before exit...");
-    await sleep(120000);
+// ─────────────────────────────────────────────
+// MAIN LOOP — Crash-safe batch cycle
+// ─────────────────────────────────────────────
+(async function main() {
+  console.log(`🚀 BattleMCQ (10) Generator Worker Started | model=${MODEL} | limit=${LIMIT}`);
+  console.log(`Worker ID: ${WORKER_ID}`);
+
+  while (true) {
+    try {
+      await runBatch();
+    } catch (err) {
+      console.error("💥 Batch crashed:", err.message || err);
+      // release all locks older than now
+      await supabase
+        .from("flashcard_raw")
+        .update({ mentor_reply_lock: null, mentor_reply_lock_at: null })
+        .lte("mentor_reply_lock_at", new Date().toISOString());
+      console.log("🔄 Restarting fresh batch after crash...");
+      await sleep(30000); // 30s cooldown
+    }
   }
-
-  console.log("🏁 Worker completed — shutting down to minimize cost.");
-  process.exit(0);
 })();

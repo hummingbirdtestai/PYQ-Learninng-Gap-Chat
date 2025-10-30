@@ -7,15 +7,15 @@ const openai = require("../config/openaiClient");
 // SETTINGS
 // ─────────────────────────────────────────────
 const MODEL = process.env.SUBJECT_IMAGE_MCQ_MODEL || "gpt-5-mini";
-const LIMIT = parseInt(process.env.SUBJECT_IMAGE_MCQ_LIMIT || "25", 10);
-const SLEEP_MS = parseInt(process.env.SUBJECT_IMAGE_MCQ_SLEEP_MS || "1500", 10);
+const LIMIT = parseInt(process.env.SUBJECT_IMAGE_MCQ_LIMIT || "5", 10); // ⬅ smaller batch size
+const SLEEP_MS = parseInt(process.env.SUBJECT_IMAGE_MCQ_SLEEP_MS || "5000", 10);
 const LOCK_TTL_MIN = parseInt(process.env.SUBJECT_IMAGE_MCQ_LOCK_TTL_MIN || "15", 10);
 const WORKER_ID =
   process.env.WORKER_ID ||
   `battle-mcq10-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT BUILDER (ONLY 10 MCQs)
+// PROMPT BUILDER (10 MCQs ONLY)
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
@@ -59,9 +59,9 @@ async function callOpenAI(messages, attempt = 1) {
     });
     return resp.choices?.[0]?.message?.content?.trim() || "";
   } catch (e) {
-    if (isRetryable(e) && attempt <= 3) {
+    if (isRetryable(e) && attempt <= 2) {
       console.warn(`⚠ Retry attempt ${attempt} due to transient error`);
-      await sleep(500 * attempt);
+      await sleep(1000 * attempt);
       return callOpenAI(messages, attempt + 1);
     }
     console.error("❌ OpenAI API call failed:", e.message || e);
@@ -70,11 +70,10 @@ async function callOpenAI(messages, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// ROBUST JSON PARSER
+// JSON PARSER (CLEAN & SAFE)
 // ─────────────────────────────────────────────
 function safeParseJSON(raw) {
   if (!raw || raw.length < 10) return [];
-
   let cleaned = raw
     .trim()
     .replace(/^```json\s*/i, "")
@@ -94,14 +93,14 @@ function safeParseJSON(raw) {
       const fixed = cleaned.replace(/[^}]*$/, "}]");
       return JSON.parse(fixed);
     } catch {
-      console.error("❌ JSON parse error. Snippet:", cleaned.slice(0, 400));
+      console.error("❌ JSON parse error. Snippet:", cleaned.slice(0, 200));
       return [];
     }
   }
 }
 
 // ─────────────────────────────────────────────
-// LOCK SYSTEM (only rows where battle_mcqs_final IS NULL)
+// LOCK SYSTEM (skip invalid or processed rows)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
@@ -115,7 +114,9 @@ async function claimRows(limit) {
     .from("flashcard_raw")
     .select("id, concept_final")
     .is("battle_mcqs_final", null)
+    .is("battle_mcqs_final_10", null)
     .is("mentor_reply_lock", null)
+    .not("concept_final", "is", null)
     .order("created_at", { ascending: true })
     .limit(limit);
 
@@ -146,34 +147,47 @@ async function clearLocks(ids) {
 }
 
 // ─────────────────────────────────────────────
-// PROCESS ONE ROW — generate 10 MCQs
+// PROCESS ONE ROW — SKIPS EMPTY / BAD INPUT
 // ─────────────────────────────────────────────
 async function processRow(row) {
   const concept = row.concept_final;
-  if (!concept || !concept.trim()) throw new Error("Empty concept_final");
 
-  const prompt = buildPrompt(concept);
-  const raw = await callOpenAI([{ role: "user", content: prompt }]);
-
-  let allMCQs = safeParseJSON(raw);
-
-  // 🧩 Skip empty or short responses
-  if (!Array.isArray(allMCQs) || allMCQs.length < 3) {
-    console.warn(`⚠ Skipping save for row ${row.id} — incomplete or empty array (${allMCQs.length})`);
+  // 🚫 Skip bad or placeholder data to save tokens
+  if (
+    !concept ||
+    concept.trim().length < 20 ||
+    /I don't see|paste the raw concept|undefined|null/i.test(concept)
+  ) {
+    console.log(`🚫 Skipping invalid concept for row ${row.id}`);
     await supabase
       .from("flashcard_raw")
       .update({
-        battle_mcqs_final_10: null,
-        error_log: `EMPTY_OR_SHORT_OUTPUT (${allMCQs.length})`,
+        error_log: "SKIPPED_INVALID_CONCEPT",
         mentor_reply_lock: null,
         mentor_reply_lock_at: null,
-        updated_at: new Date().toISOString(),
       })
       .eq("id", row.id);
     return { updated: 0 };
   }
 
-  // ✅ Save valid MCQs (10 only)
+  const prompt = buildPrompt(concept);
+  const raw = await callOpenAI([{ role: "user", content: prompt }]);
+  const allMCQs = safeParseJSON(raw);
+
+  if (!Array.isArray(allMCQs) || allMCQs.length < 3) {
+    console.warn(`⚠ Skipping save for row ${row.id} — empty or invalid JSON`);
+    await supabase
+      .from("flashcard_raw")
+      .update({
+        battle_mcqs_final_10: null,
+        error_log: `EMPTY_OR_INVALID_JSON (${allMCQs.length})`,
+        mentor_reply_lock: null,
+        mentor_reply_lock_at: null,
+      })
+      .eq("id", row.id);
+    return { updated: 0 };
+  }
+
   const { error: e3 } = await supabase
     .from("flashcard_raw")
     .update({
@@ -189,40 +203,40 @@ async function processRow(row) {
 }
 
 // ─────────────────────────────────────────────
-// MAIN LOOP
+// MAIN LOOP (cost-efficient & self-stopping)
 // ─────────────────────────────────────────────
 (async function main() {
   console.log(`🚀 BattleMCQ (10) Generator Worker Started | model=${MODEL} | limit=${LIMIT}`);
   console.log(`Worker ID: ${WORKER_ID}`);
 
-  while (true) {
-    try {
-      const claimed = await claimRows(LIMIT);
-      if (!claimed.length) {
-        console.log("⏸ No unlocked rows found — sleeping...");
-        await sleep(SLEEP_MS);
-        continue;
-      }
+  const claimed = await claimRows(LIMIT);
 
-      console.log(`⚙ Claimed ${claimed.length} rows for processing`);
-      const results = await Promise.allSettled(claimed.map((r) => processRow(r)));
+  if (!claimed.length) {
+    console.log("✅ No valid rows found — exiting to save cost.");
+    process.exit(0);
+  }
 
-      let updated = 0;
-      for (let i = 0; i < results.length; i++) {
-        const res = results[i];
-        if (res.status === "fulfilled") {
-          console.log(`✅ Row ${i + 1}: MCQs generated`);
-          updated += res.value.updated;
-        } else {
-          console.error(`❌ Row ${i + 1} failed: ${res.reason.message || res.reason}`);
-          await clearLocks([claimed[i].id]);
-        }
-      }
+  console.log(`⚙ Claimed ${claimed.length} rows for processing`);
+  const results = await Promise.allSettled(claimed.map((r) => processRow(r)));
 
-      console.log(`🌀 Batch complete — updated=${updated}/${claimed.length}`);
-    } catch (err) {
-      console.error("💥 Main loop error:", err.message || err);
-      await sleep(3000);
+  let updated = 0;
+  for (let i = 0; i < results.length; i++) {
+    const res = results[i];
+    if (res.status === "fulfilled") {
+      updated += res.value.updated;
+    } else {
+      console.error(`❌ Row ${i + 1} failed: ${res.reason.message || res.reason}`);
+      await clearLocks([claimed[i].id]);
     }
   }
+
+  console.log(`🌀 Batch complete — updated=${updated}/${claimed.length}`);
+
+  if (updated === 0) {
+    console.log("😴 No updates — sleeping 2 minutes before exit...");
+    await sleep(120000);
+  }
+
+  console.log("🏁 Worker completed — shutting down to minimize cost.");
+  process.exit(0);
 })();

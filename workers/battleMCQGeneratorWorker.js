@@ -15,7 +15,7 @@ const WORKER_ID =
   `battle-mcq-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT BUILDER (✅ FINAL VERSION)
+// PROMPT BUILDER (UNCHANGED)
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
@@ -68,6 +68,7 @@ async function callOpenAI(messages, attempt = 1) {
     const resp = await openai.chat.completions.create({
       model: MODEL,
       messages,
+      max_tokens: 4000, // give enough space to finish full JSON
     });
     return resp.choices?.[0]?.message?.content?.trim() || "";
   } catch (e) {
@@ -82,7 +83,7 @@ async function callOpenAI(messages, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// IMPROVED JSON PARSER (✅ FIXED FOR BROKEN OUTPUT)
+// IMPROVED JSON PARSER (💪 FINAL ROBUST VERSION)
 // ─────────────────────────────────────────────
 function safeParseJSON(raw) {
   let cleaned = raw
@@ -92,18 +93,32 @@ function safeParseJSON(raw) {
     .replace(/```$/i, "")
     .replace(/,\s*}/g, "}")
     .replace(/,\s*]/g, "]")
-    // 🧩 Sometimes GPT forgets commas between objects → fix them
-    .replace(/}\s*{/g, "}, {");
+    .replace(/}\s*{/g, "}, {"); // insert missing commas
 
   // 🧩 Ensure array boundaries
   if (!cleaned.startsWith("[")) cleaned = "[" + cleaned;
   if (!cleaned.endsWith("]")) cleaned = cleaned + "]";
 
+  // 🧩 Balance unclosed braces if truncated
+  const open = (cleaned.match(/{/g) || []).length;
+  const close = (cleaned.match(/}/g) || []).length;
+  if (open > close) cleaned += "}".repeat(open - close);
+
+  // 🧩 Try parsing
   try {
     return JSON.parse(cleaned);
-  } catch (e) {
-    console.error("❌ JSON parse error after cleaning. Snippet:", cleaned.slice(0, 400));
-    throw new Error("Invalid JSON output from OpenAI after cleanup");
+  } catch (e1) {
+    // fallback: try closing last object & array
+    let fallback = cleaned;
+    if (!fallback.trim().endsWith("}]")) {
+      fallback = fallback.replace(/[^}]*$/, "}]");
+    }
+    try {
+      return JSON.parse(fallback);
+    } catch (e2) {
+      console.error("❌ JSON parse error even after cleanup. Snippet:", cleaned.slice(0, 400));
+      throw new Error("Invalid JSON output from OpenAI after cleanup attempts");
+    }
   }
 }
 
@@ -171,7 +186,6 @@ async function processRow(row) {
     mcqJSON = safeParseJSON(raw);
   } catch (err) {
     console.error(`❌ JSON parse failed for row ${row.id}: ${err.message}`);
-    // 🧩 Log raw output for debugging if JSON fails
     await supabase
       .from("flashcard_raw")
       .update({
@@ -185,7 +199,6 @@ async function processRow(row) {
     return { updated: 0 };
   }
 
-  // 🟣 Write output into new column battle_mcqs_final
   const { error: e3 } = await supabase
     .from("flashcard_raw")
     .update({
@@ -204,9 +217,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(
-    `🚀 BattleMCQ Generator Worker Started | model=${MODEL} | limit=${LIMIT}`
-  );
+  console.log(`🚀 BattleMCQ Generator Worker Started | model=${MODEL} | limit=${LIMIT}`);
   console.log(`Worker ID: ${WORKER_ID}`);
 
   while (true) {

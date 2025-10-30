@@ -32,11 +32,10 @@ These MCQs should be **NEETPG PYQ-based** and **could appear exactly as-is in th
     "Options": { "A": "…", "B": "…", "C": "…", "D": "…" },
     "Correct Answer": "A|B|C|D"
   }
-- Each question should sound **USMLE-styled** — logical, clinical, or concept-driven — not random trivia.
 - Each “Stem” must begin directly with the question text only.
 - Use **Unicode MarkUp** for **bold**, *italic*, superscripts (Na⁺, Ca²⁺), subscripts (H₂O), arrows (→), and symbols (±, ↑, ↓, ∆).
 - **No explanations**, **no extra text**, and **no markdown fences**.
-- Output must be **pure JSON only** (single array [ ... ]) with commas between all 30 objects.
+- Output must be **pure JSON only** (single array [ ... ]).
 - If you can’t make 30 due to token limit, still return valid JSON.
 
 **INPUT CONCEPT:**
@@ -51,7 +50,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const isRetryable = (e) =>
   /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(String(e?.message || e));
 
-// ✅ Correct param for GPT-5 models
+// ✅ GPT-5 parameter
 async function callOpenAI(messages, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
@@ -63,7 +62,7 @@ async function callOpenAI(messages, attempt = 1) {
   } catch (e) {
     if (isRetryable(e) && attempt <= 3) {
       console.warn(`⚠️ Retry attempt ${attempt} due to transient error`);
-      await sleep(400 * attempt);
+      await sleep(500 * attempt);
       return callOpenAI(messages, attempt + 1);
     }
     console.error("❌ OpenAI API call failed:", e.message || e);
@@ -158,7 +157,7 @@ async function clearLocks(ids) {
 }
 
 // ─────────────────────────────────────────────
-// PROCESS ONE ROW (split into 10+10+10)
+// PROCESS ONE ROW (6×5 batches + retry logic)
 // ─────────────────────────────────────────────
 async function processRow(row) {
   const concept = row.concept_final;
@@ -177,10 +176,36 @@ Now generate only **MCQs ${start}–${end}** following the same rules.
 
   let allMCQs = [];
   try {
-    const part1 = await generateBatch(1, 1, 10);
-    const part2 = await generateBatch(2, 11, 20);
-    const part3 = await generateBatch(3, 21, 30);
-    allMCQs = [...part1, ...part2, ...part3];
+    const batches = [];
+    for (let i = 0; i < 6; i++) {
+      const start = i * 5 + 1;
+      const end = start + 4;
+      const part = await generateBatch(i + 1, start, end);
+      batches.push(part);
+    }
+    allMCQs = batches.flat();
+
+    // 🔁 Retry once if truncated (<15 items)
+    if (!Array.isArray(allMCQs) || allMCQs.length < 15) {
+      console.warn(`⚠️ Likely truncated output (${allMCQs.length} MCQs) → retrying once`);
+      const retryPart = await generateBatch(99, 1, 30);
+      if (Array.isArray(retryPart) && retryPart.length >= 15) {
+        allMCQs = retryPart;
+      } else {
+        console.warn(`⚠️ Still incomplete after retry — skipping save`);
+        await supabase
+          .from("flashcard_raw")
+          .update({
+            battle_mcqs_final: null,
+            error_log: "TRUNCATED_OUTPUT",
+            mentor_reply_lock: null,
+            mentor_reply_lock_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", row.id);
+        return { updated: 0 };
+      }
+    }
   } catch (err) {
     console.error(`❌ JSON parse failed for row ${row.id}: ${err.message}`);
     await supabase
@@ -196,7 +221,7 @@ Now generate only **MCQs ${start}–${end}** following the same rules.
     return { updated: 0 };
   }
 
-  // 🧩 Safety: skip saving empty results
+  // 🧩 Skip empty results
   if (!Array.isArray(allMCQs) || allMCQs.length === 0) {
     console.warn(`⚠️ Skipping save for row ${row.id} — empty MCQ array`);
     await supabase

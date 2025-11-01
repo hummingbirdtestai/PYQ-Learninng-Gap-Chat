@@ -7,7 +7,7 @@ const openai = require("../config/openaiClient");
 // SETTINGS
 // ─────────────────────────────────────────────
 const MODEL = process.env.BALANCE_BATTLE_MCQ_MODEL || "gpt-5-mini";
-const LIMIT = parseInt(process.env.BALANCE_BATTLE_MCQ_LIMIT || "5", 10);
+const LIMIT = parseInt(process.env.BALANCE_BATTLE_MCQ_LIMIT || "50", 10);
 const LOCK_TTL_MIN = parseInt(process.env.BALANCE_BATTLE_MCQ_LOCK_TTL_MIN || "15", 10);
 const WORKER_ID =
   process.env.WORKER_ID ||

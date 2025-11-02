@@ -1,4 +1,4 @@
-// /workers/battleMCQGeneratorWorker_balance.js
+// /workers/battleMCQGeneratorWorker_balance_2.js
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
@@ -11,7 +11,7 @@ const LIMIT = parseInt(process.env.BALANCE_BATTLE_MCQ_LIMIT || "50", 10);
 const LOCK_TTL_MIN = parseInt(process.env.BALANCE_BATTLE_MCQ_LOCK_TTL_MIN || "15", 10);
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `balance-battle-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+  `balance-battle-2-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT BUILDER
@@ -96,18 +96,20 @@ function safeParseJSON(raw) {
 }
 
 // ─────────────────────────────────────────────
-// LOCK SYSTEM
+// LOCK SYSTEM (for balance_battle_mcqs_2)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
 
+  // Unlock expired rows
   await supabase
-    .from("balance_battle_mcqs")
+    .from("balance_battle_mcqs_2")
     .update({ mcq_lock: null, mcq_lock_at: null })
     .lt("mcq_lock_at", cutoff);
 
+  // Find candidates
   const { data: candidates, error: e1 } = await supabase
-    .from("balance_battle_mcqs")
+    .from("balance_battle_mcqs_2")
     .select("id, topic_json, subject, topic")
     .is("mcq_json", null)
     .is("mcq_lock", null)
@@ -118,8 +120,10 @@ async function claimRows(limit) {
   if (!candidates?.length) return [];
 
   const ids = candidates.map((r) => r.id);
+
+  // Lock claimed rows
   const { data: locked, error: e2 } = await supabase
-    .from("balance_battle_mcqs")
+    .from("balance_battle_mcqs_2")
     .update({
       mcq_lock: WORKER_ID,
       mcq_lock_at: new Date().toISOString(),
@@ -135,7 +139,7 @@ async function claimRows(limit) {
 async function clearLocks(ids) {
   if (!ids?.length) return;
   await supabase
-    .from("balance_battle_mcqs")
+    .from("balance_battle_mcqs_2")
     .update({ mcq_lock: null, mcq_lock_at: null })
     .in("id", ids);
 }
@@ -154,6 +158,8 @@ async function processRow(row) {
     return { updated: 0 };
   }
 
+  console.log(`🎯 Generating MCQs for [${subject}] → [${topic}]`);
+
   const prompt = buildPrompt(subject, topic);
   const raw = await callOpenAI([{ role: "user", content: prompt }]);
   const allMCQs = safeParseJSON(raw);
@@ -165,7 +171,7 @@ async function processRow(row) {
   }
 
   const { error: e3 } = await supabase
-    .from("balance_battle_mcqs")
+    .from("balance_battle_mcqs_2")
     .update({
       mcq_json: allMCQs,
       mcq_lock: null,
@@ -182,7 +188,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🚀 Balance Battle MCQ Worker started | model=${MODEL} | limit=${LIMIT}`);
+  console.log(`🚀 Balance Battle MCQ Worker (v2) started | model=${MODEL} | limit=${LIMIT}`);
   console.log(`Worker ID: ${WORKER_ID}`);
 
   const claimed = await claimRows(LIMIT);

@@ -17,9 +17,10 @@ function buildPrompt(mcqJson) {
   return `
 You are a 30-year NEET Biology paper-setter. Based on the NEET PYQ below, create 5 NEET-style MCQs — each testing a different **High Yield fact** derived from this NEET PYQ — that can appear in upcoming NEET exams with a very high chance of 100% strike rate.
 
-Output a **valid JSON array** (no text outside JSON, no numbered keys like "0": or "1": — only plain array elements).  
+Output a **valid JSON object** with a single key "practice_mcqs" containing a JSON array of 5 MCQs.  
+(no text outside JSON, no numbered keys like "0": or "1": — only array elements inside "practice_mcqs").
 
-Each object must strictly follow this schema 👇  
+Each object inside "practice_mcqs" must strictly follow this schema 👇  
 {
   "stem": "Question text exactly as it would appear in the NEET exam - no prefixes",
   "options": { "A": "", "B": "", "C": "", "D": "" },
@@ -32,11 +33,11 @@ Each object must strictly follow this schema 👇
 }
 
 Rules:
-• Output must be a **JSON array**, not an object — no "0":, "1":, etc.  
-• The "stem" must sound like a real NEET question, without artificial titles or labels.  
+• "practice_mcqs" must contain 5 questions.
+• The "stem" must sound like a real NEET question.
 • Use Markdown formatting with **bold/italic** key terms, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), and Greek letters (α, β, γ).  
 • Do **NOT** bold or italicize options.  
-• Keep tone and phrasing authentic to real NEET exam questions.  
+• Keep tone authentic to NEET exam.
 
 NEET PYQ Source:
 ${JSON.stringify(mcqJson, null, 2)}
@@ -61,34 +62,40 @@ async function callOpenAI(prompt, attempt = 1) {
         json_schema: {
           name: "practice_mcqs_schema",
           schema: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                stem: { type: "string" },
-                options: {
+            type: "object",
+            properties: {
+              practice_mcqs: {
+                type: "array",
+                items: {
                   type: "object",
                   properties: {
-                    A: { type: "string" },
-                    B: { type: "string" },
-                    C: { type: "string" },
-                    D: { type: "string" }
+                    stem: { type: "string" },
+                    options: {
+                      type: "object",
+                      properties: {
+                        A: { type: "string" },
+                        B: { type: "string" },
+                        C: { type: "string" },
+                        D: { type: "string" }
+                      },
+                      required: ["A", "B", "C", "D"]
+                    },
+                    feedback: {
+                      type: "object",
+                      properties: {
+                        wrong: { type: "string" },
+                        correct: { type: "string" }
+                      },
+                      required: ["wrong", "correct"]
+                    },
+                    learning_gap: { type: "string" },
+                    correct_answer: { type: "string" }
                   },
-                  required: ["A", "B", "C", "D"]
-                },
-                feedback: {
-                  type: "object",
-                  properties: {
-                    wrong: { type: "string" },
-                    correct: { type: "string" }
-                  },
-                  required: ["wrong", "correct"]
-                },
-                learning_gap: { type: "string" },
-                correct_answer: { type: "string" }
-              },
-              required: ["stem", "options", "feedback", "learning_gap", "correct_answer"]
-            }
+                  required: ["stem", "options", "feedback", "learning_gap", "correct_answer"]
+                }
+              }
+            },
+            required: ["practice_mcqs"]
           },
           strict: false
         }
@@ -170,15 +177,11 @@ async function processRow(row) {
 
   let parsedOutput;
   try {
-    parsedOutput = JSON.parse(output);
+    const obj = JSON.parse(output);
+    parsedOutput = obj.practice_mcqs || [];
 
     if (!Array.isArray(parsedOutput)) {
-      const values = Object.values(parsedOutput);
-      if (Array.isArray(values) && values.length) {
-        parsedOutput = values;
-      } else {
-        throw new Error("Output is not a valid JSON array or convertible object");
-      }
+      throw new Error("practice_mcqs key missing or invalid array");
     }
 
     if (parsedOutput.length !== 5) {

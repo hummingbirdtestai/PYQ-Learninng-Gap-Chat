@@ -70,6 +70,7 @@
     "start:conceptPhaseWorker": "node workers/conceptPhaseWorker.js",
     "start:matchMCQCorrectionWorker": "node workers/matchMCQCorrectionWorker.js",
     "start:matchConceptFromCorrectedMCQWorker": "node workers/matchConceptFromCorrectedMCQWorker.js",
+    "start:practiceMCQGeneratorWorker": "node workers/practiceMCQGeneratorWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

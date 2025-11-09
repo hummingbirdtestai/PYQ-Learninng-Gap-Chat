@@ -50,13 +50,51 @@ function isRetryable(e) {
   return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(s);
 }
 
+// ---------- OpenAI Call ----------
 async function callOpenAI(prompt, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
       messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json" }, // ✅ allows array output
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "practice_mcqs_schema",
+          schema: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                stem: { type: "string" },
+                options: {
+                  type: "object",
+                  properties: {
+                    A: { type: "string" },
+                    B: { type: "string" },
+                    C: { type: "string" },
+                    D: { type: "string" }
+                  },
+                  required: ["A", "B", "C", "D"]
+                },
+                feedback: {
+                  type: "object",
+                  properties: {
+                    wrong: { type: "string" },
+                    correct: { type: "string" }
+                  },
+                  required: ["wrong", "correct"]
+                },
+                learning_gap: { type: "string" },
+                correct_answer: { type: "string" }
+              },
+              required: ["stem", "options", "feedback", "learning_gap", "correct_answer"]
+            }
+          },
+          strict: false
+        }
+      }
     });
+
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
     if (isRetryable(e) && attempt <= 3) {
@@ -134,7 +172,6 @@ async function processRow(row) {
   try {
     parsedOutput = JSON.parse(output);
 
-    // Convert numbered-object JSON to array if needed
     if (!Array.isArray(parsedOutput)) {
       const values = Object.values(parsedOutput);
       if (Array.isArray(values) && values.length) {
@@ -143,11 +180,15 @@ async function processRow(row) {
         throw new Error("Output is not a valid JSON array or convertible object");
       }
     }
+
+    if (parsedOutput.length !== 5) {
+      console.warn(`⚠️ Row ${row.id}: Expected 5 MCQs, got ${parsedOutput.length}`);
+    }
+
   } catch (e) {
     throw new Error(`Invalid JSON output for id=${row.id}: ${e.message}`);
   }
 
-  // Update Supabase
   const { error: upErr } = await supabase
     .from("biology_raw_new_flattened")
     .update({

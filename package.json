@@ -69,6 +69,7 @@
     "start:battleMCQGeneratorWorker": "node workers/battleMCQGeneratorWorker.js",
     "start:conceptPhaseWorker": "node workers/conceptPhaseWorker.js",
     "start:matchMCQCorrectionWorker": "node workers/matchMCQCorrectionWorker.js",
+    "start:matchConceptFromCorrectedMCQWorker": "node workers/matchConceptFromCorrectedMCQWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

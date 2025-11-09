@@ -67,6 +67,7 @@
     "start:medicineImageMCQFinalGeneratorWorker": "node workers/medicineImageMCQFinalGeneratorWorker.js",
     "start:topicClassifierWorker": "node workers/topicClassifierWorker.js",
     "start:battleMCQGeneratorWorker": "node workers/battleMCQGeneratorWorker.js",
+    "start:conceptPhaseWorker": "node workers/conceptPhaseWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

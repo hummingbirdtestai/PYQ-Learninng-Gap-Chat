@@ -1,0 +1,168 @@
+// workers/matchConceptFromCorrectedMCQWorker.js
+require("dotenv").config();
+const { supabase } = require("../config/supabaseClient");
+const openai = require("../config/openaiClient");
+
+// ---------- Settings ----------
+const MODEL        = process.env.CONCEPT_LATEX_MODEL || "gpt-5-mini";
+const LIMIT        = parseInt(process.env.CONCEPT_LATEX_LIMIT || "200", 10);
+const BATCH_SIZE   = parseInt(process.env.CONCEPT_LATEX_BATCH_SIZE || "10", 10);
+const SLEEP_MS     = parseInt(process.env.CONCEPT_LATEX_LOOP_SLEEP_MS || "500", 10);
+const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LATEX_LOCK_TTL_MIN || "15", 10);
+const SUBJECT_FILTER = process.env.CONCEPT_LATEX_SUBJECT || null;
+const WORKER_ID    = process.env.WORKER_ID || `match-concept-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+
+// ---------- Prompt ----------
+function buildPrompt(mcqJson) {
+  return `
+You are a senior NEET mentor with 30 years’ experience. At the Start reproduce the MCQ as Is with Question Stem , 4 Options (A,B,C,D) , Correct Anaswer , exam, reference . Create what is central concept one should understand , Give Anectode and explain like you explain to a class 5 Student to understand the central concept . Do not mention explicitly as explain to a class 5 Student , only mention Heading Anectode Create 10 High Yield facts to remember for NEET EXAM where they than can come as MCQs for each of these NEET PYQs Also Create a Summary of Must remember Points that should not be confused in exam when asked related to this Question . Give a Memory Table to make the related facts to be remembered easily for NEET Exam. Give the output strictly , in Markdown with Unicode symbols, In the output, explicitly bold and italicize all important key words, scientific terms, and headings for emphasis using proper Markdown (e.g., *bold, italic), Use headings, *bold, italic, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters , and emojis (💡🧠⚕📘) naturally throughout for visual clarity. Do NOT output as JSON but output as Markdown Code blocks.
+
+Input:
+${JSON.stringify(mcqJson, null, 2)}
+`.trim();
+}
+
+// ---------- Helpers ----------
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function isRetryable(e) {
+  const s = String(e?.message || e);
+  return /timeout|ETIMEDOUT|429|temporar|unavailable|ECONNRESET/i.test(s);
+}
+
+async function callOpenAI(prompt, attempt = 1) {
+  try {
+    const resp = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "text" },  // Markdown output, not JSON
+    });
+    return resp.choices?.[0]?.message?.content || "";
+  } catch (e) {
+    if (isRetryable(e) && attempt <= 3) {
+      await sleep(400 * attempt);
+      return callOpenAI(prompt, attempt + 1);
+    }
+    throw e;
+  }
+}
+
+// ---------- Locking ----------
+async function freeStaleLocks() {
+  const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
+  let q = supabase
+    .from("biology_raw_new_flattened")
+    .update({ concept_lock: null, concept_lock_at: null })
+    .is("match_concept_corrected", null)
+    .lt("concept_lock_at", cutoff);
+  if (SUBJECT_FILTER) q = q.eq("subject_name", SUBJECT_FILTER);
+  await q;
+}
+
+async function claimRows(limit) {
+  await freeStaleLocks();
+  let q = supabase
+    .from("biology_raw_new_flattened")
+    .select("id, match_mcq_corrected")
+    .not("match_mcq_corrected", "is", null)
+    .is("match_concept_corrected", null)
+    .is("concept_lock", null)
+    .order("id", { ascending: true })
+    .limit(limit);
+  if (SUBJECT_FILTER) q = q.eq("subject_name", SUBJECT_FILTER);
+
+  const { data: candidates, error } = await q;
+  if (error) throw error;
+  if (!candidates?.length) return [];
+
+  const ids = candidates.map(r => r.id);
+  const { data: locked, error: e2 } = await supabase
+    .from("biology_raw_new_flattened")
+    .update({
+      concept_lock: WORKER_ID,
+      concept_lock_at: new Date().toISOString(),
+    })
+    .in("id", ids)
+    .is("match_concept_corrected", null)
+    .is("concept_lock", null)
+    .select("id, match_mcq_corrected");
+
+  if (e2) throw e2;
+  return locked || [];
+}
+
+async function clearLocks(ids) {
+  if (!ids.length) return;
+  await supabase
+    .from("biology_raw_new_flattened")
+    .update({ concept_lock: null, concept_lock_at: null })
+    .in("id", ids);
+}
+
+// ---------- Process ----------
+async function processRow(row) {
+  const prompt = buildPrompt(row.match_mcq_corrected);
+  const output = await callOpenAI(prompt);
+
+  if (!output || output.length < 50) {
+    throw new Error(`Empty or too short output for id=${row.id}`);
+  }
+
+  const { error: upErr } = await supabase
+    .from("biology_raw_new_flattened")
+    .update({
+      match_concept_corrected: output,
+      concept_lock: null,
+      concept_lock_at: null,
+    })
+    .eq("id", row.id);
+
+  if (upErr) {
+    const preview = output.slice(0, 200);
+    throw new Error(`Update failed for id=${row.id}: ${upErr.message}. Preview: ${preview}`);
+  }
+
+  return { updated: 1, total: 1 };
+}
+
+// ---------- Batch ----------
+async function processBatch(rows) {
+  const chunks = [];
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    chunks.push(rows.slice(i, i + BATCH_SIZE));
+  }
+
+  let updated = 0;
+  for (const chunk of chunks) {
+    const results = await Promise.allSettled(chunk.map(processRow));
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === "fulfilled") {
+        updated += r.value.updated;
+      } else {
+        console.error(`   row ${chunk[i].id} error:`, r.reason?.message || r.reason);
+        await clearLocks([chunk[i].id]);
+      }
+    }
+  }
+  return updated;
+}
+
+// ---------- Main ----------
+(async function main() {
+  console.log(`🧠 Match→Concept Worker ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
+  while (true) {
+    try {
+      const claimed = await claimRows(LIMIT);
+      if (!claimed.length) {
+        await sleep(SLEEP_MS);
+        continue;
+      }
+      console.log(`⚙️ Claimed ${claimed.length} rows`);
+      const updated = await processBatch(claimed);
+      console.log(`✅ Completed batch: updated=${updated}/${claimed.length}`);
+    } catch (e) {
+      console.error("Loop error:", e.message || e);
+      await sleep(1000);
+    }
+  }
+})();

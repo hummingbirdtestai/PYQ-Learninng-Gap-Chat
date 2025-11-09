@@ -55,11 +55,12 @@ async function callOpenAI(prompt, attempt = 1) {
     const resp = await openai.chat.completions.create({
       model: MODEL,
       messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" }, // Enforce valid JSON
+      response_format: { type: "json_object" }, // strict JSON
     });
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
     if (isRetryable(e) && attempt <= 3) {
+      console.warn(`⚠️ Retrying OpenAI call (attempt ${attempt}) due to:`, e.message);
       await sleep(400 * attempt);
       return callOpenAI(prompt, attempt + 1);
     }
@@ -89,6 +90,7 @@ async function claimRows(limit) {
     .is("concept_lock", null)
     .order("id", { ascending: true })
     .limit(limit);
+
   if (SUBJECT_FILTER) q = q.eq("subject_name", SUBJECT_FILTER);
 
   const { data: candidates, error } = await q;
@@ -131,13 +133,21 @@ async function processRow(row) {
   let parsedOutput;
   try {
     parsedOutput = JSON.parse(output);
+
+    // Convert numbered-object JSON to array if needed
     if (!Array.isArray(parsedOutput)) {
-      throw new Error("Output is not a JSON array");
+      const values = Object.values(parsedOutput);
+      if (Array.isArray(values) && values.length) {
+        parsedOutput = values;
+      } else {
+        throw new Error("Output is not a valid JSON array or convertible object");
+      }
     }
   } catch (e) {
     throw new Error(`Invalid JSON output for id=${row.id}: ${e.message}`);
   }
 
+  // Update Supabase
   const { error: upErr } = await supabase
     .from("biology_raw_new_flattened")
     .update({

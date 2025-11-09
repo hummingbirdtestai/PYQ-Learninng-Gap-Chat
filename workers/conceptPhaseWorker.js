@@ -15,21 +15,7 @@ const WORKER_ID    = process.env.WORKER_ID || `concept-phase-${process.pid}-${Ma
 // ---------- Prompt ----------
 function buildPrompt(mcqJson) {
   return `
-You are a senior NEET mentor with 30 years’ experience.
-At the Start reproduce the MCQ as Is with Question Stem, 4 Options (A,B,C,D), Correct Answer, exam, and reference.
-Then create what is the *central concept* one should understand.
-
-Add a section **Anecdote** — explain the concept using a simple story or analogy that makes it crystal clear.
-(Do NOT explicitly say “like a Class 5 student” — just make it natural.)
-
-Create **10 High-Yield Facts** to remember for NEET, which could appear as MCQs.
-Then make a **Summary of Must-Remember Points** that should not be confused in exams.
-Finally, give a **Memory Table** for easy recall.
-
-Use Markdown with Unicode symbols:
-- Use **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻)
-- Use emojis 💡🧠⚕️📘 naturally
-Do NOT output JSON — output clean Markdown code blocks only.
+You are a senior NEET mentor with 30 years’ experience. At the Start reproduce the MCQ as Is with Question Stem , 4 Options (A,B,C,D) , Correct Anaswer , exam, reference . Create what is central concept one should understand , Give Anectode and explain like you explain to a class 5 Student to understand the central concept . Do not mention explicitly as explain to a class 5 Student , only mention Heading Anectode Create 10 High Yield facts to remember for NEET EXAM where they than can come as MCQs for each of these NEET PYQs Also Create a Summary of Must remember Points that should not be confused in exam when asked related to this Question . Give a Memory Table to make the related facts to be remembered easily for NEET Exam. Give the output strictly , in Markdown with Unicode symbols, In the output, explicitly bold and italicize all important key words, scientific terms, and headings for emphasis using proper Markdown (e.g., *bold, italic), Use headings, *bold, italic, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters , and emojis (💡🧠⚕📘) naturally hroughout for visual clarity.. .Do NOT output as JSON but output as Markdown Code blocks
 
 Input:
 ${JSON.stringify(mcqJson, null, 2)}

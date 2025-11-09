@@ -1,23 +1,21 @@
-// workers/practiceMCQGeneratorWorker.js
+// workers/practiceMCQFromMCQWorker.js
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
 
 // ---------- Settings ----------
-const MODEL        = process.env.MATCH_CONCEPT_MODEL || "gpt-5-mini";
-const LIMIT        = parseInt(process.env.MATCH_CONCEPT_LIMIT || "200", 10);
-const BATCH_SIZE   = parseInt(process.env.MATCH_CONCEPT_BATCH_SIZE || "10", 10);
-const SLEEP_MS     = parseInt(process.env.MATCH_CONCEPT_LOOP_SLEEP_MS || "500", 10);
-const LOCK_TTL_MIN = parseInt(process.env.MATCH_CONCEPT_LOCK_TTL_MIN || "15", 10);
-const SUBJECT_FILTER = process.env.MATCH_CONCEPT_SUBJECT || null;
-const WORKER_ID    = process.env.WORKER_ID || `practice-mcq-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+const MODEL        = process.env.PRACTICE_MCQ_MODEL || "gpt-5-mini";
+const LIMIT        = parseInt(process.env.PRACTICE_MCQ_LIMIT || "200", 10);
+const BATCH_SIZE   = parseInt(process.env.PRACTICE_MCQ_BATCH_SIZE || "10", 10);
+const SLEEP_MS     = parseInt(process.env.PRACTICE_MCQ_LOOP_SLEEP_MS || "500", 10);
+const LOCK_TTL_MIN = parseInt(process.env.PRACTICE_MCQ_LOCK_TTL_MIN || "15", 10);
+const SUBJECT_FILTER = process.env.PRACTICE_MCQ_SUBJECT || null;
+const WORKER_ID    = process.env.WORKER_ID || `practice-from-mcq-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // ---------- Prompt ----------
-function buildPrompt(conceptText) {
+function buildPrompt(mcqJson) {
   return `
-You are a 30-year NEET Biology paper-setter. Based on the passage below, create 10 NEET-style MCQs (mix of single-best, assertion-reason, match-the-following) that can come as MCQs in Future NEET Exam. 
-
-The MCQs should be perfectly as in NEET Exam style based on Past 37 Years PYQs Rules (must follow strictly):
+You are a 30-year NEET Biology paper-setter. Based on the NEET PYQ below, create 5 NEET-style MCQs that can come as MCQs in future NEET Exams.
 
 • Output a valid JSON array (no text outside JSON).  
 • Each object must follow this exact schema 👇  
@@ -34,10 +32,11 @@ The MCQs should be perfectly as in NEET Exam style based on Past 37 Years PYQs R
 • Use Markdown formatting throughout.  
 • Bold/italicize all important biological words (e.g., oogenesis, prophase I, LH surge).  
 • Do NOT bold/italicize options.  
-• Keep authentic NEET tone, concise factual phrasing.
+• Keep authentic NEET tone, concise factual phrasing.  
+• These MCQs should ensure the student attains 100% strike rate in NEET through deep concept practice.
 
-Passage:
-${conceptText}
+NEET PYQ:
+${JSON.stringify(mcqJson, null, 2)}
 `.trim();
 }
 
@@ -53,7 +52,7 @@ async function callOpenAI(prompt, attempt = 1) {
     const resp = await openai.chat.completions.create({
       model: MODEL,
       messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" }, // ✅ Strict JSON output
+      response_format: { type: "json_object" },
     });
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
@@ -81,8 +80,8 @@ async function claimRows(limit) {
   await freeStaleLocks();
   let q = supabase
     .from("biology_raw_new_flattened")
-    .select("id, concept_phase")
-    .not("concept_phase", "is", null)
+    .select("id, mcq_json")
+    .not("mcq_json", "is", null)
     .is("practice_mcqs", null)
     .is("concept_lock", null)
     .order("id", { ascending: true })
@@ -103,7 +102,7 @@ async function claimRows(limit) {
     .in("id", ids)
     .is("practice_mcqs", null)
     .is("concept_lock", null)
-    .select("id, concept_phase");
+    .select("id, mcq_json");
 
   if (e2) throw e2;
   return locked || [];
@@ -119,14 +118,14 @@ async function clearLocks(ids) {
 
 // ---------- Process ----------
 async function processRow(row) {
-  const prompt = buildPrompt(row.concept_phase);
+  const prompt = buildPrompt(row.mcq_json);
   const output = await callOpenAI(prompt);
 
   if (!output || output.length < 50) {
     throw new Error(`Empty or too short output for id=${row.id}`);
   }
 
-  // Try to parse to ensure valid JSON
+  // Validate JSON
   let parsedOutput;
   try {
     parsedOutput = JSON.parse(output);
@@ -176,7 +175,7 @@ async function processBatch(rows) {
 
 // ---------- Main ----------
 (async function main() {
-  console.log(`🧬 Practice MCQ Generator ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
+  console.log(`🧠 Practice MCQ-from-PYQ Worker ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);

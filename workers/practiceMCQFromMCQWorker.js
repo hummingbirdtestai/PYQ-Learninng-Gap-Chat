@@ -15,27 +15,30 @@ const WORKER_ID    = process.env.WORKER_ID || `practice-from-mcq-${process.pid}-
 // ---------- Prompt ----------
 function buildPrompt(mcqJson) {
   return `
-You are a 30-year NEET Biology paper-setter. Based on the NEET PYQ below, create 5 NEET-style MCQs that can come as MCQs in future NEET Exams.
+You are a 30-year NEET Biology paper-setter. Based on the NEET PYQ below, create 5 NEET-style MCQs — each testing a different **High Yield fact** derived from this NEET PYQ — that can appear in upcoming NEET exams with a very high chance of 100% strike rate.
 
-• Output a valid JSON array (no text outside JSON).  
-• Each object must follow this exact schema 👇  
+Output a **valid JSON array** (no text outside JSON, no numbered keys like "0": or "1": — only plain array elements).  
+
+Each object must strictly follow this schema 👇  
 {
-  "stem": "Question text (Markdown + Unicode + emojis 💡🧠⚕️📘)",
+  "stem": "Question text exactly as it would appear in the NEET exam - no prefixes",
   "options": { "A": "", "B": "", "C": "", "D": "" },
   "feedback": {
-    "wrong": "❌ Why it’s wrong — use Markdown, **bold/italic** key terms, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters (α, β, γ)",
+    "wrong": "❌ Why it’s wrong — ",
     "correct": "✅ Why it’s correct — clear, brief, factual explanation"
   },
   "learning_gap": "1-line student misconception",
   "correct_answer": "A"
 }
-• Use Markdown formatting throughout.  
-• Bold/italicize all important biological words (e.g., oogenesis, prophase I, LH surge).  
-• Do NOT bold/italicize options.  
-• Keep authentic NEET tone, concise factual phrasing.  
-• These MCQs should ensure the student attains 100% strike rate in NEET through deep concept practice.
 
-NEET PYQ:
+Rules:
+• Output must be a **JSON array**, not an object — no "0":, "1":, etc.  
+• The "stem" must sound like a real NEET question, without artificial titles or labels.  
+• Use Markdown formatting with **bold/italic** key terms, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), and Greek letters (α, β, γ).  
+• Do **NOT** bold or italicize options.  
+• Keep tone and phrasing authentic to real NEET exam questions.  
+
+NEET PYQ Source:
 ${JSON.stringify(mcqJson, null, 2)}
 `.trim();
 }
@@ -52,7 +55,7 @@ async function callOpenAI(prompt, attempt = 1) {
     const resp = await openai.chat.completions.create({
       model: MODEL,
       messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
+      response_format: { type: "json_object" }, // Enforce valid JSON
     });
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
@@ -125,10 +128,12 @@ async function processRow(row) {
     throw new Error(`Empty or too short output for id=${row.id}`);
   }
 
-  // Validate JSON
   let parsedOutput;
   try {
     parsedOutput = JSON.parse(output);
+    if (!Array.isArray(parsedOutput)) {
+      throw new Error("Output is not a JSON array");
+    }
   } catch (e) {
     throw new Error(`Invalid JSON output for id=${row.id}: ${e.message}`);
   }
@@ -147,7 +152,7 @@ async function processRow(row) {
     throw new Error(`Update failed for id=${row.id}: ${upErr.message}. Preview: ${preview}`);
   }
 
-  return { updated: 1, total: 1 };
+  return { updated: 1 };
 }
 
 // ---------- Batch ----------
@@ -165,7 +170,7 @@ async function processBatch(rows) {
       if (r.status === "fulfilled") {
         updated += r.value.updated;
       } else {
-        console.error(`   row ${chunk[i].id} error:`, r.reason?.message || r.reason);
+        console.error(`❌ Row ${chunk[i].id} error:`, r.reason?.message || r.reason);
         await clearLocks([chunk[i].id]);
       }
     }

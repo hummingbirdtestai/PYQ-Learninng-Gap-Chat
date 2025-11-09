@@ -29,7 +29,7 @@ Your tasks:
    - "mcq_type": true   ← marks it as a Match the Following type
    - (For Match the Following: clearly show *Column I* and *Column II* pairs)
 
-3. If it is **not** a Match the Following type, return the original MCQ content properly formatted in JSON with `"mcq_type": false`.
+3. If it is **not** a Match the Following type, return the original MCQ content properly formatted in JSON with \\\"mcq_type\\\": false.
 
 **Return the output strictly as a valid JSON object** (no markdown, no explanation).
 

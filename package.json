@@ -71,6 +71,7 @@
     "start:matchMCQCorrectionWorker": "node workers/matchMCQCorrectionWorker.js",
     "start:matchConceptFromCorrectedMCQWorker": "node workers/matchConceptFromCorrectedMCQWorker.js",
     "start:practiceMCQFromMCQWorker": "node workers/practiceMCQFromMCQWorker.js",
+    "start:zoobotunicodeFlashCardsWorker": "node workers/zoobotunicodeFlashCardsWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

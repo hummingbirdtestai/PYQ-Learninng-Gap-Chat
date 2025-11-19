@@ -18,26 +18,24 @@ const WORKER_ID = process.env.WORKER_ID ||
 function buildPrompt(topic) {
   return (
 `
-You are an 30 Years experienced Undergraduate MBBS Anatomy Teacher expert in NMC PRESCRIBED Competency Based Curriculum.
+You are an 30 Years experienced Undergraduate MBBS Anatomy Teacher expert in NMC PRESCRIBED Competency Based Curriculum. Explain the topic **"${topic}"** using the following 6 sections. Keep language simple, first-year friendly, accurate, and high-yield.
 
-Explain the topic **"${topic}"** using EXACTLY the following **6 sections**.
+Follow this exact structure:
+1) Central Concept – Give a short, crisp, foundational explanation of the topic. – Use analogies if helpful.
+2) Core Anatomy Under Clear Headings – Explain structure, components, types, relations, functions, and distribution. – Present in concise bullet points.
+3) 10 High-Yield Facts (USMLE + NEET-PG) – Single-line pearls – Emphasize exam-friendly and memory-friendly points.
+4) 5 Clinical Case Vignettes (Surgical Anatomy oriented) – Each 3–4 lines maximum – Reasoning should connect anatomy → clinical relevance.
+5) Top 5 Viva Voce Questions (with answers) – Simple, direct, easily recallable.
+6) Provide a summary table, mnemonics, or comparison chart for revision.
 
-1) Central Concept – short, crisp, foundational explanation.  
-2) Core Anatomy Under Clear Headings – structure, components, relations, functions; clear bullet points.  
-3) 10 High-Yield Facts (USMLE + NEET-PG) – single-line pearls.  
-4) 5 Clinical Case Vignettes (Surgical Anatomy oriented) – 3-4 lines each.  
-5) Top 5 Viva Voce Questions (with answers).  
-6) Summary table / mnemonics / comparison chart.
-
-Strict rules:
-• Output ONLY the 6 sections.  
-• Use **bold**, *italic*, arrows (→, ↑, ↓), Greek letters, subscripts/superscripts naturally.  
-• Use MBBS-first-year friendly language.  
-• Use Markdown.  
+Strict Rules:
+• Output MUST strictly follow Sections 1–6.  
+• Use **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), and Greek letters, and emojis (💡🧠⚕📘) naturally throughout.  
+• Use proper Markdown headings & emphasis.  
 • Do NOT output JSON.  
-• Do NOT add titles beyond the 6 sections.
-
-Output must be ONLY in a Markdown code block.
+• Do NOT add any titles or headers beyond the 6 sections I specify.  
+• Output ONLY those 6 sections exactly as numbered.  
+• Output must be ONLY inside a **Markdown code block**.
 `
   ).trim();
 }

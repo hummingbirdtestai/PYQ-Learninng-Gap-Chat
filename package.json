@@ -73,7 +73,7 @@
     "start:practiceMCQFromMCQWorker": "node workers/practiceMCQFromMCQWorker.js",
     "start:zoobotunicodeFlashCardsWorker": "node workers/zoobotunicodeFlashCardsWorker.js",
     "start:chemistryConceptPhaseWorker": "node workers/chemistryConceptPhaseWorker.js",
-    "start:PathologyconceptGeneratorWorker.js.js": "node workers/PathologyconceptGeneratorWorker.js.js",
+    "start:PharmacologyconceptGeneratorWorker.js": "node workers/PharmacologyconceptGeneratorWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

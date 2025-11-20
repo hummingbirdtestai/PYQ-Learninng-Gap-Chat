@@ -10,7 +10,7 @@ const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "800", 10);
 const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "15", 10);
 
-const SUBJECT_FILTER = "Pathology";
+const SUBJECT_FILTER = "Pharmacology";
 const WORKER_ID = process.env.WORKER_ID ||
   `concept-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
@@ -18,11 +18,11 @@ const WORKER_ID = process.env.WORKER_ID ||
 function buildPrompt(topic) {
   return (
 `
-You are an 30 Years experienced Undergraduate MBBS **Pathology** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
-Explain the topic:*${topic}* using the following 6 sections.  Keep language simple, Second-year MBBS friendly, accurate, and high-yield. Follow this exact structure:
+You are an 30 Years experienced Undergraduate MBBS **Pharmacology** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
+Explain the topic:*${topic}* using the following 6 sections. Keep language simple, Second-year MBBS friendly, accurate, and high-yield. Follow this exact structure:
 
 1) Central Concept  
-2) Core Pathology  
+2) Core Pharmacology  
 3) 10 High-Yield Facts  
 4) Clinical Case Vignettes  
 5) Viva Voce Questions  
@@ -34,27 +34,27 @@ Explain using the following rules exactly:
    – Give a short, crisp, foundational explanation of the topic.  
    – Use analogies if helpful.
 
-2) **Core Pathology**  
-   – Explain **etiology, risk factors, pathogenesis, cellular changes, mechanisms of injury, inflammation, repair, necrosis vs apoptosis, morphological changes (gross + microscopic), molecular pathways, immune-mediated mechanisms, tumor biology, staging/grading**, and diagnostic hallmarks.  
+2) **Core Pharmacology**  
+   – Explain **mechanism of action (MOA), receptor interactions, agonists/antagonists, signal transduction pathways, pharmacokinetics (ADME), pharmacodynamics, therapeutic uses, adverse effects, contraindications, drug–drug interactions, metabolism (Phase I/II), enzyme induction/inhibition, toxicology**, and important clinical correlations.  
    – Present in concise bullet points.
 
 3) **10 High-Yield Facts (USMLE + NEET-PG)**  
    – Single-line pearls  
    – Emphasize exam-friendly and memory-friendly points.
 
-4) **5 Clinical Case Vignettes (Pathology-oriented)**  
+4) **5 Clinical Case Vignettes (Pharmacology-oriented)**  
    – Each 3–4 lines maximum  
-   – Reasoning should connect **injury/etiology → pathogenesis → morphological change → clinical clue**.
+   – Reasoning should connect **drug given → MOA → clinical effect/toxicity → diagnostic clue**.
 
 5) **Top 5 Viva Voce Questions (with answers)**  
    – Simple, direct, easily recallable.
 
-6) **Provide a summary table, flowchart of pathogenesis, mnemonic, or comparison chart for revision.**
+6) **Provide a summary table, drug classification chart, MOA flowchart, mnemonic, or comparison chart for revision.**
 
 Output must strictly follow Sections 1–6.  
 Give the output **strictly in Markdown code blocks** with Unicode symbols.  
-In the output, explicitly **bold and italicize** all important key words, scientific terms, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
-Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡🧬🩸⚕📘) naturally throughout for visual clarity.  
+In the output, explicitly **bold and italicize** all important key words, drug names, receptors, mechanisms, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
+Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡💊⚕📘) naturally throughout for visual clarity.  
 Do **NOT** output as JSON but output as **Markdown code blocks**.  
 Do **NOT** add any titles or headers beyond the 6 sections I specify.  
 Output ONLY those 6 sections exactly as numbered.

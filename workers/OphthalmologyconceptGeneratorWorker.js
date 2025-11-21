@@ -10,7 +10,7 @@ const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "800", 10);
 const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "15", 10);
 
-const SUBJECT_FILTER = "Otorhinolaryngology (Ent)";
+const SUBJECT_FILTER = "Ophthalmology";
 const WORKER_ID = process.env.WORKER_ID ||
   `concept-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
@@ -18,11 +18,11 @@ const WORKER_ID = process.env.WORKER_ID ||
 function buildPrompt(topic) {
   return (
 `
-You are an 30 Years experienced Undergraduate MBBS **Otorhinolaryngology (ENT)** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
+You are an 30 Years experienced Undergraduate MBBS **Ophthalmology** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
 Explain the topic:*${topic}* using the following 6 sections. Keep language simple, Final-year MBBS friendly, accurate, and high-yield. Follow this exact structure:
 
 1) Central Concept  
-2) Core ENT  
+2) Core Ophthalmology  
 3) 10 High-Yield Facts  
 4) Clinical Case Vignettes  
 5) Viva Voce Questions  
@@ -34,27 +34,27 @@ Explain using the following rules exactly:
    – Give a short, crisp, foundational explanation of the topic.  
    – Use analogies if helpful.
 
-2) **Core ENT**  
-   – Explain **anatomy-based clinical correlations of ear, nose, paranasal sinuses, pharynx, larynx; pathophysiology of ENT diseases; common conditions (otitis, sinusitis, vertigo, hearing loss, epistaxis, allergic rhinitis); red-flag symptoms; investigations (audiometry, impedance, microscopy, endoscopy, imaging); airway assessment; common ENT emergencies; tumors; surgical principles (tracheostomy, FESS, tonsillectomy); nerve supply relevance; complications**, and management overview.  
+2) **Core Ophthalmology**  
+   – Explain **anatomy and functional relevance of ocular structures (cornea, lens, retina, uveal tract, optic nerve), physiology of vision, refraction concepts, common disorders (cataract, glaucoma, uveitis, keratitis, diabetic retinopathy, AMD), red-flag symptoms, clinical signs, investigations (slit-lamp, fundoscopy, OCT, visual fields, tonometry), ocular emergencies, systemic associations, laser principles, surgical basics (cataract surgery, trabeculectomy)**, and complications.  
    – Present in concise bullet points.
 
 3) **10 High-Yield Facts (USMLE + NEET-PG + FMGE)**  
    – Single-line pearls  
    – Emphasize exam-friendly and memory-friendly points.
 
-4) **5 Clinical Case Vignettes (ENT-oriented)**  
+4) **5 Clinical Case Vignettes (Ophthalmology-oriented)**  
    – Each 3–4 lines maximum  
-   – Reasoning should connect **symptom → anatomical site → pathophysiology → clinical diagnosis**.
+   – Reasoning should connect **symptom → anatomical/physiological disturbance → hallmark clinical sign → probable diagnosis**.
 
 5) **Top 5 Viva Voce Questions (with answers)**  
    – Simple, direct, easily recallable.
 
-6) **Provide a summary table, differential diagnosis chart, audiogram/maneuver summary, red-flag signs table, or mnemonic for revision.**
+6) **Provide a summary table, differential diagnosis chart, ocular signs table, retinal findings summary, laser classifications, or mnemonic for revision.**
 
 Output must strictly follow Sections 1–6.  
 Give the output **strictly in Markdown code blocks** with Unicode symbols.  
-In the output, explicitly **bold and italicize** all important key words, ENT terms, clinical signs, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
-Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡👂👃🗣⚕📘) naturally throughout for visual clarity.  
+In the output, explicitly **bold and italicize** all important key words, ocular terms, clinical signs, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
+Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡👁⚕📘) naturally throughout for visual clarity.  
 Do **NOT** output as JSON but output as **Markdown code blocks**.  
 Do **NOT** add any titles or headers beyond the 6 sections I specify.  
 Output ONLY those 6 sections exactly as numbered.

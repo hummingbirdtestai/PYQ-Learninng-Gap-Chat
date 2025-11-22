@@ -1,4 +1,4 @@
-// workers/genmedconceptGeneratorWorker.js
+// workers/surgeryConceptGeneratorWorker.js
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
@@ -6,65 +6,42 @@ const openai = require("../config/openaiClient");
 // ---------------- SETTINGS ----------------
 const MODEL        = process.env.CONCEPT_GEN_MODEL || "gpt-5-mini";
 const LIMIT        = parseInt(process.env.CONCEPT_GEN_LIMIT || "200", 10);
-const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "5", 10);
-const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "800", 10);
-const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "15", 10);
+const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "10", 10);
+const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "300", 10);
+const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "10", 10);
 
-// MULTI-SUBJECT LIST
+// MULTI-SUBJECT LIST FOR SURGERY
 const SUBJECT_FILTERS = [
-  "General Medicine",
-  "Respiratory Medicine",
-  "Physical Medicine",
-  "Radiotherapy"
+  "General Surgery",
+  "Dentistry"
 ];
 
 const WORKER_ID = process.env.WORKER_ID ||
-  `concept-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+  `surgery-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // -------------- PROMPT ---------------------
 function buildPrompt(topic) {
   return (
 `
-You are an 30 Years experienced Undergraduate MBBS **General Medicine** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
-Explain the topic:*${topic}* using the following 6 sections. Keep language simple, Final-year MBBS friendly, accurate, and high-yield. Follow this exact structure:
+You are an experienced **General Surgery** teacher (30 years) following NMC CBME curriculum. 
+Explain the topic: *${topic}* in EXACTLY the following 6 sections:
 
 1) Central Concept  
-2) Core General Medicine  
+2) Core Surgical Principles  
 3) 10 High-Yield Facts  
 4) Clinical Case Vignettes  
 5) Viva Voce Questions  
 6) Summary Table / Mnemonics
 
-Explain using the following rules exactly:
-
-1) **Central Concept**  
-   – Give a short, crisp, foundational explanation of the topic.  
-   – Use analogies if helpful.
-
-2) **Core General Medicine**  
-   – Explain **pathophysiology, clinical features, risk factors, red-flag symptoms, diagnostic approach, bedside examination clues, investigations (CBC, LFT, RFT, ECG, CXR, CT/MRI, echo), important lab interpretations, systemic involvement patterns (CVS, RS, CNS, endocrine, renal), complications, differential diagnosis, management principles (acute + chronic)**, and follow-up essentials.  
-   – Present in concise bullet points.
-
-3) **10 High-Yield Facts (USMLE + NEET-PG + FMGE)**  
-   – Single-line pearls  
-   – Emphasize exam-friendly and memory-friendly points.
-
-4) **5 Clinical Case Vignettes (Medicine-oriented)**  
-   – Each 3–4 lines maximum  
-   – Reasoning should connect **symptom → system involved → key investigation → most likely diagnosis**.
-
-5) **Top 5 Viva Voce Questions (with answers)**  
-   – Simple, direct, easily recallable.
-
-6) **Provide a summary table, differential diagnosis chart, investigation interpretation table, severity scoring system, red-flag signs list, or mnemonic for revision.**
-
-Output must strictly follow Sections 1–6.  
-Give the output **strictly in Markdown code blocks** with Unicode symbols.  
-In the output, explicitly **bold and italicize** all important key words, clinical terms, diseases, signs, investigations, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
-Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡🫀🫁🧠⚕📘) naturally throughout for visual clarity.  
-Do **NOT** output as JSON but output as **Markdown code blocks**.  
-Do **NOT** add any titles or headers beyond the 6 sections I specify.  
-Output ONLY those 6 sections exactly as numbered.
+RULES:
+- Use clear, final-year MBBS friendly language
+- Cover anatomy, pathology, clinical features, red flags, investigations, imaging (USG, CT, MRI), operative steps, complications, postoperative care
+- Include surgical decision points, indications, contraindications
+- Use bullet points
+- Use Markdown formatting
+- Bold and italicize all key terms
+- Use arrows → ↑ ↓ and clinical emojis
+- Output ONLY sections 1–6 in Markdown code blocks
 `
   ).trim();
 }
@@ -97,7 +74,6 @@ async function callOpenAI(prompt, attempt = 1) {
 // ---------------- LOCKING -------------------
 async function freeStaleLocks() {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
-
   const { error } = await supabase
     .from("subject_curriculum")
     .update({ concept_lock: null, concept_lock_at: null })
@@ -193,7 +169,7 @@ async function processBatch(rows) {
       if (r.status === "fulfilled") {
         updated += r.value.updated;
       } else {
-        console.error(`❌ Row ${chunk[i].id} error:`, r.reason?.message || r.reason);
+        console.error(`❌ Row ${chunk[i].id} error:`, r.reason);
         await clearLocks([chunk[i].id]);
       }
     }
@@ -204,7 +180,7 @@ async function processBatch(rows) {
 
 // ---------------- MAIN LOOP -----------------
 (async function main() {
-  console.log(`🧠 Concept Generator Worker ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
+  console.log(`🔪 Surgery Concept Generator ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);

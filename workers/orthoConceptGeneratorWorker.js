@@ -1,4 +1,4 @@
-// workers/surgeryConceptGeneratorWorker.js
+// workers/orthoConceptGeneratorWorker.js
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
@@ -10,24 +10,21 @@ const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "10", 10);
 const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "300", 10);
 const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "10", 10);
 
-// MULTI-SUBJECT LIST FOR SURGERY
-const SUBJECT_FILTERS = [
-  "General Surgery",
-  "Dentistry"
-];
+// 🔥 SINGLE SUBJECT ONLY
+const SUBJECT_FILTER = "Orthopedics";
 
 const WORKER_ID = process.env.WORKER_ID ||
-  `surgery-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+  `ortho-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // -------------- PROMPT ---------------------
 function buildPrompt(topic) {
   return (
 `
-You are an 30 Years experienced Undergraduate MBBS **Surgery** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
-Explain the topic: *${topic}* in EXACTLY the following 6 sections. Keep language simple, Final-year MBBS friendly, accurate, and high-yield. Follow this exact structure:
+You are an 30 Years experienced Undergraduate MBBS **Orthopedics** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
+Explain the topic:*${topic}* using the following 6 sections. Keep language simple, Final-year MBBS friendly, accurate, and high-yield. Follow this exact structure:
 
 1) Central Concept  
-2) Core Surgery  
+2) Core Orthopedics  
 3) 10 High-Yield Facts  
 4) Clinical Case Vignettes  
 5) Viva Voce Questions  
@@ -39,30 +36,28 @@ Explain using the following rules exactly:
    – Give a short, crisp, foundational explanation of the topic.  
    – Use analogies if helpful.
 
-2) **Core Surgery**  
-   – Explain **surgical anatomy relevance, pathophysiology of surgical diseases, clinical features, red-flag signs, principles of surgical diagnosis, bedside tests, imaging modalities (USG, CT, MRI), operative indications, preoperative optimization, principles of surgical technique, anesthesia considerations, postoperative care, wound healing, fluid/electrolyte balance, types of shock, trauma assessment (ATLS), surgical infections, drains/tubes, complications**, and emergency management.  
+2) **Core Orthopedics**  
+   – Explain **bone biology, fracture healing stages, classification of fractures/dislocations, mechanisms of injury, clinical signs, red-flag orthopedic emergencies (compartment syndrome, open fractures, neurovascular compromise), pediatric vs adult differences, imaging principles (X-ray views, CT, MRI), reduction methods, fixation techniques (plaster, traction, internal/external fixation), joint disorders, arthritis differentiation, spine disorders, orthopedic tumors, gait abnormalities, rehabilitation**, and complications.  
    – Present in concise bullet points.
 
 3) **10 High-Yield Facts (USMLE + NEET-PG + FMGE)**  
-   – Single-line pearls  
-   – Emphasize exam-friendly and memory-friendly points.
+   – Single-line pearls.
 
-4) **5 Clinical Case Vignettes (Surgery-oriented)**  
+4) **5 Clinical Case Vignettes (Orthopedics-oriented)**  
    – Each 3–4 lines maximum  
-   – Reasoning should connect **symptom → surgical pathology → key investigation → operative/management decision**.
+   – Reasoning should connect **mechanism of injury → structural damage → key clinical sign/imaging → diagnosis/management clue**.
 
 5) **Top 5 Viva Voce Questions (with answers)**  
    – Simple, direct, easily recallable.
 
-6) **Provide a summary table, differential diagnosis chart, operative step outline, trauma/resuscitation algorithm, wound classification, or mnemonic for revision.**
+6) **Provide a summary table, fracture classification chart, nerve injury table, reduction maneuvers list, joint disease comparison, or mnemonic for revision.**
 
 Output must strictly follow Sections 1–6.  
 Give the output **strictly in Markdown code blocks** with Unicode symbols.  
-In the output, explicitly **bold and italicize** all important key words, surgical terms, clinical signs, operations, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
-Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡🔪🩺🧠⚕📘) naturally throughout for visual clarity.  
-Do **NOT** output as JSON but output as **Markdown code blocks**.  
-Do **NOT** add any titles or headers beyond the 6 sections I specify.  
-Output ONLY those 6 sections exactly as numbered.
+Explicitly **bold and italicize** all important orthopedic terms, signs, imaging findings, and headings.  
+Use arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ⁺, ⁻), Greek letters, and emojis (💡🦴🦵⚕📘).  
+Do **NOT** output as JSON.  
+Do **NOT** add any extra headings.
 `
   ).trim();
 }
@@ -95,10 +90,11 @@ async function callOpenAI(prompt, attempt = 1) {
 // ---------------- LOCKING -------------------
 async function freeStaleLocks() {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
+
   const { error } = await supabase
     .from("subject_curriculum")
     .update({ concept_lock: null, concept_lock_at: null })
-    .in("subject", SUBJECT_FILTERS)
+    .eq("subject", SUBJECT_FILTER)
     .lt("concept_lock_at", cutoff)
     .is("concept", null);
 
@@ -111,7 +107,7 @@ async function claimRows(limit) {
   let { data: rows, error } = await supabase
     .from("subject_curriculum")
     .select("id, topic")
-    .in("subject", SUBJECT_FILTERS)
+    .eq("subject", SUBJECT_FILTER)
     .is("concept", null)
     .is("concept_lock", null)
     .order("id", { ascending: true })
@@ -201,7 +197,7 @@ async function processBatch(rows) {
 
 // ---------------- MAIN LOOP -----------------
 (async function main() {
-  console.log(`🔪 Surgery Concept Generator ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
+  console.log(`🦴 Orthopedics Concept Generator ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);

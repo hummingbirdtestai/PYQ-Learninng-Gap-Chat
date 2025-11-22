@@ -1,4 +1,4 @@
-// workers/anatomyconceptGeneratorWorker.js
+// workers/genmedconceptGeneratorWorker.js
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
@@ -10,7 +10,14 @@ const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "800", 10);
 const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "15", 10);
 
-const SUBJECT_FILTER = "Ophthalmology";
+// MULTI-SUBJECT LIST
+const SUBJECT_FILTERS = [
+  "General Medicine",
+  "Respiratory Medicine",
+  "Physical Medicine",
+  "Radiotherapy"
+];
+
 const WORKER_ID = process.env.WORKER_ID ||
   `concept-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
@@ -18,11 +25,11 @@ const WORKER_ID = process.env.WORKER_ID ||
 function buildPrompt(topic) {
   return (
 `
-You are an 30 Years experienced Undergraduate MBBS **Ophthalmology** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
+You are an 30 Years experienced Undergraduate MBBS **General Medicine** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
 Explain the topic:*${topic}* using the following 6 sections. Keep language simple, Final-year MBBS friendly, accurate, and high-yield. Follow this exact structure:
 
 1) Central Concept  
-2) Core Ophthalmology  
+2) Core General Medicine  
 3) 10 High-Yield Facts  
 4) Clinical Case Vignettes  
 5) Viva Voce Questions  
@@ -34,27 +41,27 @@ Explain using the following rules exactly:
    – Give a short, crisp, foundational explanation of the topic.  
    – Use analogies if helpful.
 
-2) **Core Ophthalmology**  
-   – Explain **anatomy and functional relevance of ocular structures (cornea, lens, retina, uveal tract, optic nerve), physiology of vision, refraction concepts, common disorders (cataract, glaucoma, uveitis, keratitis, diabetic retinopathy, AMD), red-flag symptoms, clinical signs, investigations (slit-lamp, fundoscopy, OCT, visual fields, tonometry), ocular emergencies, systemic associations, laser principles, surgical basics (cataract surgery, trabeculectomy)**, and complications.  
+2) **Core General Medicine**  
+   – Explain **pathophysiology, clinical features, risk factors, red-flag symptoms, diagnostic approach, bedside examination clues, investigations (CBC, LFT, RFT, ECG, CXR, CT/MRI, echo), important lab interpretations, systemic involvement patterns (CVS, RS, CNS, endocrine, renal), complications, differential diagnosis, management principles (acute + chronic)**, and follow-up essentials.  
    – Present in concise bullet points.
 
 3) **10 High-Yield Facts (USMLE + NEET-PG + FMGE)**  
    – Single-line pearls  
    – Emphasize exam-friendly and memory-friendly points.
 
-4) **5 Clinical Case Vignettes (Ophthalmology-oriented)**  
+4) **5 Clinical Case Vignettes (Medicine-oriented)**  
    – Each 3–4 lines maximum  
-   – Reasoning should connect **symptom → anatomical/physiological disturbance → hallmark clinical sign → probable diagnosis**.
+   – Reasoning should connect **symptom → system involved → key investigation → most likely diagnosis**.
 
 5) **Top 5 Viva Voce Questions (with answers)**  
    – Simple, direct, easily recallable.
 
-6) **Provide a summary table, differential diagnosis chart, ocular signs table, retinal findings summary, laser classifications, or mnemonic for revision.**
+6) **Provide a summary table, differential diagnosis chart, investigation interpretation table, severity scoring system, red-flag signs list, or mnemonic for revision.**
 
 Output must strictly follow Sections 1–6.  
 Give the output **strictly in Markdown code blocks** with Unicode symbols.  
-In the output, explicitly **bold and italicize** all important key words, ocular terms, clinical signs, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
-Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡👁⚕📘) naturally throughout for visual clarity.  
+In the output, explicitly **bold and italicize** all important key words, clinical terms, diseases, signs, investigations, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
+Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡🫀🫁🧠⚕📘) naturally throughout for visual clarity.  
 Do **NOT** output as JSON but output as **Markdown code blocks**.  
 Do **NOT** add any titles or headers beyond the 6 sections I specify.  
 Output ONLY those 6 sections exactly as numbered.
@@ -76,7 +83,6 @@ async function callOpenAI(prompt, attempt = 1) {
       model: MODEL,
       messages: [{ role: "user", content: prompt }]
     });
-
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
     if (isRetryable(e) && attempt <= 3) {
@@ -95,7 +101,7 @@ async function freeStaleLocks() {
   const { error } = await supabase
     .from("subject_curriculum")
     .update({ concept_lock: null, concept_lock_at: null })
-    .eq("subject", SUBJECT_FILTER)
+    .in("subject", SUBJECT_FILTERS)
     .lt("concept_lock_at", cutoff)
     .is("concept", null);
 
@@ -105,11 +111,10 @@ async function freeStaleLocks() {
 async function claimRows(limit) {
   await freeStaleLocks();
 
-  // Pick unlocked rows
   let { data: rows, error } = await supabase
     .from("subject_curriculum")
     .select("id, topic")
-    .eq("subject", SUBJECT_FILTER)
+    .in("subject", SUBJECT_FILTERS)
     .is("concept", null)
     .is("concept_lock", null)
     .order("id", { ascending: true })
@@ -120,7 +125,6 @@ async function claimRows(limit) {
 
   const ids = rows.map(r => r.id);
 
-  // Apply lock
   const { data: locked, error: lockErr } = await supabase
     .from("subject_curriculum")
     .update({
@@ -148,7 +152,6 @@ async function clearLocks(ids) {
 // ---------------- PROCESS SINGLE ------------
 async function processRow(row) {
   const prompt = buildPrompt(row.topic);
-
   const output = await callOpenAI(prompt);
 
   if (!output || output.length < 100) {
@@ -158,7 +161,7 @@ async function processRow(row) {
   const { error: upErr } = await supabase
     .from("subject_curriculum")
     .update({
-      concept: output,         // Markdown stored directly
+      concept: output,
       concept_lock: null,
       concept_lock_at: null,
     })
@@ -187,7 +190,6 @@ async function processBatch(rows) {
 
     for (let i = 0; i < results.length; i++) {
       const r = results[i];
-
       if (r.status === "fulfilled") {
         updated += r.value.updated;
       } else {

@@ -10,7 +10,7 @@ const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "800", 10);
 const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "15", 10);
 
-const SUBJECT_FILTER = "Pediatrics";
+const SUBJECT_FILTER = "Obstetrics & Gynecology";
 
 const WORKER_ID = process.env.WORKER_ID ||
   `concept-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
@@ -19,10 +19,11 @@ const WORKER_ID = process.env.WORKER_ID ||
 function buildPrompt(topic) {
   return (
 `
-You are an 30 Years experienced Undergraduate MBBS **Pediatrics** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
+You are an 30 Years experienced Undergraduate MBBS **Obstetrics & Gynaecology (OBG)** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
 Explain the topic:*${topic}* using the following 6 sections. Keep language simple, Final-year MBBS friendly, accurate, and high-yield. Follow this exact structure:
+
 1) Central Concept  
-2) Core Pediatrics  
+2) Core OBG  
 3) 10 High-Yield Facts  
 4) Clinical Case Vignettes  
 5) Viva Voce Questions  
@@ -34,27 +35,27 @@ Explain using the following rules exactly:
    – Give a short, crisp, foundational explanation of the topic.  
    – Use analogies if helpful.
 
-2) **Core Pediatrics**  
-   – Explain **neonatal physiology, growth & development milestones, nutritional requirements, immunization principles, common pediatric illnesses, congenital anomalies, infection patterns, dehydration assessment, pediatric vital sign norms, respiratory and cardiac disorders in children, emergency signs (WHO), neonatal reflexes, genetic disorders, developmental delay evaluation, age-specific drug considerations, vaccination schedules**, and management overview.  
+2) **Core OBG**  
+   – Explain **female reproductive anatomy & physiology, menstrual cycle regulation, conception & implantation, antenatal care, labour mechanisms, obstetric emergencies (PPH, eclampsia, shoulder dystocia), fetal monitoring, contraception, infertility evaluation, high-risk pregnancy, pelvic inflammatory disease, gynecologic masses, menstrual disorders, oncology basics (cervical/ovarian/endometrial cancer), ultrasonography findings, operative obstetrics (LSCS, instrumental delivery)**, and major complications.  
    – Present in concise bullet points.
 
 3) **10 High-Yield Facts (USMLE + NEET-PG + FMGE)**  
    – Single-line pearls  
    – Emphasize exam-friendly and memory-friendly points.
 
-4) **5 Clinical Case Vignettes (Pediatrics-oriented)**  
+4) **5 Clinical Case Vignettes (OBG-oriented)**  
    – Each 3–4 lines maximum  
-   – Reasoning should connect **age → symptom → growth/development or physiological clue → most likely diagnosis**.
+   – Reasoning should connect **symptom → reproductive/obstetric event → key sign/investigation → likely diagnosis**.
 
 5) **Top 5 Viva Voce Questions (with answers)**  
    – Simple, direct, easily recallable.
 
-6) **Provide a summary table, growth milestone chart, dehydration classification table, vaccine schedule, disease comparison, or mnemonic for revision.**
+6) **Provide a summary table, labour stages chart, menstrual cycle hormones chart, obstetric emergency algorithm, fetal monitoring interpretation table, or mnemonic for revision.**
 
 Output must strictly follow Sections 1–6.  
 Give the output **strictly in Markdown code blocks** with Unicode symbols.  
-In the output, explicitly **bold and italicize** all important key words, pediatric terms, clinical signs, developmental milestones, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
-Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡👶🧸⚕📘) naturally throughout for visual clarity.  
+In the output, explicitly **bold and italicize** all important key words, OBG terms, obstetric signs, gynecologic conditions, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
+Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡🤰⚕👩‍⚕📘) naturally throughout for visual clarity.  
 Do **NOT** output as JSON but output as **Markdown code blocks**.  
 Do **NOT** add any titles or headers beyond the 6 sections I specify.  
 Output ONLY those 6 sections exactly as numbered.

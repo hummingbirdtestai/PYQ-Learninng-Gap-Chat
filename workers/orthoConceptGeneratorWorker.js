@@ -10,7 +10,7 @@ const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "800", 10);
 const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "15", 10);
 
-const SUBJECT_FILTER = "Orthopedics";
+const SUBJECT_FILTER = "Orthopaedics";
 
 const WORKER_ID = process.env.WORKER_ID ||
   `concept-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
@@ -19,7 +19,7 @@ const WORKER_ID = process.env.WORKER_ID ||
 function buildPrompt(topic) {
   return (
 `
-You are an 30 Years experienced Undergraduate MBBS **Orthopedics** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
+You are an 30 Years experienced Undergraduate MBBS **Orthopaedics** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
 Explain the topic:*${topic}* using the following 6 sections. Keep language simple, Final-year MBBS friendly, accurate, and high-yield. Follow this exact structure:
 
 1) Central Concept  

@@ -1,4 +1,4 @@
-// workers/orthoConceptGeneratorWorker.js
+// workers/orthoconceptGeneratorWorker.js
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
@@ -6,15 +6,14 @@ const openai = require("../config/openaiClient");
 // ---------------- SETTINGS ----------------
 const MODEL        = process.env.CONCEPT_GEN_MODEL || "gpt-5-mini";
 const LIMIT        = parseInt(process.env.CONCEPT_GEN_LIMIT || "200", 10);
-const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "10", 10);
-const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "300", 10);
-const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "10", 10);
+const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "5", 10);
+const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "800", 10);
+const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "15", 10);
 
-// 🔥 SINGLE SUBJECT ONLY
 const SUBJECT_FILTER = "Orthopedics";
 
 const WORKER_ID = process.env.WORKER_ID ||
-  `ortho-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+  `concept-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // -------------- PROMPT ---------------------
 function buildPrompt(topic) {
@@ -41,7 +40,8 @@ Explain using the following rules exactly:
    – Present in concise bullet points.
 
 3) **10 High-Yield Facts (USMLE + NEET-PG + FMGE)**  
-   – Single-line pearls.
+   – Single-line pearls  
+   – Emphasize exam-friendly and memory-friendly points.
 
 4) **5 Clinical Case Vignettes (Orthopedics-oriented)**  
    – Each 3–4 lines maximum  
@@ -54,10 +54,11 @@ Explain using the following rules exactly:
 
 Output must strictly follow Sections 1–6.  
 Give the output **strictly in Markdown code blocks** with Unicode symbols.  
-Explicitly **bold and italicize** all important orthopedic terms, signs, imaging findings, and headings.  
-Use arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ⁺, ⁻), Greek letters, and emojis (💡🦴🦵⚕📘).  
-Do **NOT** output as JSON.  
-Do **NOT** add any extra headings.
+In the output, explicitly **bold and italicize** all important key words, orthopedic terms, signs, imaging findings, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
+Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡🦴🦵⚕📘) naturally throughout for visual clarity.  
+Do **NOT** output as JSON but output as **Markdown code blocks**.  
+Do **NOT** add any titles or headers beyond the 6 sections I specify.  
+Output ONLY those 6 sections exactly as numbered.
 `
   ).trim();
 }
@@ -76,6 +77,7 @@ async function callOpenAI(prompt, attempt = 1) {
       model: MODEL,
       messages: [{ role: "user", content: prompt }]
     });
+
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
     if (isRetryable(e) && attempt <= 3) {
@@ -104,6 +106,7 @@ async function freeStaleLocks() {
 async function claimRows(limit) {
   await freeStaleLocks();
 
+  // Pick unlocked rows
   let { data: rows, error } = await supabase
     .from("subject_curriculum")
     .select("id, topic")
@@ -118,6 +121,7 @@ async function claimRows(limit) {
 
   const ids = rows.map(r => r.id);
 
+  // Apply lock
   const { data: locked, error: lockErr } = await supabase
     .from("subject_curriculum")
     .update({
@@ -145,6 +149,7 @@ async function clearLocks(ids) {
 // ---------------- PROCESS SINGLE ------------
 async function processRow(row) {
   const prompt = buildPrompt(row.topic);
+
   const output = await callOpenAI(prompt);
 
   if (!output || output.length < 100) {
@@ -154,7 +159,7 @@ async function processRow(row) {
   const { error: upErr } = await supabase
     .from("subject_curriculum")
     .update({
-      concept: output,
+      concept: output,         // Markdown stored directly
       concept_lock: null,
       concept_lock_at: null,
     })
@@ -183,10 +188,11 @@ async function processBatch(rows) {
 
     for (let i = 0; i < results.length; i++) {
       const r = results[i];
+
       if (r.status === "fulfilled") {
         updated += r.value.updated;
       } else {
-        console.error(`❌ Row ${chunk[i].id} error:`, r.reason);
+        console.error(`❌ Row ${chunk[i].id} error:`, r.reason?.message || r.reason);
         await clearLocks([chunk[i].id]);
       }
     }
@@ -197,7 +203,7 @@ async function processBatch(rows) {
 
 // ---------------- MAIN LOOP -----------------
 (async function main() {
-  console.log(`🦴 Orthopedics Concept Generator ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
+  console.log(`🧠 Concept Generator Worker ${WORKER_ID} | model=${MODEL} | claim=${LIMIT} | batch=${BATCH_SIZE}`);
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);

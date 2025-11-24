@@ -98,7 +98,7 @@ async function freeStaleLocks() {
     .update({ concept_lock: null, concept_lock_at: null })
     .eq("subject", SUBJECT_FILTER)
     .lt("concept_lock_at", cutoff)
-    .is("concept", null);
+    .eq("concept", null);   // ✅ fix
 
   if (error) console.error("freeStaleLocks error:", error);
 }

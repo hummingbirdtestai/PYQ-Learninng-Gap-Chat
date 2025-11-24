@@ -10,7 +10,7 @@ const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "800", 10);
 const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "15", 10);
 
-const SUBJECT_FILTER = "Anaesthesiology";
+const SUBJECT_FILTER = "Community Medicine";
 
 const WORKER_ID = process.env.WORKER_ID ||
   `concept-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
@@ -19,46 +19,60 @@ const WORKER_ID = process.env.WORKER_ID ||
 function buildPrompt(topic) {
   return (
 `
-You are an 30 Years experienced Undergraduate MBBS **Anesthesiology** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
+You are a 30-years experienced Undergraduate MBBS **Community Medicine** Teacher, expert in the NMC-prescribed Competency Based Curriculum. 
 Explain the topic:*${topic}* using the following 6 sections. Keep language simple, Final-year MBBS friendly, accurate, and high-yield. Follow this exact structure:
 
 1) Central Concept  
-2) Core Anesthesiology  
+2) Core Community Medicine  
 3) 10 High-Yield Facts  
 4) Clinical Case Vignettes  
 5) Viva Voce Questions  
 6) Summary Table / Mnemonics
 
-Explain using the following rules exactly:
+Follow these rules EXACTLY:
 
 1) **Central Concept**  
-   – Give a short, crisp, foundational explanation of the topic.  
-   – Use analogies if helpful.
+   – Give a short, crisp, foundational explanation of the topic  
+   – Use analogies if helpful  
+   – Keep it ≤ 6 lines but concept-strong  
 
-2) **Core Anesthesiology**  
-   – Explain **airway anatomy & assessment (Mallampati), preoperative evaluation, ASA grading, principles of general anesthesia, regional anesthesia (spinal, epidural, nerve blocks), drugs used (IV anesthetics, inhalational agents, muscle relaxants, opioids), monitoring (ECG, pulse ox, EtCO₂, NIBP), ventilation basics, anesthesia machine components, fluid therapy, perioperative complications (laryngospasm, aspiration, hypotension), difficult airway algorithms, pain management principles**, and recovery considerations.  
-   – Present in concise bullet points.
+2) **Core Community Medicine**  
+   – Give deep but MBBS-friendly coverage of  
+     • Epidemiology  
+     • Natural history of disease  
+     • Levels of prevention  
+     • R₀, incubation period, serial interval (if relevant)  
+     • Screening principles (Wilson-Jungner, Snell)  
+     • Biostatistics basics  
+     • National programmes & strategies  
+   – ALWAYS explain with simple examples  
 
-3) **10 High-Yield Facts (USMLE + NEET-PG + FMGE)**  
-   – Single-line pearls  
-   – Emphasize exam-friendly and memory-friendly points.
+3) **10 High-Yield Facts**  
+   – Exactly 10 points  
+   – Each point one line, exam-sharp, memory-friendly  
+   – Include formulas, cut-offs, epidemiological measures, programme targets, etc.  
 
-4) **5 Clinical Case Vignettes (Anesthesiology-oriented)**  
-   – Each 3–4 lines maximum  
-   – Reasoning should connect **patient factor → anesthetic choice/airway issue → key intraoperative event → likely diagnosis/management clue**.
+4) **Clinical Case Vignettes**  
+   – 4–6 lines each  
+   – Present like a real community/field/epidemiology scenario  
+   – Always end with a 1-line final answer  
+   – Include differential hints, investigation choices, and public-health actions  
 
-5) **Top 5 Viva Voce Questions (with answers)**  
-   – Simple, direct, easily recallable.
+5) **Viva Voce Questions**  
+   – 10 questions + crisp one-line answers  
+   – Must match typical MBBS finals viva depth  
 
-6) **Provide a summary table, drug classification chart, airway algorithm, ASA grading table, ventilation modes comparison, or mnemonic for revision.**
+6) **Summary Table / Mnemonics**  
+   – Give a compact table  
+   – Add 1–2 smart mnemonics  
+   – Visual, simple, high-yield  
 
-Output must strictly follow Sections 1–6.  
-Give the output **strictly in Markdown code blocks** with Unicode symbols.  
-In the output, explicitly **bold and italicize** all important key words, anesthetic drugs, airway terms, monitoring modalities, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
-Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡💉🫁⚕📘) naturally throughout for visual clarity.  
-Do **NOT** output as JSON but output as **Markdown code blocks**.  
-Do **NOT** add any titles or headers beyond the 6 sections I specify.  
-Output ONLY those 6 sections exactly as numbered.
+General Rules:  
+– Maintain clean Markdown headings  
+– Use simple language but high conceptual clarity  
+– Do NOT write anything outside the 6 sections  
+– No additional introductions or conclusions  
+– Keep entire output exam-oriented and Community-Medicine specific
 `
   ).trim();
 }

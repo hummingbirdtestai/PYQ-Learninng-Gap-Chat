@@ -10,7 +10,7 @@ const BATCH_SIZE   = parseInt(process.env.CONCEPT_GEN_BATCH_SIZE || "5", 10);
 const SLEEP_MS     = parseInt(process.env.CONCEPT_GEN_LOOP_SLEEP_MS || "800", 10);
 const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_GEN_LOCK_TTL_MIN || "15", 10);
 
-const SUBJECT_FILTER = "Community Medicine";
+const SUBJECT_FILTER = "Orthopaedics";
 
 const WORKER_ID = process.env.WORKER_ID ||
   `concept-worker-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
@@ -19,60 +19,46 @@ const WORKER_ID = process.env.WORKER_ID ||
 function buildPrompt(topic) {
   return (
 `
-You are a 30-years experienced Undergraduate MBBS **Community Medicine** Teacher, expert in the NMC-prescribed Competency Based Curriculum. 
+You are an 30 Years experienced Undergraduate MBBS **Orthopedics** Teacher expert in NMC PRESCRIBED Competency Based Curriculum. 
 Explain the topic:*${topic}* using the following 6 sections. Keep language simple, Final-year MBBS friendly, accurate, and high-yield. Follow this exact structure:
 
 1) Central Concept  
-2) Core Community Medicine  
+2) Core Orthopedics  
 3) 10 High-Yield Facts  
 4) Clinical Case Vignettes  
 5) Viva Voce Questions  
 6) Summary Table / Mnemonics
 
-Follow these rules EXACTLY:
+Explain using the following rules exactly:
 
 1) **Central Concept**  
-   – Give a short, crisp, foundational explanation of the topic  
-   – Use analogies if helpful  
-   – Keep it ≤ 6 lines but concept-strong  
+   – Give a short, crisp, foundational explanation of the topic.  
+   – Use analogies if helpful.
 
-2) **Core Community Medicine**  
-   – Give deep but MBBS-friendly coverage of  
-     • Epidemiology  
-     • Natural history of disease  
-     • Levels of prevention  
-     • R₀, incubation period, serial interval (if relevant)  
-     • Screening principles (Wilson-Jungner, Snell)  
-     • Biostatistics basics  
-     • National programmes & strategies  
-   – ALWAYS explain with simple examples  
+2) **Core Orthopedics**  
+   – Explain **bone biology, fracture healing stages, classification of fractures/dislocations, mechanisms of injury, clinical signs, red-flag orthopedic emergencies (compartment syndrome, open fractures, neurovascular compromise), pediatric vs adult differences, imaging principles (X-ray views, CT, MRI), reduction methods, fixation techniques (plaster, traction, internal/external fixation), joint disorders, arthritis differentiation, spine disorders, orthopedic tumors, gait abnormalities, rehabilitation**, and complications.  
+   – Present in concise bullet points.
 
-3) **10 High-Yield Facts**  
-   – Exactly 10 points  
-   – Each point one line, exam-sharp, memory-friendly  
-   – Include formulas, cut-offs, epidemiological measures, programme targets, etc.  
+3) **10 High-Yield Facts (USMLE + NEET-PG + FMGE)**  
+   – Single-line pearls  
+   – Emphasize exam-friendly and memory-friendly points.
 
-4) **Clinical Case Vignettes**  
-   – 4–6 lines each  
-   – Present like a real community/field/epidemiology scenario  
-   – Always end with a 1-line final answer  
-   – Include differential hints, investigation choices, and public-health actions  
+4) **5 Clinical Case Vignettes (Orthopedics-oriented)**  
+   – Each 3–4 lines maximum  
+   – Reasoning should connect **mechanism of injury → structural damage → key clinical sign/imaging → diagnosis/management clue**.
 
-5) **Viva Voce Questions**  
-   – 10 questions + crisp one-line answers  
-   – Must match typical MBBS finals viva depth  
+5) **Top 5 Viva Voce Questions (with answers)**  
+   – Simple, direct, easily recallable.
 
-6) **Summary Table / Mnemonics**  
-   – Give a compact table  
-   – Add 1–2 smart mnemonics  
-   – Visual, simple, high-yield  
+6) **Provide a summary table, fracture classification chart, nerve injury table, reduction maneuvers list, joint disease comparison, or mnemonic for revision.**
 
-General Rules:  
-– Maintain clean Markdown headings  
-– Use simple language but high conceptual clarity  
-– Do NOT write anything outside the 6 sections  
-– No additional introductions or conclusions  
-– Keep entire output exam-oriented and Community-Medicine specific
+Output must strictly follow Sections 1–6.  
+Give the output **strictly in Markdown code blocks** with Unicode symbols.  
+In the output, explicitly **bold and italicize** all important key words, orthopedic terms, signs, imaging findings, and headings for emphasis using proper Markdown (e.g., *bold, italic*).  
+Use headings, **bold**, *italic*, arrows (→, ↑, ↓), subscripts/superscripts (₁, ₂, ³, ⁺, ⁻), Greek letters, and emojis (💡🦴🦵⚕📘) naturally throughout for visual clarity.  
+Do **NOT** output as JSON but output as **Markdown code blocks**.  
+Do **NOT** add any titles or headers beyond the 6 sections I specify.  
+Output ONLY those 6 sections exactly as numbered.
 `
   ).trim();
 }

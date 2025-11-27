@@ -62,11 +62,12 @@ function isRetryable(e) {
 
 async function callOpenAI(messages, attempt = 1) {
   try {
+    // ✔ FIXED — NO temperature param
     const resp = await openai.chat.completions.create({
       model: MODEL,
-      messages,
-      temperature: 0.2
+      messages
     });
+
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
     if (isRetryable(e) && attempt <= 3) {
@@ -98,13 +99,11 @@ function safeParse(raw) {
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
-  // 1. Release old locks
   await supabase
     .from("subject_curriculum")
     .update({ concept_lock: null, concept_lock_at: null })
     .lt("concept_lock_at", cutoff);
 
-  // 2. Pick rows with topic (NOT concept)
   const { data: rows, error: err1 } = await supabase
     .from("subject_curriculum")
     .select("id, subject, chapter, topic, chapter_id, topic_id")
@@ -119,7 +118,6 @@ async function claimRows(limit) {
 
   const ids = rows.map(r => r.id);
 
-  // 3. Apply lock
   const { data: locked, error: err2 } = await supabase
     .from("subject_curriculum")
     .update({
@@ -131,6 +129,7 @@ async function claimRows(limit) {
     .select("id, subject, chapter, topic, chapter_id, topic_id");
 
   if (err2) throw err2;
+
   return locked || [];
 }
 
@@ -139,6 +138,7 @@ async function claimRows(limit) {
 // ─────────────────────────────────────────────
 async function clearLocks(ids) {
   if (!ids.length) return;
+
   await supabase
     .from("subject_curriculum")
     .update({ concept_lock: null, concept_lock_at: null })
@@ -163,10 +163,8 @@ async function processRow(row) {
     mcq_json: parsed,
   };
 
-  // Insert into practice_mcq
   await supabase.from("practice_mcq").insert(payload);
 
-  // Clear lock
   await clearLocks([row.id]);
 
   return { updated: 1 };
@@ -194,6 +192,7 @@ async function processRow(row) {
       );
 
       let updated = 0;
+
       results.forEach((res, idx) => {
         if (res.status === "fulfilled") {
           console.log(`   ✅ Row ${idx + 1} processed`);

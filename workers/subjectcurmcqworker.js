@@ -18,39 +18,38 @@ const WORKER_ID    = process.env.WORKER_ID || `mcq-mbbs-${process.pid}-${Math.ra
 // ─────────────────────────────────────────────
 function buildPrompt(topic) {
 return `
-You are a *NEET-PG Exam paper setter with 30 years of experience, deeply familiar with question patterns of **NEET-PG, NBME, AMBOSS, UWorld, and First Aid. 
-
-From the following TOPIC,create **exactly 5 NEET-PG style clinical case vignette MCQs. 
-
-STRICT RULES: 
-• Generate EXACTLY 5 MCQs. 
-• Format output ONLY as PURE JSON. 
-• No explanations outside JSON. 
-• Each MCQ must follow the template exactly. 
-• Do NOT repeat headings or labels like “🔑10 high_yield_facts”. 
-• In "high_yield_facts", output ONLY 10 bullet points starting with “🔹”.🔑10 high_yield_facts are One-line pearls like real NEET-PG review 
-• No introductory text, no trailing commas, no meta-phrases. 
-• Difficulty = moderate-to-severe. 
-• Correct answer must be ONLY one of A/B/C/D. 
-
-JSON TEMPLATE TO FOLLOW: 
+You are an expert NEET-PG and USMLE question writer with 30 years of experience creating official-standard, high-yield MCQs (NEET-PG / USMLE / NBME level = moderate-hard).
+🧩 FORMATTING RULES (apply globally to the entire output):
+• Use Markup **bold**, _italic_, Unicode arrows (→ ↑ ↓), subscripts/superscripts (₁₂³⁺⁻), Greek (α β Δ μ), and minimal emojis (✅ ❌ 💡) wherever relevant.
+• "stem": Real NEET-PG–style question (clinical case vignette style or Single Liner High Yield fact testing style MCQs depending on the topic).
+• "learning_gap": "💡 One-line high-yield takeaway".
+• "feedback": "wrong": "❌ Brief rationale" "correct": "✅ Concise reasoning"
+• Maintain NEET-PG moderate-to-hard difficulty.
+• No “EXCEPT” questions.
+• Output **only VALID JSON**.
+• Output **exactly 5 MCQs**.
+• Each MCQ must follow the **single template below**.
+• GPT must output **an array of 5 objects using this template**.
+JSON TEMPLATE (for ONE MCQ — produce 5 using this):
 {
-  "mcq_n": {
-    "stem": "Clinical vignette using **bold**, _italic_, arrows (→ ↑ ↓), Greek (α β Δ μ), subscripts/superscripts (₁₂³⁺⁻).",
-    "options": {
-      "A": "...",
-      "B": "...",
-      "C": "...",
-      "D": "..."
-    },
-    "correct_answer": "A",
-    "feedback": {
-      "wrong": "❌ Short factual reason.",
-      "correct": "✅ Crisp reasoning.",
-      "high_yield_facts": "🔹 Fact 1\n🔹 Fact 2\n🔹 Fact 3\n🔹 Fact 4\n🔹 Fact 5\n🔹 Fact 6\n🔹 Fact 7\n🔹 Fact 8\n🔹 Fact 9\n🔹 Fact 10"
-    }
-  }
+  "stem": "",
+  "options": {
+    "A": "",
+    "B": "",
+    "C": "",
+    "D": ""
+  },
+  "feedback": {
+    "wrong": "❌ Brief rationale",
+    "correct": "✅ Concise reasoning"
+  },
+  "learning_gap": "💡 ",
+  "correct_answer": ""
 }
+Your output must be:
+[
+  { five MCQs here, each object following the template above }
+]
 
 TOPIC:
 ${topic}

@@ -14,13 +14,13 @@ const LOCK_TTL_MIN = parseInt(process.env.FLASHCARD_LOCK_TTL_MIN || "15", 10);
 const WORKER_ID    = process.env.WORKER_ID || `flashcards-mbbs-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // ───────────────────────────────────────────────────────────────────
-// PROMPT GENERATOR
+// PROMPT GENERATOR (TOPIC BASED)
 // ───────────────────────────────────────────────────────────────────
-function buildPrompt(concept) {
+function buildPrompt(topic) {
   return `
 You are 30 Years experienced MBBS TEACHER, NMC COMPETENCE BASED MEDICAL EDUCATION EXPERT and UNIVERSITY MBBS exam paper setter.
 
-This is the concept from NMC CBME syllabus. Create **10 flashcards** for rapid revision.
+This is a Topic from the NMC CBME syllabus. Create **10 flashcards** for rapid revision.
 
 RULES:
 • Output strictly in **JSON array**, each item with keys: "Question", "answer".
@@ -29,11 +29,11 @@ RULES:
 • "answer" must be **2–3 words + ≤10-word mnemonic**.
 • Use **Markdown + Unicode** characters: **, _, ₂ , ³ , → , α , β etc.
 • No LaTeX. No MCQs.
-• Tone: **senior teacher, logical memory cues, exam-focused**. No emotional tone.
+• Tone: **senior teacher, logical memory cues, exam-focused**.
 • Be concise, clinical, high-yield.
 
-CONCEPT PARAGRAPH:
-${concept}
+TOPIC:
+${topic}
 `.trim();
 }
 
@@ -81,27 +81,24 @@ function safeParseObject(raw) {
 }
 
 // ───────────────────────────────────────────────────────────────────
-// LOCKING SYSTEM
-// Target table: subject_curriculum
-// Drop table: flashcard_phases
+// LOCKING SYSTEM — SUBJECT_CURRICULUM → FLASHCARD_PHASES
 // ───────────────────────────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // 1. Release expired locks
+  // 1. Unlock expired rows
   await supabase
     .from("subject_curriculum")
     .update({ flashcard_lock: null, flashcard_lock_at: null })
-    .is("concept", null, false)
     .lt("flashcard_lock_at", cutoff);
 
-  // 2. Select rows that have concept but no flashcards generated yet
+  // 2. Pick rows with a topic that has not been processed yet
   const { data: rows, error: err1 } = await supabase
     .from("subject_curriculum")
-    .select("id, subject_id, subject, concept")
-    .not("concept", "is", null)
-    .not("concept", "eq", "")
-    .is("flashcards_generated", null)
+    .select("id, subject, chapter, topic, chapter_id, topic_id")
+    .not("topic", "is", null)
+    .not("topic", "eq", "")
+    .is("flashcard_phases", null)
     .is("flashcard_lock", null)
     .order("id", { ascending: true })
     .limit(limit);
@@ -111,7 +108,7 @@ async function claimRows(limit) {
 
   const ids = rows.map(r => r.id);
 
-  // 3. Apply lock
+  // 3. Lock rows
   const { data: locked, error: err2 } = await supabase
     .from("subject_curriculum")
     .update({
@@ -119,9 +116,9 @@ async function claimRows(limit) {
       flashcard_lock_at: new Date().toISOString(),
     })
     .in("id", ids)
-    .is("flashcards_generated", null)
+    .is("flashcard_phases", null)
     .is("flashcard_lock", null)
-    .select("id, subject_id, subject, concept");
+    .select("id, subject, chapter, topic, chapter_id, topic_id");
 
   if (err2) throw err2;
   return locked || [];
@@ -136,28 +133,30 @@ async function clearLocks(ids) {
 }
 
 // ───────────────────────────────────────────────────────────────────
-// PROCESS ONE ROW
+// PROCESS ROW (TOPIC)
 // ───────────────────────────────────────────────────────────────────
 async function processRow(row) {
-  const prompt = buildPrompt(row.concept);
+  const prompt = buildPrompt(row.topic);
   const raw = await callOpenAI([{ role: "user", content: prompt }]);
   const parsed = safeParseObject(raw);
 
   const payload = {
     id: uuidv4(),
-    subject_id: row.subject_id,
     subject: row.subject,
-    concept: row.concept,
+    chapter: row.chapter,
+    topic: row.topic,
+    chapter_id: row.chapter_id,
+    topic_id: row.topic_id,
     phase_json: parsed,
   };
 
-  // Write into flashcard_phases
+  // Store in flashcard_phases
   await supabase.from("flashcard_phases").insert(payload);
 
-  // Mark source row as processed
+  // Update source table
   await supabase
     .from("subject_curriculum")
-    .update({ flashcards_generated: true })
+    .update({ flashcard_phases: payload })
     .eq("id", row.id);
 
   await clearLocks([row.id]);
@@ -166,10 +165,10 @@ async function processRow(row) {
 }
 
 // ───────────────────────────────────────────────────────────────────
-// MAIN WORKER LOOP
+// MAIN LOOP
 // ───────────────────────────────────────────────────────────────────
 (async function main() {
-  console.log(`📘 MBBS Flashcard Worker Started | worker=${WORKER_ID} | model=${MODEL}`);
+  console.log(`📘 Flashcard Worker Started | worker=${WORKER_ID} | model=${MODEL}`);
 
   while (true) {
     try {
@@ -180,7 +179,7 @@ async function processRow(row) {
         continue;
       }
 
-      console.log(`⚙️ Claimed ${claimed.length} concept rows`);
+      console.log(`⚙️ Claimed ${claimed.length} topic rows`);
 
       const results = await Promise.allSettled(
         claimed.map(row => processRow(row))
@@ -198,6 +197,7 @@ async function processRow(row) {
       });
 
       console.log(`🔁 Batch complete → inserted=${updated} / total=${claimed.length}`);
+
     } catch (e) {
       console.error("Loop error:", e);
       await sleep(1000);

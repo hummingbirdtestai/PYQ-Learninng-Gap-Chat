@@ -75,6 +75,7 @@
     "start:chemistryConceptPhaseWorker": "node workers/chemistryConceptPhaseWorker.js",
     "start:orthoConceptGeneratorWorker.js": "node workers/orthoConceptGeneratorWorker.js",
     "start:subjectcurflashcardworker.js": "node workers/subjectcurflashcardworker.js",
+    "start:subjectcurmcqworker.js": "node workers/subjectcurmcqworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

@@ -62,7 +62,6 @@ function isRetryable(e) {
 
 async function callOpenAI(messages, attempt = 1) {
   try {
-    // ✔ FIXED — NO temperature param
     const resp = await openai.chat.completions.create({
       model: MODEL,
       messages
@@ -94,7 +93,7 @@ function safeParse(raw) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (using concept_lock / concept_lock_at)
+// CLAIM ROWS
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -146,24 +145,20 @@ async function clearLocks(ids) {
 }
 
 // ─────────────────────────────────────────────
-// PROCESS ONE ROW — CREATE MCQs
+// PROCESS ONE ROW — SAVE MCQs INTO SAME TABLE
 // ─────────────────────────────────────────────
 async function processRow(row) {
   const prompt = buildPrompt(row.topic);
   const raw = await callOpenAI([{ role: "user", content: prompt }]);
   const parsed = safeParse(raw);
 
-  const payload = {
-    id: uuidv4(),
-    subject: row.subject,
-    chapter: row.chapter,
-    topic: row.topic,
-    chapter_id: row.chapter_id,
-    topic_id: row.topic_id,
-    mcq_json: parsed,
-  };
-
-  await supabase.from("practice_mcq").insert(payload);
+  // Save directly to subject_curriculum.practice_mcq
+  await supabase
+    .from("subject_curriculum")
+    .update({
+      practice_mcq: parsed  // <── JSON saved directly
+    })
+    .eq("id", row.id);
 
   await clearLocks([row.id]);
 

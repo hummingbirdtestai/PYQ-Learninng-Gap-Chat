@@ -74,6 +74,7 @@
     "start:zoobotunicodeFlashCardsWorker": "node workers/zoobotunicodeFlashCardsWorker.js",
     "start:chemistryConceptPhaseWorker": "node workers/chemistryConceptPhaseWorker.js",
     "start:orthoConceptGeneratorWorker.js": "node workers/orthoConceptGeneratorWorker.js",
+    "start:subjectcurflashcardworker.js": "node workers/subjectcurflashcardworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

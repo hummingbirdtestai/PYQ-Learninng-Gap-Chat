@@ -18,19 +18,17 @@ const WORKER_ID    = process.env.WORKER_ID || `flashcards-mbbs-${process.pid}-${
 // ───────────────────────────────────────────────────────────────────
 function buildPrompt(topic) {
   return `
-You are 30 Years experienced MBBS TEACHER, NMC COMPETENCE BASED MEDICAL EDUCATION EXPERT and UNIVERSITY MBBS exam paper setter.
-
-This is a Topic from the NMC CBME syllabus. Create **10 flashcards** for rapid revision.
-
-RULES:
-• Output strictly in **JSON array**, each item with keys: "Question", "answer".
-• Questions 1–5 → **Clinical vignettes** (USMLE/NEET-PG style, ~150 words).
-• Questions 6–10 → **One-line high-yield recall**.
-• "answer" must be **2–3 words + ≤10-word mnemonic**.
-• Use **Markdown + Unicode** characters: **, _, ₂ , ³ , → , α , β etc.
-• No LaTeX. No MCQs.
-• Tone: **senior teacher, logical memory cues, exam-focused**.
-• Be concise, clinical, high-yield.
+You are a 30-years expert NEET-PG & USMLE paper setter. 
+From the concept given below, generate **10 flashcards** in **JSON array** with keys: - "Question" - "answer" 
+RULES: 
+• First **5** = **USMLE/NEET-PG style clinical vignettes (~150 words)** 
+  - Pure patient cases only 
+  - No meta-phrases (no “as an examiner”, “explain”, “discuss”, “you are asked…”) 
+  - Style must match UWorld/NBME: Patient → symptoms → exam → investigations → **single recall question at end**. 
+• Last **5** = **one-line high-yield recall questions**. 
+• **“answer” = 2–3 words + ≤10-word mnemonic/clue.** 
+• Use Markdown + Unicode (→ ↑ ↓ α β μ ₂ ³). 
+• Tone = concise, clinical, exam-oriented.
 
 TOPIC:
 ${topic}

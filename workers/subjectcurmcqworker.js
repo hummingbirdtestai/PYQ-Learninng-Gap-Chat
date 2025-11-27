@@ -87,13 +87,22 @@ function safeParse(raw) {
     .replace(/^```/, "")
     .replace(/```$/, "");
 
+  // Extract ONLY the JSON part
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error("❌ No valid JSON object found in model output.");
+  }
+
+  const jsonOnly = jsonMatch[0];
+
   try {
-    return JSON.parse(cleaned);
+    return JSON.parse(jsonOnly);
   } catch (err) {
-    console.error("❌ JSON Parse ERROR:", cleaned.slice(0, 200));
+    console.error("❌ JSON Parse ERROR:", jsonOnly.slice(0, 200));
     throw err;
   }
 }
+
 
 // ─────────────────────────────────────────────
 // CLAIM ROWS

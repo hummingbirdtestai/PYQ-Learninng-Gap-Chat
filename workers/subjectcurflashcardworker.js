@@ -18,21 +18,21 @@ const WORKER_ID    = process.env.WORKER_ID || `flashcards-mbbs-${process.pid}-${
 // ───────────────────────────────────────────────────────────────────
 function buildPrompt(topic) {
   return `
-You are a 30-years expert NEET-PG & USMLE paper setter. 
-From the concept given below, generate **10 flashcards** in **JSON array** with keys: - "Question" - "answer" 
-RULES: 
-• First **5** = **USMLE/NEET-PG style clinical vignettes (~150 words)** 
-  - Pure patient cases only 
-  - No meta-phrases (no “as an examiner”, “explain”, “discuss”, “you are asked…”) 
-  - Style must match UWorld/NBME: Patient → symptoms → exam → investigations → **single recall question at end**. 
-• Last **5** = **one-line high-yield recall questions**. 
-• **“answer” = 2–3 words + ≤10-word mnemonic/clue.** 
-• Use Markdown + Unicode (→ ↑ ↓ α β μ ₂ ³). 
-• Tone = concise, clinical, exam-oriented.
+From the concept given below, generate **10 flashcards** for Spaced repetition and Active Recall for NEETPG Exam Prep in **JSON array** with keys: 
+- "Question" 
+- ⁠"answer" 
 
-TOPIC:
+Style must match UWorld/NBME/Amboss/NEETPG/FMGE level : 
+	"answer” = 2–3 words + ≤10-word mnemonic/clue.** 
+• Use Markdown + Unicode (→ ↑ ↓ α β μ ₂ ³). 
+• Tone = concise, clinical, exam-oriented. 
+
+Describe and demonstrate important muscle groups of ventral forearm with attachments, nerve supply and actions
+
+CONCEPT:
 ${topic}
 `.trim();
+}
 }
 
 // ───────────────────────────────────────────────────────────────────

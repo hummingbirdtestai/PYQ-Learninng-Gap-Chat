@@ -90,10 +90,10 @@ function safeParse(raw) {
     .replace(/^```/, "")
     .replace(/```$/, "");
 
-  // Extract ONLY the JSON part
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  // Extract ONLY the JSON ARRAY of MCQs
+  const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
   if (!jsonMatch) {
-    throw new Error("❌ No valid JSON object found in model output.");
+    throw new Error("❌ No valid JSON array found in model output.");
   }
 
   const jsonOnly = jsonMatch[0];

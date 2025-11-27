@@ -18,35 +18,39 @@ const WORKER_ID    = process.env.WORKER_ID || `mcq-mbbs-${process.pid}-${Math.ra
 // ─────────────────────────────────────────────
 function buildPrompt(topic) {
 return `
-You are a **NEET-PG Exam paper setter with 30 years of experience**, deeply familiar with question patterns of **NEET-PG, NBME, AMBOSS, UWorld, and First Aid**.
+You are a *NEET-PG Exam paper setter with 30 years of experience, deeply familiar with question patterns of **NEET-PG, NBME, AMBOSS, UWorld, and First Aid. 
 
-From the following TOPIC, create **exactly 5 NEET-PG style clinical case vignette MCQs**.
+From the following TOPIC,create **exactly 5 NEET-PG style clinical case vignette MCQs. 
 
-Follow this exact JSON format:
+STRICT RULES: 
+• Generate EXACTLY 5 MCQs. 
+• Format output ONLY as PURE JSON. 
+• No explanations outside JSON. 
+• Each MCQ must follow the template exactly. 
+• Do NOT repeat headings or labels like “🔑10 high_yield_facts”. 
+• In "high_yield_facts", output ONLY 10 bullet points starting with “🔹”.🔑10 high_yield_facts are One-line pearls like real NEET-PG review 
+• No introductory text, no trailing commas, no meta-phrases. 
+• Difficulty = moderate-to-severe. 
+• Correct answer must be ONLY one of A/B/C/D. 
 
+JSON TEMPLATE TO FOLLOW: 
 {
   "mcq_n": {
-    "stem": "Clinical vignette using Markup Unicode **bold**, _italic_, arrows (→ ↑ ↓), Greek (α β Δ μ), subscripts/superscripts (₁₂³⁺⁻).",
-    "options": { "A": "...", "B": "...", "C": "...", "D": "..." },
+    "stem": "Clinical vignette using **bold**, _italic_, arrows (→ ↑ ↓), Greek (α β Δ μ), subscripts/superscripts (₁₂³⁺⁻).",
+    "options": {
+      "A": "...",
+      "B": "...",
+      "C": "...",
+      "D": "..."
+    },
     "correct_answer": "A",
     "feedback": {
-      "wrong": "❌ Why the wrong answers are incorrect — short, factual.",
-      "correct": "✅ Why the correct answer is correct — crisp reasoning.",
-      "high_yield_facts": "..."
+      "wrong": "❌ Short factual reason.",
+      "correct": "✅ Crisp reasoning.",
+      "high_yield_facts": "🔹 Fact 1\n🔹 Fact 2\n🔹 Fact 3\n🔹 Fact 4\n🔹 Fact 5\n🔹 Fact 6\n🔹 Fact 7\n🔹 Fact 8\n🔹 Fact 9\n🔹 Fact 10"
     }
   }
 }
-
-After generating the JSON, output **10 high-yield facts** as bullet points.  
-Each fact MUST:  
-🔹 Start with '🔹 '  
-🔹 Be separated using newline '\\n'
-
-⛔ STRICT RULES:
-• 5 MCQs ONLY  
-• No “EXCEPT”, no “All of the following”  
-• Difficulty = moderate-to-severe  
-• Correct answer = ONLY A/B/C/D  
 
 TOPIC:
 ${topic}

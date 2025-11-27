@@ -20,28 +20,31 @@ function buildPrompt(topic) {
 return `
 You are a **NEET-PG Exam paper setter with 30 years of experience**, deeply familiar with question patterns of **NEET-PG, NBME, AMBOSS, UWorld, and First Aid**.
 
-From the following medical TOPIC, create **exactly 5 NEET-PG style clinical case vignette MCQs**.
+From the following TOPIC, create **exactly 5 NEET-PG style clinical case vignette MCQs**.
 
 Follow this exact JSON format:
 
 {
- "mcq_n": {
-   "stem": "Clinical vignette using **bold**, _italic_, arrows (→ ↑ ↓), Greek (α β Δ μ), subscripts/superscripts (₁₂³⁺⁻). End with 'Which of the following is most likely...?'",
-   "options": { "A": "...", "B": "...", "C": "...", "D": "..." },
-   "correct_answer": "A",
-   "feedback": {
-     "wrong": "❌ Why the wrong answers are incorrect — short, factual.",
-     "correct": "✅ Why the correct answer is correct — crisp reasoning.",
-     "high_yield_facts": "🔑 One-line pearls like real NEET-PG review.",
-     "learning_gap": "💡 Most common mistake students make & how to avoid it."
-   }
- }
+  "mcq_n": {
+    "stem": "Clinical vignette using Markup Unicode **bold**, _italic_, arrows (→ ↑ ↓), Greek (α β Δ μ), subscripts/superscripts (₁₂³⁺⁻).",
+    "options": { "A": "...", "B": "...", "C": "...", "D": "..." },
+    "correct_answer": "A",
+    "feedback": {
+      "wrong": "❌ Why the wrong answers are incorrect — short, factual.",
+      "correct": "✅ Why the correct answer is correct — crisp reasoning.",
+      "high_yield_facts": "..."
+    }
+  }
 }
+
+After generating the JSON, output **10 high-yield facts** as bullet points.  
+Each fact MUST:  
+🔹 Start with '🔹 '  
+🔹 Be separated using newline '\\n'
 
 ⛔ STRICT RULES:
 • 5 MCQs ONLY  
 • No “EXCEPT”, no “All of the following”  
-• Must contain: **age**, **symptoms**, **labs**, **clinical clues**  
 • Difficulty = moderate-to-severe  
 • Correct answer = ONLY A/B/C/D  
 
@@ -145,18 +148,17 @@ async function clearLocks(ids) {
 }
 
 // ─────────────────────────────────────────────
-// PROCESS ONE ROW — SAVE MCQs INTO SAME TABLE
+// PROCESS ONE ROW
 // ─────────────────────────────────────────────
 async function processRow(row) {
   const prompt = buildPrompt(row.topic);
   const raw = await callOpenAI([{ role: "user", content: prompt }]);
   const parsed = safeParse(raw);
 
-  // Save directly to subject_curriculum.practice_mcq
   await supabase
     .from("subject_curriculum")
     .update({
-      practice_mcq: parsed  // <── JSON saved directly
+      practice_mcq: parsed
     })
     .eq("id", row.id);
 
@@ -182,23 +184,25 @@ async function processRow(row) {
 
       console.log(`⚙️ Claimed ${claimed.length} rows`);
 
-      const results = await Promise.allSettled(
-        claimed.map(r => processRow(r))
-      );
+      // Run in batches
+      for (let i = 0; i < claimed.length; i += BATCH_SIZE) {
+        const batch = claimed.slice(i, i + BATCH_SIZE);
 
-      let updated = 0;
+        const results = await Promise.allSettled(
+          batch.map(r => processRow(r))
+        );
 
-      results.forEach((res, idx) => {
-        if (res.status === "fulfilled") {
-          console.log(`   ✅ Row ${idx + 1} processed`);
-          updated += res.value.updated;
-        } else {
-          console.error(`   ❌ Row ${idx + 1} failed:`, res.reason);
-          clearLocks([claimed[idx].id]);
-        }
-      });
+        results.forEach((res, idx) => {
+          if (res.status === "fulfilled") {
+            console.log(`   ✅ Row ${i + idx + 1} processed`);
+          } else {
+            console.error(`   ❌ Row ${i + idx + 1} failed:`, res.reason);
+            clearLocks([batch[idx].id]);
+          }
+        });
+      }
 
-      console.log(`🔁 Loop complete: updated=${updated}/${claimed.length}`);
+      console.log(`🔁 Loop complete`);
 
     } catch (e) {
       console.error("Loop error:", e);

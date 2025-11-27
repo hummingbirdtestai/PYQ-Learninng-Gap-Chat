@@ -3,9 +3,9 @@ const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
 const { v4: uuidv4 } = require("uuid");
 
-// ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // SETTINGS
-// ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 const MODEL        = process.env.FLASHCARD_MODEL || "gpt-5-mini";
 const LIMIT        = parseInt(process.env.FLASHCARD_LIMIT || "50", 10);
 const BATCH_SIZE   = parseInt(process.env.FLASHCARD_BATCH_SIZE || "10", 10);
@@ -13,31 +13,28 @@ const SLEEP_MS     = parseInt(process.env.FLASHCARD_LOOP_SLEEP_MS || "500", 10);
 const LOCK_TTL_MIN = parseInt(process.env.FLASHCARD_LOCK_TTL_MIN || "15", 10);
 const WORKER_ID    = process.env.WORKER_ID || `flashcards-mbbs-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
-// ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // PROMPT GENERATOR (TOPIC BASED)
-// ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 function buildPrompt(topic) {
   return `
 From the concept given below, generate **10 flashcards** for Spaced repetition and Active Recall for NEETPG Exam Prep in **JSON array** with keys: 
 - "Question" 
-- ⁠"answer" 
+- "answer"  
 
-Style must match UWorld/NBME/Amboss/NEETPG/FMGE level : 
-	"answer” = 2–3 words + ≤10-word mnemonic/clue.** 
-• Use Markdown + Unicode (→ ↑ ↓ α β μ ₂ ³). 
-• Tone = concise, clinical, exam-oriented. 
-
-Describe and demonstrate important muscle groups of ventral forearm with attachments, nerve supply and actions
+Style must match UWorld/NBME/Amboss/NEETPG/FMGE level:  
+"answer" = 2–3 words + ≤10-word mnemonic/clue.  
+• Use Markdown + Unicode (→ ↑ ↓ α β μ ₂ ³).  
+• Tone = concise, clinical, exam-oriented.  
 
 CONCEPT:
 ${topic}
 `.trim();
 }
-}
 
-// ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // HELPERS
-// ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function isRetryable(e) {
@@ -78,19 +75,17 @@ function safeParseObject(raw) {
   }
 }
 
-// ───────────────────────────────────────────────────────────────────
-// LOCKING SYSTEM — SUBJECT_CURRICULUM → FLASHCARD_PHASES
-// ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// LOCKING SYSTEM
+// ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
 
-  // 1. Unlock expired rows
   await supabase
     .from("subject_curriculum")
     .update({ flashcard_lock: null, flashcard_lock_at: null })
     .lt("flashcard_lock_at", cutoff);
 
-  // 2. Pick rows with a topic that has not been processed yet
   const { data: rows, error: err1 } = await supabase
     .from("subject_curriculum")
     .select("id, subject, chapter, topic, chapter_id, topic_id")
@@ -106,7 +101,6 @@ async function claimRows(limit) {
 
   const ids = rows.map(r => r.id);
 
-  // 3. Lock rows
   const { data: locked, error: err2 } = await supabase
     .from("subject_curriculum")
     .update({
@@ -130,9 +124,9 @@ async function clearLocks(ids) {
     .in("id", ids);
 }
 
-// ───────────────────────────────────────────────────────────────────
-// PROCESS ROW (TOPIC)
-// ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// PROCESS ROW
+// ─────────────────────────────────────────────
 async function processRow(row) {
   const prompt = buildPrompt(row.topic);
   const raw = await callOpenAI([{ role: "user", content: prompt }]);
@@ -148,10 +142,8 @@ async function processRow(row) {
     phase_json: parsed,
   };
 
-  // Store in flashcard_phases
   await supabase.from("flashcard_phases").insert(payload);
 
-  // Update source table
   await supabase
     .from("subject_curriculum")
     .update({ flashcard_phases: payload })
@@ -162,9 +154,9 @@ async function processRow(row) {
   return { updated: 1 };
 }
 
-// ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // MAIN LOOP
-// ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 (async function main() {
   console.log(`📘 Flashcard Worker Started | worker=${WORKER_ID} | model=${MODEL}`);
 
@@ -184,6 +176,7 @@ async function processRow(row) {
       );
 
       let updated = 0;
+
       results.forEach((r, idx) => {
         if (r.status === "fulfilled") {
           console.log(`   ✅ Processed row #${idx + 1}`);

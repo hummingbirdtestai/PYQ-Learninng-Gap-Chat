@@ -83,6 +83,58 @@ async function callOpenAI(messages, attempt = 1) {
   }
 }
 
+// ─────────────────────────────────────────────
+// JSON REPAIR HELPER
+// ─────────────────────────────────────────────
+function repairJson(bad) {
+  let txt = bad.trim();
+
+  // Remove code fences
+  txt = txt.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "");
+
+  // Force extract outer JSON array
+  const jsonMatch = txt.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) return null;
+  txt = jsonMatch[0];
+
+  // Common model truncation issues fix
+  txt = txt
+    .replace(/“/g, '"')
+    .replace(/”/g, '"')
+    .replace(/‘/g, "'")
+    .replace(/’/g, "'");
+
+  // Remove trailing commas:  { ... , }
+  txt = txt.replace(/,\s*}/g, "}");
+  txt = txt.replace(/,\s*\]/g, "]");
+
+  // Ensure array ends with ]
+  if (!txt.trim().endsWith("]")) txt = txt.trim() + "]";
+
+  // Ensure objects end correctly
+  const openBraces = (txt.match(/{/g) || []).length;
+  const closeBraces = (txt.match(/}/g) || []).length;
+  if (openBraces > closeBraces) {
+    txt += "}".repeat(openBraces - closeBraces);
+  }
+
+  // Ensure array bracket count matches
+  const openBrackets = (txt.match(/\[/g) || []).length;
+  const closeBrackets = (txt.match(/]/g) || []).length;
+  if (openBrackets > closeBrackets) {
+    txt += "]".repeat(openBrackets - closeBrackets);
+  }
+
+  try {
+    return JSON.parse(txt);
+  } catch (e) {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────
+// SAFE PARSE WITH AUTO FIX
+// ─────────────────────────────────────────────
 function safeParse(raw) {
   const cleaned = raw
     .trim()
@@ -90,18 +142,23 @@ function safeParse(raw) {
     .replace(/^```/, "")
     .replace(/```$/, "");
 
-  // Extract ONLY the JSON ARRAY of MCQs
   const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) {
-    throw new Error("❌ No valid JSON array found in model output.");
-  }
+  if (!jsonMatch) throw new Error("❌ No valid JSON array found.");
 
   const jsonOnly = jsonMatch[0];
 
   try {
     return JSON.parse(jsonOnly);
   } catch (err) {
-    console.error("❌ JSON Parse ERROR:", jsonOnly.slice(0, 200));
+    console.error("❌ Initial JSON Parse Failed. Attempting repair...");
+    
+    const repaired = repairJson(cleaned);
+    if (repaired) {
+      console.log("🔧 JSON Repair Successful");
+      return repaired;
+    }
+
+    console.error("❌ JSON Repair Failed");
     throw err;
   }
 }
@@ -164,20 +221,39 @@ async function clearLocks(ids) {
 // ─────────────────────────────────────────────
 async function processRow(row) {
   const prompt = buildPrompt(row.topic);
-  const raw = await callOpenAI([{ role: "user", content: prompt }]);
-  const parsed = safeParse(raw);
 
+  // First attempt
+  let raw = await callOpenAI([{ role: "user", content: prompt }]);
+
+  let parsed;
+  try {
+    parsed = safeParse(raw);
+  } catch (err) {
+    console.log("🔁 Retrying MCQ generation once for row:", row.id);
+
+    // Retry once
+    raw = await callOpenAI([{ role: "user", content: prompt }]);
+
+    try {
+      parsed = safeParse(raw);
+    } catch (err2) {
+      console.error("❌ FINAL FAILURE after retry. Skipping row:", row.id);
+      await clearLocks([row.id]);
+      throw err2;
+    }
+  }
+
+  // Save successfully parsed MCQs
   await supabase
     .from("subject_curriculum")
-    .update({
-      practice_mcq: parsed
-    })
+    .update({ practice_mcq: parsed })
     .eq("id", row.id);
 
   await clearLocks([row.id]);
 
   return { updated: 1 };
 }
+
 
 // ─────────────────────────────────────────────
 // MAIN LOOP

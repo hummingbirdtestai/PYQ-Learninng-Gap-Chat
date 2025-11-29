@@ -76,6 +76,7 @@
     "start:orthoConceptGeneratorWorker.js": "node workers/orthoConceptGeneratorWorker.js",
     "start:subjectcurflashcardworker.js": "node workers/subjectcurflashcardworker.js",
     "start:subjectcurmcqworker.js": "node workers/subjectcurmcqworker.js",
+    "start:mcqImageWorker.js": "node workers/mcqImageWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

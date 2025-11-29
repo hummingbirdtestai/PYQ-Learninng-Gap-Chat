@@ -1,7 +1,9 @@
 // workers/mcqImageWorker.js
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
-const fetch = (...args) => import("node-fetch").then(({default: f}) => f(...args));
+
+// ✅ Node 18+ built-in fetch — NO "node-fetch"
+const fetch = global.fetch;
 
 // ---------------- Settings ----------------
 const LIMIT = parseInt(process.env.MCQ_IMAGE_LIMIT || "200", 10);
@@ -24,21 +26,17 @@ function isRetryable(e) {
 }
 
 // ---------------- Claim rows ----------------
-// Add 2 new columns to mock_tests_phases:
-//   image_job_lock text
-//   image_job_lock_at timestamptz
-
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
-  // FREE stale locks
+  // 1. Free stale locks
   await supabase
     .from("mock_tests_phases")
     .update({ image_job_lock: null, image_job_lock_at: null })
     .not("image_job_lock", "is", null)
     .lt("image_job_lock_at", cutoff);
 
-  // SELECT candidates
+  // 2. Select candidates
   const { data: candidates, error } = await supabase
     .from("mock_tests_phases")
     .select("id, image_raw")
@@ -53,7 +51,7 @@ async function claimRows(limit) {
 
   const ids = candidates.map((r) => r.id);
 
-  // Lock rows
+  // 3. Lock rows
   const { data: locked, error: lockErr } = await supabase
     .from("mock_tests_phases")
     .update({
@@ -90,7 +88,8 @@ async function processRow(row) {
     const resp = await fetch(url);
     if (!resp.ok) throw new Error("Failed to download image");
 
-    const buffer = await resp.buffer();
+    // ✅ Node-native conversion
+    const buffer = Buffer.from(await resp.arrayBuffer());
 
     // detect extension
     const ext = url.split(".").pop().split("?")[0].toLowerCase();
@@ -98,8 +97,9 @@ async function processRow(row) {
 
     const fileName = `${id}.${fileExt}`;
 
-    // upload
     console.log(`⬆ Uploading to bucket ${BUCKET}...`);
+
+    // upload
     const { error: upErr } = await supabase.storage
       .from(BUCKET)
       .upload(fileName, buffer, {
@@ -109,12 +109,12 @@ async function processRow(row) {
 
     if (upErr) throw upErr;
 
-    // get URL
+    // get public URL
     const {
       data: { publicUrl },
     } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
 
-    // update
+    // update row
     const { error: updErr } = await supabase
       .from("mock_tests_phases")
       .update({ mcq_image: publicUrl })

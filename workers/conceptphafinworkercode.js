@@ -132,7 +132,7 @@ async function claimRows(limit) {
     .from("concept_phase_final")
     .select("id, phase_json")
     .eq("phase_type", "concept")
-    .is("feed", null)
+    .or("feed.is.null,feed.eq.{}")
     .is("mentor_lock", null)
     .order("react_order_final", { ascending: true })
     .limit(limit);
@@ -150,7 +150,7 @@ async function claimRows(limit) {
       mentor_lock_at: new Date().toISOString(),
     })
     .in("id", ids)
-    .is("feed", null)
+    .or("feed.is.null,feed.eq.{}")
     .is("mentor_lock", null)
     .select("id, phase_json");
 

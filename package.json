@@ -77,6 +77,7 @@
     "start:subjectcurflashcardworker.js": "node workers/subjectcurflashcardworker.js",
     "start:subjectcurmcqworker.js": "node workers/subjectcurmcqworker.js",
     "start:mcqImageWorker.js": "node workers/mcqImageWorker.js",
+    "start:conceptphafinworkercode.js": "node workers/conceptphafinworkercode.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

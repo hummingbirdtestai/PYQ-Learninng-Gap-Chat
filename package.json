@@ -79,6 +79,7 @@
     "start:mcqImageWorker.js": "node workers/mcqImageWorker.js",
     "start:conceptphafinworkercode.js": "node workers/conceptphafinworkercode.js",
     "start:conceptphafinalimagegenworker.js": "node workers/conceptphafinalimagegenworker,js",
+    "start:image_scraper_google.js": "node workers/image_scraper_google.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

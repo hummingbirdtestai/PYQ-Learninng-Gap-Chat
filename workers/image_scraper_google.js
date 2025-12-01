@@ -6,7 +6,10 @@
 
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
-const fetch = require("node-fetch");
+
+// ❌ REMOVE THIS (node-fetch)
+// const fetch = require("node-fetch");
+// ✅ Node 20+ has global fetch — nothing needed
 
 // SETTINGS
 const API_KEY      = process.env.GOOGLE_IMAGE_API_KEY;
@@ -33,6 +36,7 @@ async function googleSearch(desc, attempt = 1) {
       `https://www.googleapis.com/customsearch/v1?q=${query}&key=${API_KEY}&cx=${CX}` +
       `&searchType=image&num=5`;
 
+    // ✅ Using built-in fetch
     const resp = await fetch(url);
     const json = await resp.json();
 
@@ -58,7 +62,6 @@ function pickBest(items) {
     const h = item.image?.height || 0;
     const resolutionScore = w * h;
 
-    // small type bias
     let fileTypeScore = 0;
     if (item.link.endsWith(".png")) fileTypeScore = 5;
     if (item.link.endsWith(".svg")) fileTypeScore = 4;

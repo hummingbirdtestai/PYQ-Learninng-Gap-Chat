@@ -27,17 +27,29 @@ function isRetryable(e) {
 // Master Prompt (NEVER CHANGE THIS)
 function buildPrompt(desc) {
   return `
-You are a NEET-PG medical image generator.
-Generate **ONE** medically accurate HD image based on this description:
+You are an expert NEET-PG medical image generator.
+Create ONE medically accurate image for the following description:
 
 "${desc}"
 
-STRICT RULES:
-- Do NOT add ANY labels, arrows, annotations, letters, or text on the image.
-- If lesion/clinical: produce a real HD clinical photograph.
-- If anatomy/histology/pathology/embryology/pharmacology mechanism: produce a realistic diagram (NO LABELS).
-- Resolution: 1024x1024 or higher.
-- No borders, no watermarks, no branding.
+Strict rules:
+- Absolutely NO text, labels, arrows, symbols, or watermarks in the image.
+- Auto-detect image type:
+  • Clinical lesion → realistic clinical photograph (Indian patient).
+  • Anatomy/dissection/surface marking → real dissection photo or clean vector schematic (no text).
+  • Physiology/pathway/pharmacology mechanism → clean diagram without text.
+  • Radiology (X-ray/CT/MRI/USG) → realistic scan.
+  • Histology/Pathology → realistic H&E or gross specimen (no labels).
+  • Surgery → real operative field photo, no text.
+  • Microbiology → microscopy/culture appearance (no labels).
+  • Ophthalmology/ENT/Ortho/Pediatrics/OBG → real clinical photographs.
+  • Community Medicine → schematic diagram without text.
+
+General rules:
+- Must look like real textbook/atlas-quality medical images.
+- Natural lighting and correct anatomical/clinical appearance.
+- NO borders, NO branding.
+- Resolution ~512–1024 px.
   `;
 }
 

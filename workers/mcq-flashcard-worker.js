@@ -1,7 +1,6 @@
 require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
-const { v4: uuidv4 } = require("uuid");
 
 //──────────────────────────────────────────────
 // SETTINGS
@@ -14,13 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.FLASHCARD_LOCK_TTL_MIN || "15", 10);
 const WORKER_ID    = process.env.WORKER_ID || `mcq-flash-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 //──────────────────────────────────────────────
-// PROMPT GENERATOR
+// PROMPT GENERATOR (UPDATED)
 //──────────────────────────────────────────────
 function buildPrompt(mcq) {
   return `
 Pick Input Column - mcq
 Prompt Use As Is -
-Convert the MCQ into a NEET-PG flashcard.  
+
+Convert the MCQ into a NEET-PG flashcard.
 Question: Active-recall, positive phrasing  
 Answer: 2–3 words only, crisp and high-yield  
 
@@ -28,13 +28,21 @@ Remove options & MCQ wording.
 For “EXCEPT/NOT” MCQs → convert to a positive fact based on the correct option.  
 For “None/All of the above” → ignore those options; extract the high-yield fact.  
 
-Whenever MCQ HAS Clinical case vignette → Create Question as clinical vignette only.  
+Whenever MCQ HAS clinical case vignette → Create Question as clinical vignette only.  
 Whenever clinical vignette is incomplete → make it complete like UWorld/NBME/Amboss style.  
 
-Use Unicode (↑ ↓ → ± ≥ ≤).  
-Highlight key terms with **bold** and _italic_.  
+Use Unicode symbols (↑ ↓ → ± ≥ ≤).  
 
-Output only JSON: {"Question":"…","Answer":"…"}  
+Highlight key terms using Markup:  
+- *italic*  
+- **bold**  
+- ***bolditalic***  
+
+Do NOT use nested markup.  
+Use ONLY one wrapper per phrase.  
+Never mix _ with * inside the same word.  
+
+Output only JSON: {"Question":"…","Answer":"…"}
 
 MCQ INPUT:
 ${mcq}
@@ -44,7 +52,7 @@ ${mcq}
 //──────────────────────────────────────────────
 // HELPERS
 //──────────────────────────────────────────────
-const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
 function isRetryable(e) {
   const s = String(e?.message || e);
@@ -55,7 +63,7 @@ async function callOpenAI(messages, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
-      messages
+      messages,
     });
     return resp.choices?.[0]?.message?.content || "";
   } catch (err) {
@@ -79,28 +87,29 @@ function safeParseObject(raw) {
   try {
     return JSON.parse(cleaned);
   } catch (err) {
-    console.error("❌ JSON Parse Error:", cleaned.slice(0, 150));
+    console.error("❌ JSON Parse Error:", cleaned.slice(0, 200));
     throw err;
   }
 }
 
 //──────────────────────────────────────────────
-// LOCKING SYSTEM FOR mcq_import_raw
+// LOCKING SYSTEM (UPDATED FILTERS)
 //──────────────────────────────────────────────
 async function claimRows(limit) {
-  const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
+  const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
-  // Release stale locks
+  // Release old locks
   await supabase
     .from("mcq_import_raw")
     .update({ mcq_lock: null, mcq_locked_at: null })
     .lt("mcq_locked_at", cutoff);
 
-  // Fetch rows needing processing
+  // Fetch rows to process (UPDATED WHERE CLAUSE)
   const { data: rows, error } = await supabase
     .from("mcq_import_raw")
     .select("id, mcq")
     .is("mcq_json", null)
+    .eq("image_type", false)
     .is("mcq_lock", null)
     .order("mcq_locked_at", { ascending: true })
     .limit(limit);
@@ -108,9 +117,10 @@ async function claimRows(limit) {
   if (error) throw error;
   if (!rows?.length) return [];
 
-  const ids = rows.map(r => r.id);
+  const ids = rows.map((r) => r.id);
 
-  const { data: locked, error: err2 } = await supabase
+  // Lock rows
+  const { data: locked, error: lockErr } = await supabase
     .from("mcq_import_raw")
     .update({
       mcq_lock: WORKER_ID,
@@ -119,7 +129,7 @@ async function claimRows(limit) {
     .in("id", ids)
     .select("id, mcq");
 
-  if (err2) throw err2;
+  if (lockErr) throw lockErr;
 
   return locked || [];
 }
@@ -138,6 +148,7 @@ async function clearLocks(ids) {
 //──────────────────────────────────────────────
 async function processRow(row) {
   const prompt = buildPrompt(row.mcq);
+
   const raw = await callOpenAI([{ role: "user", content: prompt }]);
   const parsed = safeParseObject(raw);
 
@@ -146,7 +157,7 @@ async function processRow(row) {
     .update({
       mcq_json: parsed,
       mcq_lock: null,
-      mcq_locked_at: null
+      mcq_locked_at: null,
     })
     .eq("id", row.id);
 
@@ -157,7 +168,9 @@ async function processRow(row) {
 // MAIN LOOP
 //──────────────────────────────────────────────
 (async function main() {
-  console.log(`🟦 MCQ Flashcard Worker Started | model=${MODEL} | worker=${WORKER_ID}`);
+  console.log(
+    `🟦 MCQ Flashcard Worker Started | model=${MODEL} | worker=${WORKER_ID}`
+  );
 
   while (true) {
     try {
@@ -171,23 +184,22 @@ async function processRow(row) {
       console.log(`⚙️ Claimed ${claimed.length} MCQ rows`);
 
       const results = await Promise.allSettled(
-        claimed.map(row => processRow(row))
+        claimed.map((row) => processRow(row))
       );
 
       let success = 0;
 
-      results.forEach((r, i) => {
-        if (r.status === "fulfilled") {
+      results.forEach((res, i) => {
+        if (res.status === "fulfilled") {
           console.log(`   ✅ Processed MCQ #${i + 1}`);
-          success += r.value.updated;
+          success += res.value.updated;
         } else {
-          console.error(`   ❌ Error in MCQ #${i + 1}:`, r.reason);
+          console.error(`   ❌ Error in MCQ #${i + 1}:`, res.reason);
           clearLocks([claimed[i].id]);
         }
       });
 
       console.log(`🔁 Batch finished → saved=${success}/${claimed.length}`);
-
     } catch (err) {
       console.error("❌ Loop Error:", err);
       await sleep(1000);

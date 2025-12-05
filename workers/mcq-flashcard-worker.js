@@ -85,24 +85,24 @@ function safeParseObject(raw) {
 }
 
 //──────────────────────────────────────────────
-// LOCKING SYSTEM FOR mcq_bank
+// LOCKING SYSTEM FOR mcq_import_raw
 //──────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60 * 1000).toISOString();
 
   // Release stale locks
   await supabase
-    .from("mcq_bank")
-    .update({ lg_flashcard_lock: null, lg_flashcard_locked_at: null })
-    .lt("lg_flashcard_locked_at", cutoff);
+    .from("mcq_import_raw")
+    .update({ mcq_lock: null, mcq_locked_at: null })
+    .lt("mcq_locked_at", cutoff);
 
-  // Get rows needing flashcards
+  // Fetch rows needing processing
   const { data: rows, error } = await supabase
-    .from("mcq_bank")
-    .select("id, mcq, correct_answer")
-    .is("flash_card_manu", null)
-    .is("lg_flashcard_lock", null)
-    .order("created_at", { ascending: true })
+    .from("mcq_import_raw")
+    .select("mcq")
+    .is("mcq_json", null)
+    .is("mcq_lock", null)
+    .order("mcq_locked_at", { ascending: true })
     .limit(limit);
 
   if (error) throw error;
@@ -110,15 +110,14 @@ async function claimRows(limit) {
 
   const ids = rows.map(r => r.id);
 
-  // Lock them
   const { data: locked, error: err2 } = await supabase
-    .from("mcq_bank")
+    .from("mcq_import_raw")
     .update({
-      lg_flashcard_lock: WORKER_ID,
-      lg_flashcard_locked_at: new Date().toISOString(),
+      mcq_lock: WORKER_ID,
+      mcq_locked_at: new Date().toISOString(),
     })
     .in("id", ids)
-    .select("id, mcq, correct_answer");
+    .select("id, mcq");
 
   if (err2) throw err2;
 
@@ -129,13 +128,13 @@ async function clearLocks(ids) {
   if (!ids.length) return;
 
   await supabase
-    .from("mcq_bank")
-    .update({ lg_flashcard_lock: null, lg_flashcard_locked_at: null })
+    .from("mcq_import_raw")
+    .update({ mcq_lock: null, mcq_locked_at: null })
     .in("id", ids);
 }
 
 //──────────────────────────────────────────────
-// PROCESS EACH MCQ ROW
+// PROCESS EACH ROW
 //──────────────────────────────────────────────
 async function processRow(row) {
   const prompt = buildPrompt(row.mcq);
@@ -143,11 +142,11 @@ async function processRow(row) {
   const parsed = safeParseObject(raw);
 
   await supabase
-    .from("mcq_bank")
+    .from("mcq_import_raw")
     .update({
-      flash_card_manu: parsed,
-      lg_flashcard_lock: null,
-      lg_flashcard_locked_at: null
+      mcq_json: parsed,
+      mcq_lock: null,
+      mcq_locked_at: null
     })
     .eq("id", row.id);
 

@@ -99,7 +99,7 @@ async function claimRows(limit) {
   // Fetch rows needing processing
   const { data: rows, error } = await supabase
     .from("mcq_import_raw")
-    .select("mcq")
+    .select("id, mcq")
     .is("mcq_json", null)
     .is("mcq_lock", null)
     .order("mcq_locked_at", { ascending: true })

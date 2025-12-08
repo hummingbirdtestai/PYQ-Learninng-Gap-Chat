@@ -82,6 +82,7 @@
     "start:image_scraper_google": "node workers/image_scraper_google.js",
     "start:medicalImageGen": "node workers/medicalImageGeneratorWorker.js",
     "start:mcq-flashcard-worker": "node workers/mcq-flashcard-worker.js",
+    "start:conceptHYWorker": "node workers/conceptHYWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

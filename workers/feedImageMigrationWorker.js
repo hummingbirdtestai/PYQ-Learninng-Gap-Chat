@@ -11,7 +11,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const BUCKET = "feed-images"; // your bucket name
+const BUCKET = "feed-posts"; // your bucket name
 
 //────────────────────────────────────────
 // DOWNLOAD IMAGE

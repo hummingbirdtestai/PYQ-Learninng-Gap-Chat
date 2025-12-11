@@ -84,6 +84,7 @@
     "start:mcq-flashcard-worker": "node workers/mcq-flashcard-worker.js",
     "start:conceptHYWorker": "node workers/conceptHYWorker.js",
     "start-feed-image-migration": "node workers/feedImageMigrationWorker.js",
+    "start:rapidrevisionworker": "node workers/rapidrevisionworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

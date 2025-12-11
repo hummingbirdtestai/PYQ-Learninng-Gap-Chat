@@ -85,6 +85,7 @@
     "start:conceptHYWorker": "node workers/conceptHYWorker.js",
     "start-feed-image-migration": "node workers/feedImageMigrationWorker.js",
     "start:rapidrevisionworker": "node workers/rapidrevisionworker.js",
+    "start:videotopicmcqworker": "node workers/videotopicmcqworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

@@ -87,6 +87,7 @@
     "start:rapidrevisionworker": "node workers/rapidrevisionworker.js",
     "start:videotopicmcqworker": "node workers/videotopicmcqworker.js",
     "start:twoimagesworker": "node workers/twoimagesworker.js",
+    "start:twoimageflashworker": "node workers/twoimageflashworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

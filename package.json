@@ -89,6 +89,7 @@
     "start:twoimagesworker": "node workers/twoimagesworker.js",
     "start:twoimageflashworker": "node workers/twoimageflashworker.js",
     "start:imageflatflashworker": "node workers/imageflatflashworker.js",
+    "start:imageflattenmcqworker": "node workers/imageflattenmcqworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

@@ -90,6 +90,7 @@
     "start:twoimageflashworker": "node workers/twoimageflashworker.js",
     "start:imageflatflashworker": "node workers/imageflatflashworker.js",
     "start:imageflattenmcqworker": "node workers/imageflattenmcqworker.js",
+    "start:mocktestphases-concept-markdown": "node workers/mocktestphases-concept-markdown.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

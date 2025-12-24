@@ -1,4 +1,3 @@
-// workers/feedImageMigrationWorker.js
 require("dotenv").config();
 const axios = require("axios");
 const { createClient } = require("@supabase/supabase-js");
@@ -11,7 +10,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const BUCKET = "feed-posts"; // your bucket name
+//────────────────────────────────────────
+// CONFIG
+//────────────────────────────────────────
+const TABLE  = "image_concept_phase_final";
+const BUCKET = "feed-posts";          // change if you want a new bucket
+const FOLDER = "image-concept";       // folder inside bucket
+const LIMIT  = 20;
 
 //────────────────────────────────────────
 // DOWNLOAD IMAGE
@@ -22,7 +27,6 @@ async function downloadImage(url) {
       responseType: "arraybuffer",
       timeout: 20000,
     });
-
     return Buffer.from(response.data);
   } catch (err) {
     console.error("❌ Download failed:", url, err.message);
@@ -31,46 +35,44 @@ async function downloadImage(url) {
 }
 
 //────────────────────────────────────────
-// MAIN WORKER LOOP
+// MAIN WORKER
 //────────────────────────────────────────
-async function startImageMigrationWorker() {
-  console.log("🚀 feed_posts → image migration started...");
+async function startWorker() {
+  console.log("🚀 image_concept_phase_final → Supabase image migration started");
 
   const { data: rows, error } = await supabase
-    .from("feed_posts")
+    .from(TABLE)
     .select("id, image_url")
     .not("image_url", "is", null)
-    .is("image_url_supabase", null)
-    .limit(10);
+    .is("supabase_image_url", null)
+    .limit(LIMIT);
 
   if (error) {
     console.error("❌ DB fetch error:", error);
     process.exit(1);
   }
 
-  console.log(`📌 ${rows.length} rows to migrate`);
+  console.log(`📌 ${rows.length} rows found`);
 
   for (const row of rows) {
-    const imgUrl = row.image_url;
+    console.log(`➡️ Processing row: ${row.id}`);
 
-    console.log(`➡️ Processing id: ${row.id}`);
-
-    if (!imgUrl || imgUrl.trim() === "") {
-      console.log("⚠️ Empty URL skipped:", row.id);
+    if (!row.image_url || row.image_url.trim() === "") {
+      console.log("⚠️ Empty image_url, skipped");
       continue;
     }
 
-    const buffer = await downloadImage(imgUrl);
+    const buffer = await downloadImage(row.image_url);
     if (!buffer) {
-      console.log("⚠️ Skipping due to failed download");
+      console.log("⚠️ Image download failed, skipped");
       continue;
     }
 
     // STORAGE PATH
     const fileName = `${row.id}-${Date.now()}.jpg`;
-    const storagePath = `feed/${fileName}`;
+    const storagePath = `${FOLDER}/${fileName}`;
 
-    // UPLOAD TO SUPABASE STORAGE
+    // UPLOAD
     const { error: uploadErr } = await supabase.storage
       .from(BUCKET)
       .upload(storagePath, buffer, {
@@ -83,17 +85,17 @@ async function startImageMigrationWorker() {
       continue;
     }
 
-    // GET PUBLIC URL
+    // PUBLIC URL
     const { data: publicUrl } = supabase.storage
       .from(BUCKET)
       .getPublicUrl(storagePath);
 
     const newUrl = publicUrl.publicUrl;
 
-    // UPDATE ROW
+    // UPDATE TABLE
     const { error: updateErr } = await supabase
-      .from("feed_posts")
-      .update({ image_url_supabase: newUrl })
+      .from(TABLE)
+      .update({ supabase_image_url: newUrl })
       .eq("id", row.id);
 
     if (updateErr) {
@@ -101,11 +103,11 @@ async function startImageMigrationWorker() {
       continue;
     }
 
-    console.log(`✅ Migrated row: ${row.id}`);
+    console.log(`✅ Migrated: ${row.id}`);
   }
 
-  console.log("🎉 Image migration completed!");
+  console.log("🎉 Migration batch complete");
   process.exit(0);
 }
 
-startImageMigrationWorker();
+startWorker();

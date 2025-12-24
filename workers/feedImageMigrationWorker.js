@@ -40,74 +40,58 @@ async function downloadImage(url) {
 async function startWorker() {
   console.log("🚀 image_concept_phase_final → Supabase image migration started");
 
-  const { data: rows, error } = await supabase
-    .from(TABLE)
-    .select("id, image_url")
-    .not("image_url", "is", null)
-    .is("supabase_image_url", null)
-    .limit(LIMIT);
-
-  if (error) {
-    console.error("❌ DB fetch error:", error);
-    process.exit(1);
-  }
-
-  console.log(`📌 ${rows.length} rows found`);
-
-  for (const row of rows) {
-    console.log(`➡️ Processing row: ${row.id}`);
-
-    if (!row.image_url || row.image_url.trim() === "") {
-      console.log("⚠️ Empty image_url, skipped");
-      continue;
-    }
-
-    const buffer = await downloadImage(row.image_url);
-    if (!buffer) {
-      console.log("⚠️ Image download failed, skipped");
-      continue;
-    }
-
-    // STORAGE PATH
-    const fileName = `${row.id}-${Date.now()}.jpg`;
-    const storagePath = `${FOLDER}/${fileName}`;
-
-    // UPLOAD
-    const { error: uploadErr } = await supabase.storage
-      .from(BUCKET)
-      .upload(storagePath, buffer, {
-        contentType: "image/jpeg",
-        upsert: false,
-      });
-
-    if (uploadErr) {
-      console.error("❌ Upload failed:", uploadErr);
-      continue;
-    }
-
-    // PUBLIC URL
-    const { data: publicUrl } = supabase.storage
-      .from(BUCKET)
-      .getPublicUrl(storagePath);
-
-    const newUrl = publicUrl.publicUrl;
-
-    // UPDATE TABLE
-    const { error: updateErr } = await supabase
+  while (true) {
+    const { data: rows, error } = await supabase
       .from(TABLE)
-      .update({ supabase_image_url: newUrl })
-      .eq("id", row.id);
+      .select("id, image_url")
+      .not("image_url", "is", null)
+      .is("supabase_image_url", null)
+      .limit(LIMIT);
 
-    if (updateErr) {
-      console.error("❌ Update failed:", updateErr);
+    if (error) {
+      console.error("❌ DB fetch error:", error);
+      await sleep(2000);
       continue;
     }
 
-    console.log(`✅ Migrated: ${row.id}`);
-  }
+    if (!rows.length) {
+      console.log("⏸️ No rows left, sleeping...");
+      await sleep(3000);
+      continue;
+    }
 
-  console.log("🎉 Migration batch complete");
-  process.exit(0);
+    console.log(`📌 ${rows.length} rows found`);
+
+    for (const row of rows) {
+      console.log(`➡️ Processing row: ${row.id}`);
+
+      const buffer = await downloadImage(row.image_url);
+      if (!buffer) continue;
+
+      const fileName = `${row.id}-${Date.now()}.jpg`;
+      const storagePath = `${FOLDER}/${fileName}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from(BUCKET)
+        .upload(storagePath, buffer, {
+          contentType: "image/jpeg",
+          upsert: false,
+        });
+
+      if (uploadErr) continue;
+
+      const { data: publicUrl } = supabase.storage
+        .from(BUCKET)
+        .getPublicUrl(storagePath);
+
+      await supabase
+        .from(TABLE)
+        .update({ supabase_image_url: publicUrl.publicUrl })
+        .eq("id", row.id);
+
+      console.log(`✅ Migrated: ${row.id}`);
+    }
+  }
 }
 
 startWorker();

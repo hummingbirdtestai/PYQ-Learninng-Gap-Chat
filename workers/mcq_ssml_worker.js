@@ -3,17 +3,17 @@ const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
 
 // ─────────────────────────────────────────────
-// SETTINGS
+// SETTINGS (HIGH THROUGHPUT)
 // ─────────────────────────────────────────────
-const MODEL        = process.env.SSML_MODEL || "gpt-5-mini";
-const LIMIT        = parseInt(process.env.SSML_LIMIT || "50", 10);
-const BATCH_SIZE   = parseInt(process.env.SSML_BATCH_SIZE || "10", 10);
-const SLEEP_MS     = parseInt(process.env.SSML_LOOP_SLEEP_MS || "500", 10);
-const LOCK_TTL_MIN = parseInt(process.env.SSML_LOCK_TTL_MIN || "15", 10);
-const WORKER_ID    = process.env.WORKER_ID || `ssml-mcq-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
+const MODEL          = process.env.HY_MODEL || "gpt-5-mini";
+const LIMIT          = parseInt(process.env.HY_LIMIT || "150", 10);
+const CONCURRENCY    = parseInt(process.env.HY_CONCURRENCY || "10", 10);
+const SLEEP_MS       = parseInt(process.env.HY_LOOP_SLEEP_MS || "200", 10);
+const LOCK_TTL_MIN   = parseInt(process.env.HY_LOCK_TTL_MIN || "10", 10);
+const WORKER_ID      = process.env.WORKER_ID || `mocktest-concept-worker-${process.pid}`;
 
 // ─────────────────────────────────────────────
-// SSML PROMPT (USED AS-IS)
+// SSML PROMPT (UNCHANGED)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
 return `
@@ -98,7 +98,7 @@ async function callOpenAI(prompt, attempt = 1) {
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
     if (isRetryable(e) && attempt <= 3) {
-      await sleep(500 * attempt);
+      await sleep(400 * attempt);
       return callOpenAI(prompt, attempt + 1);
     }
     throw e;
@@ -106,22 +106,24 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS
+// CLAIM ROWS USING mentor_lock
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
+  // Clear expired locks
   await supabase
     .from("concept_phase_final")
-    .update({ ssml_lock: null, ssml_lock_at: null })
-    .lt("ssml_lock_at", cutoff);
+    .update({ mentor_lock: null, mentor_lock_at: null })
+    .lt("mentor_lock_at", cutoff);
 
+  // Fetch rows
   const { data: rows, error } = await supabase
     .from("concept_phase_final")
     .select("id, phase_json")
     .eq("phase_type", "mcq")
     .is("ssml_script", null)
-    .is("ssml_lock", null)
+    .is("mentor_lock", null)
     .limit(limit);
 
   if (error) throw error;
@@ -129,20 +131,21 @@ async function claimRows(limit) {
 
   const ids = rows.map(r => r.id);
 
+  // Lock rows
   await supabase
     .from("concept_phase_final")
     .update({
-      ssml_lock: WORKER_ID,
-      ssml_lock_at: new Date().toISOString()
+      mentor_lock: WORKER_ID,
+      mentor_lock_at: new Date().toISOString()
     })
     .in("id", ids)
-    .is("ssml_lock", null);
+    .is("mentor_lock", null);
 
   return rows;
 }
 
 // ─────────────────────────────────────────────
-// PROCESS ONE ROW
+// PROCESS SINGLE ROW
 // ─────────────────────────────────────────────
 async function processRow(row) {
   const prompt = buildPrompt(
@@ -161,8 +164,8 @@ async function processRow(row) {
     .from("concept_phase_final")
     .update({
       ssml_script: ssml,
-      ssml_lock: null,
-      ssml_lock_at: null
+      mentor_lock: null,
+      mentor_lock_at: null
     })
     .eq("id", row.id);
 
@@ -170,28 +173,33 @@ async function processRow(row) {
 }
 
 // ─────────────────────────────────────────────
-// MAIN LOOP
+// MAIN LOOP (TRUE CONCURRENCY)
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🎙️ SSML MCQ Worker Started | ${WORKER_ID}`);
+  console.log(`🎙️ SSML Worker Started | ${WORKER_ID}`);
 
   while (true) {
     try {
       const rows = await claimRows(LIMIT);
+
       if (!rows.length) {
         await sleep(SLEEP_MS);
         continue;
       }
 
-      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        const batch = rows.slice(i, i + BATCH_SIZE);
-        const results = await Promise.allSettled(batch.map(processRow));
+      for (let i = 0; i < rows.length; i += CONCURRENCY) {
+        const slice = rows.slice(i, i + CONCURRENCY);
+
+        const results = await Promise.allSettled(
+          slice.map(processRow)
+        );
 
         results.forEach((r, idx) => {
+          const rowId = slice[idx].id;
           if (r.status === "fulfilled") {
-            console.log(`✅ SSML generated for row ${batch[idx].id}`);
+            console.log(`✅ SSML generated for row ${rowId}`);
           } else {
-            console.error(`❌ Failed row ${batch[idx].id}`, r.reason);
+            console.error(`❌ Failed row ${rowId}`, r.reason);
           }
         });
       }

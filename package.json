@@ -91,6 +91,7 @@
     "start:imageflatflashworker": "node workers/imageflatflashworker.js",
     "start:imageflattenmcqworker": "node workers/imageflattenmcqworker.js",
     "start:mocktestphases-concept-markdown": "node workers/mocktestphases-concept-markdown.js",
+    "start:mcq_ssml_worker": "node workers/mcq_ssml_worker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

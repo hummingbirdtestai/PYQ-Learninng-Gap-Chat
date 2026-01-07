@@ -165,22 +165,25 @@ function safeParse(raw) {
 
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS
+// CLAIM ROWS (ONLY NULL practice_mcq)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
+  // 1️⃣ Clear expired locks
   await supabase
     .from("subject_curriculum")
     .update({ concept_lock: null, concept_lock_at: null })
     .lt("concept_lock_at", cutoff);
 
+  // 2️⃣ Select ONLY rows that still need MCQs
   const { data: rows, error: err1 } = await supabase
     .from("subject_curriculum")
     .select("id, subject, chapter, topic, chapter_id, topic_id")
     .not("topic", "is", null)
     .not("topic", "eq", "")
     .is("concept_lock", null)
+    .is("practice_mcq", null)          // 🔥 CRITICAL FIX
     .order("id", { ascending: true })
     .limit(limit);
 
@@ -189,6 +192,7 @@ async function claimRows(limit) {
 
   const ids = rows.map(r => r.id);
 
+  // 3️⃣ Atomically lock rows for this worker
   const { data: locked, error: err2 } = await supabase
     .from("subject_curriculum")
     .update({
@@ -203,6 +207,7 @@ async function claimRows(limit) {
 
   return locked || [];
 }
+
 
 // ─────────────────────────────────────────────
 // CLEAR LOCKS

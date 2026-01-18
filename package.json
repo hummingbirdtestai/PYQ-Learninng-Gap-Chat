@@ -94,6 +94,7 @@
     "start:mcq_ssml_worker": "node workers/mcq_ssml_worker.js",
     "start:concept_worker_obg_raw": "node workers/concept_worker_obg_raw.js",
     "start:concept_json_worker_obg_raw": "node workers/concept_json_worker_obg_raw.js",
+    "start:concept_mcq_json_obg_raw": "node workers/concept_mcq_json_obg_raw.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

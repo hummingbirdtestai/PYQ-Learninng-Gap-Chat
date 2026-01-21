@@ -14,11 +14,11 @@ const WORKER_ID    = process.env.WORKER_ID ||
   `concept-all-${process.pid}-${Math.random().toString(36).slice(2,8)}`;
 
 // ─────────────────────────────────────────────
-// CONCEPT PROMPT (USE AS-IS)
+// CONCEPT PROMPT (UNCHANGED)
 // ─────────────────────────────────────────────
 function buildPrompt(question) {
   return `
-You are an 30 Years experienced Undergraduate MBBS Teacher expert in Preparing MBBS Students to do Last Minute revision for University MBBS exams Theory Papers. MBBS Students needed Bullet Points Summary Notes to answer this Question as Buzzword style for Active Recall and Spaced Repettion to write Answers in Exam. 1) Central Concepts fundament to understanding of the Topic 2) Give a **5 Clinical Case Vignettes** on emphasis of: • Clinical History • Physical Examination • Investigations • Differential • Treatment (first part should reflect the expected depth and standard) 3) Then give **25 Most High Yield points** like Buzz words, one need to remember for USMLE , NEETPG , MRCP Exam. • gIVE EACH hyf as a short sentence max **6 Words long** • Bold and Italic with Unicode important words that need instant memory. • Cover most tested Exam points and cover all within that 25. • Make **25 Points**, highly exam oriented and Cover all. IMPORTANT FORMATTING RULES FOR HIGH-YIELD FACTS (STRICT): a) In **High-Yield Facts**, ***bold + italic highlighting must be limited to a maximum of 1–2 words only per point***. b) Do **NOT** apply bold-italic formatting to the entire sentence in High-Yield Facts — only the **single most recall-critical keyword or phrase**. c) **DO NOT wrap the final output in triple backticks when passing the content to a rendering component**; the content must be plain Markdown text without outer code fences. 4) Include **Synoptic Summary Tables** for rapid exam revision. The content should be: 1) **Central Concepts** 2) **5 Clinical Case Vignettes** 2) **25 High-Yield Facts** 3) **Synoptic Summary Tables** Give the output *strictly in Markdown code blocks* with Unicode symbols. In the output, explicitly *bold and italicize* all important: • key words • clinical terms • diseases • signs • investigations • headings for emphasis using proper Markdown (e.g., **bold**, *italic*). Use: • headings • *bold* • *italic* • arrows (→, ↑, ↓) • subscripts / superscripts (₁, ₂, ³, ⁺, ⁻) • Greek letters • emojis (💡🫀🫁🧠⚕📘) naturally throughout for visual clarity. Do *NOT* output as JSON. Do *NOT* add any titles or headers beyond the **2 sections** I specify. Output ONLY those **2 sections exactly as numbered**. Dont mention USMLE Style of AMBOSS, USMLE World , NBME. Output as **ONE single Markdown code block**.
+You are an 30 Years experienced Undergraduate MBBS Teacher expert in Preparing MBBS Students to do Last Minute revision for University MBBS exams Theory Papers. MBBS Students needed Bullet Points Summary Notes to answer this Question as Buzzword style for Active Recall and Spaced Repettion to write Answers in Exam. 1) Central Concepts fundament to understanding of the Topic 2) Give a **5 Clinical Case Vignettes** on emphasis of: • Clinical History • Physical Examination • Investigations • Differential • Treatment (first part should reflect the expected depth and standard) 3) Then give **25 Most High Yield points** like Buzz words, one need to remember for USMLE , NEETPG , MRCP Exam. • gIVE EACH hyf as a short sentence max **6 Words long** • Bold and Italic with Unicode important words that need instant memory. • Cover most tested Exam points and cover all within that 25. • Make **25 Points**, highly exam oriented and Cover all. IMPORTANT FORMATTING RULES FOR HIGH-YIELD FACTS (STRICT): a) In **High-Yield Facts**, ***bold + italic highlighting must be limited to a maximum of 1–2 words only per point***. b) Do **NOT** apply bold-italic formatting to the entire sentence in High-Yield Facts — only the **single most recall-critical keyword or phrase**. c) **DO NOT wrap the final output in triple backticks when passing the content to a rendering component**; the content must be plain Markdown text without outer code fences. 4) Include **Synoptic Summary Tables** for rapid exam revision. The content should be: 1) **Central Concepts** 2) **5 Clinical Case Vignettes** 2) **25 High-Yield Facts** 3) **Synoptic Summary Tables** Give the output *strictly in Markdown code blocks* with Unicode symbols. In the output, explicitly *bold and italicize* all important terms. Output as **ONE single Markdown code block**.
 
 QUESTION:
 ${question}
@@ -52,18 +52,18 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (ONLY UNPROCESSED)
+// CLAIM ROWS (UNPROCESSED ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
-  // Clear expired locks (crashed workers)
+  // Clear expired locks
   await supabase
     .from("all_subjects_raw")
     .update({ concept_lock: null, concept_lock_at: null })
     .lt("concept_lock_at", cutoff);
 
-  // Fetch eligible rows
+  // Fetch rows
   const { data: rows, error } = await supabase
     .from("all_subjects_raw")
     .select("id, question")
@@ -75,9 +75,9 @@ async function claimRows(limit) {
   if (error) throw error;
   if (!rows?.length) return [];
 
-  // Lock rows
   const ids = rows.map(r => r.id);
 
+  // Lock rows
   const { data: locked, error: err2 } = await supabase
     .from("all_subjects_raw")
     .update({
@@ -98,9 +98,8 @@ async function claimRows(limit) {
 async function processRow(row) {
   const output = await callOpenAI(buildPrompt(row.question));
 
-  // Enforce ONE markdown code block
   if (!/^```[\s\S]+```$/.test(output.trim())) {
-    throw new Error("Output must be ONE single Markdown code block");
+    throw new Error("Output must be ONE Markdown code block");
   }
 
   await supabase
@@ -111,13 +110,18 @@ async function processRow(row) {
       concept_lock_at: null
     })
     .eq("id", row.id);
+
+  return true;
 }
 
 // ─────────────────────────────────────────────
-// MAIN WORKER LOOP
+// MAIN LOOP WITH COUNTS
 // ─────────────────────────────────────────────
 (async function main() {
   console.log(`🚀 ALL SUBJECT CONCEPT WORKER STARTED | ${WORKER_ID}`);
+
+  let totalProcessed = 0;
+  let totalFailed = 0;
 
   while (true) {
     try {
@@ -128,12 +132,36 @@ async function processRow(row) {
         continue;
       }
 
+      console.log(`🧠 Claimed ${claimed.length} rows`);
+
       for (let i = 0; i < claimed.length; i += BATCH_SIZE) {
         const batch = claimed.slice(i, i + BATCH_SIZE);
-        await Promise.allSettled(batch.map(processRow));
+
+        const results = await Promise.allSettled(
+          batch.map(processRow)
+        );
+
+        let batchProcessed = 0;
+        let batchFailed = 0;
+
+        results.forEach((res, idx) => {
+          if (res.status === "fulfilled") {
+            batchProcessed++;
+            totalProcessed++;
+          } else {
+            batchFailed++;
+            totalFailed++;
+            console.error(`❌ Failed row ${batch[idx].id}`, res.reason);
+          }
+        });
+
+        console.log(
+          `📦 Batch done | success=${batchProcessed} failed=${batchFailed} | total_success=${totalProcessed} total_failed=${totalFailed}`
+        );
       }
+
     } catch (e) {
-      console.error("❌ Worker error:", e);
+      console.error("❌ Worker loop error:", e);
       await sleep(1000);
     }
   }

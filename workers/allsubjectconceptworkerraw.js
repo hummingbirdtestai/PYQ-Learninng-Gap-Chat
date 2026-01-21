@@ -31,8 +31,8 @@ ${question}
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function isRetryable(e) {
-  const s = String(e?.message || e);
-  return /timeout|429|temporar|unavailable|ECONNRESET|ETIMEDOUT/i.test(s);
+  return /timeout|429|temporar|unavailable|ECONNRESET|ETIMEDOUT/i
+    .test(String(e?.message || e));
 }
 
 async function callOpenAI(prompt, attempt = 1) {
@@ -52,18 +52,18 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (concept IS NULL)
+// CLAIM ROWS (ONLY UNPROCESSED)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
-  // Clear expired locks
+  // Clear expired locks (crashed workers)
   await supabase
     .from("all_subjects_raw")
     .update({ concept_lock: null, concept_lock_at: null })
     .lt("concept_lock_at", cutoff);
 
-  // Fetch rows
+  // Fetch eligible rows
   const { data: rows, error } = await supabase
     .from("all_subjects_raw")
     .select("id, question")
@@ -73,4 +73,68 @@ async function claimRows(limit) {
     .limit(limit);
 
   if (error) throw error;
-  if (!rows?.length) re
+  if (!rows?.length) return [];
+
+  // Lock rows
+  const ids = rows.map(r => r.id);
+
+  const { data: locked, error: err2 } = await supabase
+    .from("all_subjects_raw")
+    .update({
+      concept_lock: WORKER_ID,
+      concept_lock_at: new Date().toISOString()
+    })
+    .in("id", ids)
+    .is("concept_lock", null)
+    .select("id, question");
+
+  if (err2) throw err2;
+  return locked || [];
+}
+
+// ─────────────────────────────────────────────
+// PROCESS SINGLE ROW
+// ─────────────────────────────────────────────
+async function processRow(row) {
+  const output = await callOpenAI(buildPrompt(row.question));
+
+  // Enforce ONE markdown code block
+  if (!/^```[\s\S]+```$/.test(output.trim())) {
+    throw new Error("Output must be ONE single Markdown code block");
+  }
+
+  await supabase
+    .from("all_subjects_raw")
+    .update({
+      concept: output,
+      concept_lock: null,
+      concept_lock_at: null
+    })
+    .eq("id", row.id);
+}
+
+// ─────────────────────────────────────────────
+// MAIN WORKER LOOP
+// ─────────────────────────────────────────────
+(async function main() {
+  console.log(`🚀 ALL SUBJECT CONCEPT WORKER STARTED | ${WORKER_ID}`);
+
+  while (true) {
+    try {
+      const claimed = await claimRows(LIMIT);
+
+      if (!claimed.length) {
+        await sleep(SLEEP_MS);
+        continue;
+      }
+
+      for (let i = 0; i < claimed.length; i += BATCH_SIZE) {
+        const batch = claimed.slice(i, i + BATCH_SIZE);
+        await Promise.allSettled(batch.map(processRow));
+      }
+    } catch (e) {
+      console.error("❌ Worker error:", e);
+      await sleep(1000);
+    }
+  }
+})();

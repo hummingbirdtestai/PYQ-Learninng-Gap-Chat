@@ -96,6 +96,7 @@
     "start:concept_json_worker_obg_raw": "node workers/concept_json_worker_obg_raw.js",
     "start:concept_mcq_json_obg_raw": "node workers/concept_mcq_json_obg_raw.js",
     "start:fmconceptworkerraw": "node workers/fmconceptworkerraw.js",
+    "start:spmconceptworkerraw": "node workers/spmconceptworkerraw.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

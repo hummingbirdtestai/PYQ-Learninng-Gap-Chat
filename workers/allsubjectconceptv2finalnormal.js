@@ -20,70 +20,69 @@ const WORKER_ID =
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
-You are a strict CONTENT NORMALIZATION and JSON PACKING engine.
+You are a STRICT CONTENT NORMALIZATION AND PACKING ENGINE.
 
 Your job is ONLY to:
-- Remove instructional / formatting noise accidentally included in content
-- Preserve the actual educational content EXACTLY
-- Pack the cleaned content into a fixed JSON structure
+- Remove instructional / prompt / formatting noise accidentally included in content
+- Preserve ONLY genuine medical subject content EXACTLY as written
+- Pack the cleaned content into a renderer-safe fixed JSON structure
 
 You must NOT:
-- Rewrite content
-- Add explanations
-- Change wording, tone, or order
-- Enforce pedagogy rules
-- Impose new constraints
-- “Improve” clarity or style
+- Rewrite, paraphrase, summarize, or reorder content
+- Add explanations or new headings
+- Improve clarity, style, pedagogy, or structure
+- Introduce new fields or inferred labels
 
-----------------------------------
-GLOBAL RULES
-----------------------------------
+--------------------------------------------------
+ABSOLUTE EXCLUSION RULE (CRITICAL)
+--------------------------------------------------
 
-1. PRESERVE REAL CONTENT AS-IS
-- Keep all educational text exactly as written
+The following MUST NEVER appear in output, even if present in input:
+
+- Any prompt instructions
+- Any generation rules
+- Any meta descriptions of format
+- Any constraints about how content was written
+- Any buzzword rules, limits, or guidance
+
+Examples that MUST be REMOVED completely:
+- “25 Most High-Yield Facts (buzzwords — exam recall)”
+- “(Each line ≤6 words; bold+italic limited to 1–2 words)”
+- “STRICT RULES”
+- “IMPORTANT FORMATTING RULES”
+- “Examiner expects…”
+- “Do not explain…”
+- “Purpose: …”
+- Any line explaining HOW content was generated rather than WHAT the medical content is
+
+ONLY medical subject matter must remain.
+
+--------------------------------------------------
+GLOBAL PRESERVATION RULES
+--------------------------------------------------
+
+1. PRESERVE REAL MEDICAL CONTENT AS-IS
+- Keep wording, tone, and order EXACTLY
 - Preserve **bold**, *italic*, ***bold+italic***
 - Preserve Unicode symbols, arrows, bullets, emojis
-- Preserve markdown formatting that is part of the content itself
+- Preserve markdown ONLY if it is part of medical content
 
-2. REMOVE FORMAT / PROMPT NOISE  
-Remove ONLY lines that are clearly **instructional artifacts**, such as:
-- “High-yield facts should be…”
-- “STRICT RULES:”
-- “Each item ≤ 6 words”
-- “Purpose: …”
-- “Do not explain…”
-- “Examiner expects…”
-- “Rules:”
-- Any meta text explaining HOW the content was generated
-
-These lines are NOT educational content and must be discarded.
-
-3. REMOVE DECORATIVE SEPARATORS  
+2. REMOVE DECORATIVE SEPARATORS
 Remove divider-only lines such as:
-- ------
-- ______
-- ********
-- ==================
+------
+******
+=====
+______
 
-4. REMOVE CONTENT-GENERATION INSTRUCTIONS (ADDED RULE)  
-Remove any line that:
-- Explains HOW the medical content should be written or remembered
-- Mentions stylistic limits (e.g., word limits, highlighting limits)
-- Mentions “buzzwords”, “exam recall”, “high-yield rules”, or similar phrasing
-- Describes formatting constraints rather than medical knowledge itself
-
-Examples that MUST be removed:
-- “25 Most High-Yield Facts (buzzwords — exam recall)”
-- “Each line ≤6 words; bold+italic limited to…”
-- Any sentence that describes rules for creating the content rather than the content
-
-These are NOT medical subject matter and must NOT appear in output.
-
-----------------------------------
+--------------------------------------------------
 MANDATORY OUTPUT (JSON ONLY)
-----------------------------------
+--------------------------------------------------
 
-Return a SINGLE valid JSON object with ONLY these keys:
+Return ONE valid JSON object.
+
+No explanations.
+No markdown outside JSON.
+No extra keys.
 
 {
   "concept": "",
@@ -93,68 +92,111 @@ Return a SINGLE valid JSON object with ONLY these keys:
   "exam_pointers": []
 }
 
-No extra keys.  
-No explanations.  
-No markdown outside JSON.
+--------------------------------------------------
+STRICT STRUCTURE RULES (RENDERER-SAFE)
+--------------------------------------------------
 
-----------------------------------
-KEY PACKING RULES
-----------------------------------
-
-### "concept"
-- Pack the **entire cleaned concept section**
-- Keep headings, bullets, emphasis exactly as in content
+"concept"
+- Type: STRING
+- Pack the entire cleaned concept section
+- Keep headings, bullets, and emphasis exactly
 - Do NOT summarize or restructure
-- Value is a STRING
 
-----------------------------------
+--------------------------------------------------
 
-### "cases"
-- Each case MUST be an OBJECT
-- Use section headings already present (History, Examination, etc.)
-- Do NOT invent fields
+"cases"  (STRICTLY ENFORCED)
+
+Each case MUST be an OBJECT in this exact format:
+
+{
+  "Case title here": {
+    "Clinical history": "...",
+    "Physical exam": "...",
+    "Investigations": "...",
+    "Differential": "...",
+    "Treatment": "..."
+  }
+}
+
+Rules:
+- Each case is ONE object
+- Case title is mandatory
+- Section names must come only from the content
+- Do NOT invent missing sections
 - Omit missing sections silently
 - Preserve wording exactly
 
-----------------------------------
+Flat or untitled cases are INVALID.
 
-### "high_yield_facts"
-- Pack only the **actual medical fact lines**
-- Do NOT include titles or rules describing how facts were written
-- Each array item = one original medical line
-- Preserve ***bold+italic*** exactly where present
+--------------------------------------------------
 
-----------------------------------
+"high_yield_facts"
+- Include ONLY actual medical buzzword lines
+- Do NOT include section titles, rules, constraints, or meta commentary
+- Each array item = one original medical fact line
+- Preserve ***bold+italic*** exactly
 
-### "tables"
-- Each table MUST be preserved EXACTLY
-- Keep original markdown table formatting
-- Each table is a separate OBJECT:
+--------------------------------------------------
+
+"tables"
+
+Each table MUST be a separate OBJECT:
 
 {
   "title": "<table title if present, else null>",
-  "markdown": "<entire table markdown exactly as given>"
+  "markdown": "<ENTIRE table markdown EXACTLY as given>"
 }
 
-- Do NOT convert tables to rows/columns
-- Do NOT summarize or merge tables
+Rules:
+- Preserve markdown verbatim
+- Do NOT convert tables to rows or columns
+- Do NOT merge, summarize, or reinterpret tables
 
-----------------------------------
+--------------------------------------------------
 
-### "exam_pointers"
-- Pack examiner tips, mnemonics, warnings, notes
-- Exclude instructional rules about writing answers
-- Preserve wording and formatting
+"exam_pointers"
+- Include exam tips, mnemonics, warnings, clinical pearls
+- Exclude instructions on how to write answers
+- Preserve wording and formatting exactly
 
-----------------------------------
-FINAL CHECK
-----------------------------------
+--------------------------------------------------
+FINAL VALIDATION CHECK
+--------------------------------------------------
 
-- Output JSON only
-- Educational content unchanged
-- Instructional / generative noise removed
-- Markdown preserved
-- No commentary
+Before output, ensure:
+- Output is JSON only
+- Medical content is unchanged
+- Prompt / meta / instructional content is fully removed
+- All cases are titled objects
+- No instructional headings exist inside arrays
+- Structure is renderer-safe and deterministic
+{
+  "concept": "STRING — full cleaned medical concept content exactly as written, including headings, bullets, emphasis, and markdown that is part of the medical content.",
+  "cases": [
+    {
+      "Case title here": {
+        "Clinical history": "Exact medical text as written.",
+        "Physical exam": "Exact medical text as written.",
+        "Investigations": "Exact medical text as written.",
+        "Differential": "Exact medical text as written.",
+        "Treatment": "Exact medical text as written."
+      }
+    }
+  ],
+  "high_yield_facts": [
+    "Exact medical buzzword line as written",
+    "Another exact medical buzzword line"
+  ],
+  "tables": [
+    {
+      "title": "Table title exactly as written, or null if not present",
+      "markdown": "| Entire table markdown preserved exactly |\n|---|---|\n| As provided | No changes |"
+    }
+  ],
+  "exam_pointers": [
+    "Exact exam tip, mnemonic, or clinical pearl as written"
+  ]
+}
 
 CONTENT:
 ${conceptText}

@@ -20,7 +20,7 @@ const WORKER_ID =
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
-You are a strict content NORMALIZATION and PACKING engine.
+You are a strict CONTENT NORMALIZATION and JSON PACKING engine.
 
 Your job is ONLY to:
 - Remove instructional / formatting noise accidentally included in content
@@ -45,14 +45,45 @@ GLOBAL RULES
 - Preserve Unicode symbols, arrows, bullets, emojis
 - Preserve markdown formatting that is part of the content itself
 
-2. REMOVE FORMAT / PROMPT NOISE
-Remove ONLY lines that are clearly instructional artifacts
+2. REMOVE FORMAT / PROMPT NOISE  
+Remove ONLY lines that are clearly **instructional artifacts**, such as:
+- “High-yield facts should be…”
+- “STRICT RULES:”
+- “Each item ≤ 6 words”
+- “Purpose: …”
+- “Do not explain…”
+- “Examiner expects…”
+- “Rules:”
+- Any meta text explaining HOW the content was generated
 
-3. REMOVE DECORATIVE SEPARATORS
+These lines are NOT educational content and must be discarded.
+
+3. REMOVE DECORATIVE SEPARATORS  
+Remove divider-only lines such as:
+- ------
+- ______
+- ********
+- ==================
+
+4. REMOVE CONTENT-GENERATION INSTRUCTIONS (ADDED RULE)  
+Remove any line that:
+- Explains HOW the medical content should be written or remembered
+- Mentions stylistic limits (e.g., word limits, highlighting limits)
+- Mentions “buzzwords”, “exam recall”, “high-yield rules”, or similar phrasing
+- Describes formatting constraints rather than medical knowledge itself
+
+Examples that MUST be removed:
+- “25 Most High-Yield Facts (buzzwords — exam recall)”
+- “Each line ≤6 words; bold+italic limited to…”
+- Any sentence that describes rules for creating the content rather than the content
+
+These are NOT medical subject matter and must NOT appear in output.
 
 ----------------------------------
 MANDATORY OUTPUT (JSON ONLY)
 ----------------------------------
+
+Return a SINGLE valid JSON object with ONLY these keys:
 
 {
   "concept": "",
@@ -62,7 +93,69 @@ MANDATORY OUTPUT (JSON ONLY)
   "exam_pointers": []
 }
 
+No extra keys.  
+No explanations.  
+No markdown outside JSON.
+
 ----------------------------------
+KEY PACKING RULES
+----------------------------------
+
+### "concept"
+- Pack the **entire cleaned concept section**
+- Keep headings, bullets, emphasis exactly as in content
+- Do NOT summarize or restructure
+- Value is a STRING
+
+----------------------------------
+
+### "cases"
+- Each case MUST be an OBJECT
+- Use section headings already present (History, Examination, etc.)
+- Do NOT invent fields
+- Omit missing sections silently
+- Preserve wording exactly
+
+----------------------------------
+
+### "high_yield_facts"
+- Pack only the **actual medical fact lines**
+- Do NOT include titles or rules describing how facts were written
+- Each array item = one original medical line
+- Preserve ***bold+italic*** exactly where present
+
+----------------------------------
+
+### "tables"
+- Each table MUST be preserved EXACTLY
+- Keep original markdown table formatting
+- Each table is a separate OBJECT:
+
+{
+  "title": "<table title if present, else null>",
+  "markdown": "<entire table markdown exactly as given>"
+}
+
+- Do NOT convert tables to rows/columns
+- Do NOT summarize or merge tables
+
+----------------------------------
+
+### "exam_pointers"
+- Pack examiner tips, mnemonics, warnings, notes
+- Exclude instructional rules about writing answers
+- Preserve wording and formatting
+
+----------------------------------
+FINAL CHECK
+----------------------------------
+
+- Output JSON only
+- Educational content unchanged
+- Instructional / generative noise removed
+- Markdown preserved
+- No commentary
+
 CONTENT:
 ${conceptText}
 `;

@@ -99,6 +99,7 @@
     "start:spmconceptworkerraw": "node workers/spmconceptworkerraw.js",
     "start:allsubjectconceptworkerraw": "node workers/allsubjectconceptworkerraw.js",
     "start:allsubjects_concept_json_worker": "node workers/allsubjects_concept_json_worker.js",
+    "start:allsubjects_mcq_concept_json_worker": "node workers/allsubjects_mcq_concept_json_worker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

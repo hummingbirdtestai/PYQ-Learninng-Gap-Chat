@@ -101,6 +101,7 @@
     "start:allsubjects_concept_json_worker": "node workers/allsubjects_concept_json_worker.js",
     "start:allsubjects_mcq_concept_json_worker": "node workers/allsubjects_mcq_concept_json_worker.js",
     "start:allsubjectconceptv2finalnormal": "node workers/allsubjectconceptv2finalnormal.js",
+     "start:allsubjectconceptv2finalnormalfmcm": "node workers/allsubjectconceptv2finalnormalfmcm.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

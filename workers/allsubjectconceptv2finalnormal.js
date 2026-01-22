@@ -15,6 +15,12 @@ const WORKER_ID =
   process.env.WORKER_ID ||
   `concept-normalizer-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
+// ⛔ SUBJECTS TO IGNORE
+const EXCLUDED_SUBJECTS = [
+  "Community Medicine",
+  "Forensic Medicine"
+];
+
 // ─────────────────────────────────────────────
 // PROMPT (USE AS-IS — DO NOT TOUCH)
 // ─────────────────────────────────────────────
@@ -209,8 +215,8 @@ ${conceptText}
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function isRetryable(e) {
-  const s = String(e?.message || e);
-  return /timeout|429|temporar|unavailable|ECONNRESET|ETIMEDOUT/i.test(s);
+  return /timeout|429|temporar|unavailable|ECONNRESET|ETIMEDOUT/i
+    .test(String(e?.message || e));
 }
 
 async function callOpenAI(prompt, attempt = 1) {
@@ -246,33 +252,54 @@ function safeParseJson(raw) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS
+// CLAIM ROWS (WITH COUNT LOGGING)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
-  // Clear expired locks
+  // 1️⃣ Clear expired locks
   await supabase
     .from("all_subjects_raw")
     .update({ concept_lock: null, concept_lock_at: null })
     .lt("concept_lock_at", cutoff);
 
-  // Fetch unlocked rows needing normalization
-  const { data, error } = await supabase
+  // 2️⃣ Count remaining eligible rows
+  const { count: remaining, error: countErr } = await supabase
+    .from("all_subjects_raw")
+    .select("id", { count: "exact", head: true })
+    .not("concept", "is", null)
+    .is("concept_v2_final", null)
+    .not(
+      "subject",
+      "in",
+      `(${EXCLUDED_SUBJECTS.map(s => `"${s}"`).join(",")})`
+    );
+
+  if (countErr) throw countErr;
+
+  console.log(`📊 Remaining rows to normalize: ${remaining ?? 0}`);
+
+  // 3️⃣ Fetch rows to process
+  const { data: rows, error } = await supabase
     .from("all_subjects_raw")
     .select("id, concept")
     .not("concept", "is", null)
     .is("concept_v2_final", null)
     .is("concept_lock", null)
+    .not(
+      "subject",
+      "in",
+      `(${EXCLUDED_SUBJECTS.map(s => `"${s}"`).join(",")})`
+    )
     .order("created_at", { ascending: true })
     .limit(limit);
 
   if (error) throw error;
-  if (!data?.length) return [];
+  if (!rows?.length) return [];
 
-  const ids = data.map(r => r.id);
+  const ids = rows.map(r => r.id);
 
-  // Lock rows
+  // 4️⃣ Lock rows
   const { data: locked, error: err2 } = await supabase
     .from("all_subjects_raw")
     .update({
@@ -284,6 +311,8 @@ async function claimRows(limit) {
     .select("id, concept");
 
   if (err2) throw err2;
+
+  console.log(`⚙️ Claimed ${locked.length} rows`);
   return locked || [];
 }
 
@@ -302,15 +331,13 @@ async function clearLocks(ids) {
 // PROCESS ONE ROW
 // ─────────────────────────────────────────────
 async function processRow(row) {
-  const prompt = buildPrompt(row.concept);
-
-  let raw = await callOpenAI(prompt);
+  let raw = await callOpenAI(buildPrompt(row.concept));
   let parsed;
 
   try {
     parsed = safeParseJson(raw);
   } catch {
-    raw = await callOpenAI(prompt);
+    raw = await callOpenAI(buildPrompt(row.concept));
     parsed = safeParseJson(raw);
   }
 
@@ -327,7 +354,7 @@ async function processRow(row) {
 }
 
 // ─────────────────────────────────────────────
-// MAIN LOOP
+// MAIN LOOP (WITH PROGRESS LOGS)
 // ─────────────────────────────────────────────
 (async function main() {
   console.log(`🧹 CONCEPT NORMALIZER STARTED | ${WORKER_ID}`);
@@ -335,6 +362,7 @@ async function processRow(row) {
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);
+
       if (!claimed.length) {
         await sleep(SLEEP_MS);
         continue;
@@ -348,13 +376,16 @@ async function processRow(row) {
         );
 
         results.forEach((res, idx) => {
-          if (res.status !== "fulfilled") {
+          if (res.status === "fulfilled") {
+            console.log("   ✅ concept_v2_final generated");
+          } else {
+            console.error(`   ❌ Failed row ${batch[idx].id}`, res.reason);
             clearLocks([batch[idx].id]);
           }
         });
       }
     } catch (e) {
-      console.error("❌ Worker error:", e);
+      console.error("❌ Worker loop error:", e);
       await sleep(1000);
     }
   }

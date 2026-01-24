@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-dermatology-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-radiology-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (STRICT — DO NOT MODIFY)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Dermatology PYQ MCQs.
+You classify NEET-PG Radiology PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,36 +39,36 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Skin anatomy
-Primary skin lesions
-Secondary skin lesions
-Bacterial skin infections
-Viral skin infections
-Fungal skin infections
-Parasitic skin diseases
-Dermatitis
-Atopic dermatitis
-Contact dermatitis
-Psoriasis
-Lichen planus
-Acne vulgaris
-Rosacea
-Urticaria
-Drug eruptions
-Bullous disorders
-Vesiculobullous diseases
-Pigmentary disorders
-Vitiligo
-Hair disorders
-Nail disorders
-Sexually transmitted skin diseases
-Leprosy
-Cutaneous tuberculosis
-Skin tumors
-Melanoma
-Occupational dermatoses
-Photodermatoses
-Case-based dermatology
+X-ray physics
+Radiation units
+Radiation protection
+Contrast media
+Plain radiography
+Chest X-ray
+Abdominal X-ray
+Barium studies
+Ultrasound basics
+Doppler ultrasound
+CT principles
+CT brain
+CT chest
+CT abdomen
+MRI principles
+MRI brain
+MRI spine
+Nuclear medicine basics
+PET scan
+IVU
+HSG
+ERCP
+Angiography
+Interventional radiology
+Radiology of trauma
+Radiology of infections
+Radiology of tumors
+Radiology emergencies
+Pediatric radiology
+Case-based radiology
 
 MCQ:
 ${mcqText}
@@ -102,7 +102,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (DERMATOLOGY ONLY)
+// CLAIM ROWS (RADIOLOGY ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -117,7 +117,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Dermatology")
+    .eq("subject", "Radiology")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -178,7 +178,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 DERMATOLOGY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 RADIOLOGY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-physiology-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-obg-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (USE AS-IS — DO NOT TOUCH)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Physiology PYQ MCQs.
+You classify NEET-PG Obstetrics and Gynaecology PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,86 +39,86 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Homeostasis
-Cell membrane physiology
-Transport across membrane
-Resting membrane potential
-Action potential
-Nerve conduction
-Neuromuscular junction
-Skeletal muscle contraction
-Smooth muscle physiology
-Cardiac muscle physiology
-Cardiac cycle
-Heart sounds
-ECG
-Cardiac output
-Blood pressure regulation
-Microcirculation
-Shock physiology
-Coronary circulation
-Cerebral circulation
-Pulmonary circulation
-Respiratory mechanics
-Lung volumes
-Gas exchange
-Oxygen transport
-Carbon dioxide transport
-Regulation of respiration
-Hypoxia
-Cyanosis
-Acid–base physiology
-Body fluid compartments
-Edema physiology
-Renal blood flow
-Glomerular filtration
-Tubular reabsorption
-Tubular secretion
-Countercurrent mechanism
-Micturition reflex
-Regulation of sodium
-Regulation of potassium
-Regulation of calcium
-Endocrine physiology basics
-Hypothalamus
-Pituitary hormones
-Thyroid hormones
-Parathyroid hormone
-Adrenal hormones
-Insulin physiology
-Glucagon physiology
-Growth hormone
-Reproductive hormones
+Female reproductive anatomy
+Puberty
 Menstrual cycle
-Spermatogenesis
-Pregnancy physiology
-Lactation physiology
-Gastrointestinal motility
-Gastric secretion
-Pancreatic secretion
-Bile secretion
-Digestion and absorption
-Liver functions
-Basal metabolic rate
-Temperature regulation
-Exercise physiology
-Aging physiology
-Stress response
-Hemoglobin function
-RBC physiology
-WBC physiology
-Platelet physiology
-Hemostasis
-Immunophysiology
-CSF physiology
-Sleep physiology
-EEG
-Vision physiology
-Auditory physiology
-Pain pathways
-Reflexes
-Autonomic nervous system
-Case-based physiology
+Ovulation
+Hormonal regulation
+Amenorrhea
+Dysmenorrhea
+Abnormal uterine bleeding
+Polycystic ovary syndrome
+Endometriosis
+Fibroid uterus
+Adenomyosis
+Pelvic inflammatory disease
+Infertility – female
+Assisted reproductive techniques
+Contraception – methods
+Oral contraceptive pills
+Emergency contraception
+Medical termination pregnancy
+Physiology of pregnancy
+Antenatal care
+High-risk pregnancy
+Anemia in pregnancy
+Hypertensive disorders pregnancy
+Gestational diabetes
+Antepartum hemorrhage
+Placenta previa
+Abruptio placentae
+Preterm labor
+PROM
+Intrauterine growth restriction
+Rh incompatibility
+Multiple pregnancy
+Malpresentations
+Cephalopelvic disproportion
+Normal labor
+Stages of labor
+Induction of labor
+Augmentation of labor
+Operative vaginal delivery
+Cesarean section
+Postpartum hemorrhage
+Puerperium
+Lactation
+Breast disorders
+Obstetric emergencies
+Gynecological oncology basics
+Cervical cancer
+Endometrial cancer
+Ovarian tumors
+Vulvar disorders
+Vaginal discharge
+Sexually transmitted infections – OBG
+Urogenital prolapse
+Urinary incontinence
+Menopause
+Hormone replacement therapy
+Gestational trophoblastic disease
+Ectopic pregnancy
+Abortion complications
+Gynecological instruments
+Fetal monitoring
+Cardiotocography
+Ultrasound in OBG
+Prenatal screening
+Prenatal diagnosis
+Ethics in OBG
+Case-based obstetrics
+Case-based gynecology
+Gynecological surgeries
+Ovarian hyperstimulation
+Cervical screening
+PAP smear
+HPV infection
+HPV vaccine
+Sexual health counseling
+Adolescent gynecology
+Postmenopausal bleeding
+Assisted delivery complications
+Integrated OBG cases
 
 MCQ:
 ${mcqText}
@@ -152,7 +152,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (PHYSIOLOGY ONLY)
+// CLAIM ROWS (OBG ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -167,7 +167,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Physiology")
+    .eq("subject", "Obstetrics and Gynaecology")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -231,7 +231,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 PHYSIOLOGY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 OBG MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

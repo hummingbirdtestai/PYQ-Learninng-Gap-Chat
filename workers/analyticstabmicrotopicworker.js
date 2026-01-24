@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-anatomy-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-medicine-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (USE AS-IS — DO NOT TOUCH)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Anatomy PYQ MCQs.
+You classify NEET-PG General Medicine PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,86 +39,86 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Osteology
-Arthrology
-Myology
-Anatomy terminology
-Anatomical planes
-Upper limb – shoulder
-Upper limb – arm
-Upper limb – forearm
-Upper limb – hand
-Brachial plexus
-Lower limb – hip
-Lower limb – thigh
-Lower limb – leg
-Lower limb – foot
-Lumbosacral plexus
-Thoracic wall
-Mediastinum
-Heart anatomy
-Coronary arteries
-Lung anatomy
-Pleura
-Diaphragm
-Abdominal wall
-Inguinal canal
-Peritoneum
-Stomach anatomy
-Small intestine
-Large intestine
-Liver anatomy
-Portal vein
-Pancreas anatomy
-Spleen anatomy
-Kidney anatomy
-Ureter anatomy
-Urinary bladder
-Male genital organs
-Female genital organs
-Pelvic floor
-Head and neck – triangles
-Thyroid anatomy
-Pharynx anatomy
-Larynx anatomy
-Nose and sinuses
-Orbit anatomy
-Cranial nerves
-Brainstem anatomy
-Cerebellum
-Basal ganglia
-Internal capsule
-Ventricular system
-Spinal cord
-Meninges
-CSF circulation
-Blood supply of brain
-Autonomic nervous system
-Sympathetic chain
-Parasympathetic system
-Endocrine glands
-Pituitary anatomy
-Pineal gland
-Adrenal anatomy
-Thyroid blood supply
-Lymphatic system
-Thoracic duct
-Surface anatomy
-Radiological anatomy
-Developmental anatomy
-Pharyngeal arches
-Embryonic folding
-Congenital anomalies
-Hernias anatomy
-Applied anatomy – upper limb
-Applied anatomy – lower limb
-Applied anatomy – abdomen
-Applied anatomy – thorax
-Applied anatomy – head neck
-Neuroanatomy lesions
-Vascular anatomy
-Cross-sectional anatomy
-Case-based anatomy
+Approach to fever
+Fever of unknown origin
+Sepsis
+Shock syndromes
+Electrolyte disorders
+Acid–base disorders
+Anemia – clinical approach
+Bleeding disorders
+Thrombocytopenia
+Leukemias – medicine
+Lymphomas – medicine
+Diabetes mellitus
+Diabetic ketoacidosis
+Hypoglycemia
+Thyroid disorders
+Thyroid storm
+Adrenal insufficiency
+Cushing syndrome
+Pituitary disorders
+Metabolic syndrome
+Hypertension
+Hypertensive emergencies
+Ischemic heart disease
+Acute coronary syndrome
+Heart failure
+Valvular heart disease
+Arrhythmias
+Infective endocarditis
+Cardiomyopathies
+Pericardial diseases
+Stroke
+Transient ischemic attack
+Epilepsy
+Status epilepticus
+Headache disorders
+Movement disorders
+Parkinson disease
+Dementia
+Multiple sclerosis
+Myasthenia gravis
+Peripheral neuropathy
+Myopathies
+Acute kidney injury
+Chronic kidney disease
+Nephrotic syndrome
+Nephritic syndrome
+Glomerulonephritis
+Tubulointerstitial diseases
+Liver cirrhosis
+Portal hypertension
+Hepatic encephalopathy
+Acute hepatitis
+Chronic hepatitis
+Alcoholic liver disease
+NAFLD
+Peptic ulcer disease
+Upper GI bleeding
+Lower GI bleeding
+Inflammatory bowel disease
+Acute pancreatitis
+Chronic pancreatitis
+Malabsorption syndromes
+COPD
+Bronchial asthma
+Interstitial lung disease
+Pneumonia
+Pleural effusion
+Tuberculosis – medicine
+HIV – medicine
+Opportunistic infections
+Rheumatoid arthritis
+SLE
+Vasculitis
+Spondyloarthropathies
+Gout
+Septic arthritis
+Pyrexia in tropics
+Poisoning – medicine
+Snake bite
+Case-based medicine
 
 MCQ:
 ${mcqText}
@@ -152,7 +152,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (ANATOMY ONLY)
+// CLAIM ROWS (GENERAL MEDICINE ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -167,7 +167,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Anatomy")
+    .eq("subject", "General Medicine")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -231,7 +231,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 ANATOMY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 GENERAL MEDICINE MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-pediatrics-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-surgery-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (STRICT — DO NOT MODIFY)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Pediatrics PYQ MCQs.
+You classify NEET-PG General Surgery PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,76 +39,56 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Growth and development
-Milestones
-Growth charts
-Neonatal physiology
-Neonatal resuscitation
-Low birth weight
-Prematurity
-Neonatal jaundice
-Neonatal sepsis
-Birth asphyxia
-Infant nutrition
-Breastfeeding
-Complementary feeding
-PEM
-Vitamin deficiencies
-Immunization schedule
-Vaccine storage
-Common childhood infections
-ARI
-Diarrheal diseases
-Tuberculosis in children
-Pediatric HIV
-Pediatric anemia
-Thalassemia
-Pediatric leukemia
-Bleeding disorders child
-Congenital heart disease
-Cyanotic CHD
-Acyanotic CHD
-Rheumatic heart disease
-Pediatric asthma
-Wheezing disorders
-Pediatric pneumonia
-Bronchiolitis
-Pediatric epilepsy
-Febrile seizures
-Developmental delay
-Cerebral palsy
-Pediatric meningitis
-Encephalitis
-Pediatric nephrotic syndrome
-Pediatric UTI
-Pediatric GI bleeding
-Malabsorption
-Celiac disease
-Pediatric liver disease
-Pediatric diabetes
-Inborn errors metabolism
-Genetic syndromes
-Dysmorphic child
-Pediatric endocrinology
-Growth hormone disorders
-Puberty disorders
-Pediatric emergencies
-Shock in children
-Poisoning in children
-Snake bite children
-Adolescent health
-Behavioral problems
-ADHD
-Autism spectrum disorder
-Child abuse
-Pediatric dermatology
-Pediatric rheumatology
-Pediatric oncology
-Pediatric surgery basics
-Neonatal screening
-Case-based pediatrics
-Integrated pediatric care
-Preventive pediatrics
+Surgical infections
+Wound healing
+Shock and trauma
+Fluid therapy
+Blood transfusion
+Preoperative assessment
+Postoperative care
+Surgical anatomy
+Hernias
+Inguinal hernia
+Femoral hernia
+Umbilical hernia
+Intestinal obstruction
+Acute abdomen
+Appendicitis
+Peritonitis
+Gastrointestinal bleeding
+Peptic ulcer disease
+Colorectal carcinoma
+Hemorrhoids
+Fistula in ano
+Anal fissure
+Breast lumps
+Breast carcinoma
+Thyroid swellings
+Goiter
+Thyroid carcinoma
+Salivary gland disorders
+Gallstones
+Acute cholecystitis
+Obstructive jaundice
+Pancreatitis
+Pancreatic carcinoma
+Liver abscess
+Portal hypertension
+Varicose veins
+DVT
+Peripheral arterial disease
+Burns
+Head injury
+Neck swellings
+Lymphadenopathy
+Soft tissue tumors
+Bone tumors – surgery
+Urology basics
+Renal stones
+Prostate enlargement
+Testicular torsion
+Hydrocele
+Case-based surgery
 
 MCQ:
 ${mcqText}
@@ -142,7 +122,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (PEDIATRICS ONLY)
+// CLAIM ROWS (GENERAL SURGERY ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -157,7 +137,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Pediatrics")
+    .eq("subject", "General Surgery")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -221,7 +201,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 PEDIATRICS MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 GENERAL SURGERY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

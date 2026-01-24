@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-medicine-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-physiology-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (USE AS-IS — DO NOT TOUCH)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG General Medicine PYQ MCQs.
+You classify NEET-PG Physiology PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,86 +39,86 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Approach to fever
-Fever of unknown origin
-Sepsis
-Shock syndromes
-Electrolyte disorders
-Acid–base disorders
-Anemia – clinical approach
-Bleeding disorders
-Thrombocytopenia
-Leukemias – medicine
-Lymphomas – medicine
-Diabetes mellitus
-Diabetic ketoacidosis
-Hypoglycemia
-Thyroid disorders
-Thyroid storm
-Adrenal insufficiency
-Cushing syndrome
-Pituitary disorders
-Metabolic syndrome
-Hypertension
-Hypertensive emergencies
-Ischemic heart disease
-Acute coronary syndrome
-Heart failure
-Valvular heart disease
-Arrhythmias
-Infective endocarditis
-Cardiomyopathies
-Pericardial diseases
-Stroke
-Transient ischemic attack
-Epilepsy
-Status epilepticus
-Headache disorders
-Movement disorders
-Parkinson disease
-Dementia
-Multiple sclerosis
-Myasthenia gravis
-Peripheral neuropathy
-Myopathies
-Acute kidney injury
-Chronic kidney disease
-Nephrotic syndrome
-Nephritic syndrome
-Glomerulonephritis
-Tubulointerstitial diseases
-Liver cirrhosis
-Portal hypertension
-Hepatic encephalopathy
-Acute hepatitis
-Chronic hepatitis
-Alcoholic liver disease
-NAFLD
-Peptic ulcer disease
-Upper GI bleeding
-Lower GI bleeding
-Inflammatory bowel disease
-Acute pancreatitis
-Chronic pancreatitis
-Malabsorption syndromes
-COPD
-Bronchial asthma
-Interstitial lung disease
-Pneumonia
-Pleural effusion
-Tuberculosis – medicine
-HIV – medicine
-Opportunistic infections
-Rheumatoid arthritis
-SLE
-Vasculitis
-Spondyloarthropathies
-Gout
-Septic arthritis
-Pyrexia in tropics
-Poisoning – medicine
-Snake bite
-Case-based medicine
+Homeostasis
+Cell membrane physiology
+Transport across membrane
+Resting membrane potential
+Action potential
+Nerve conduction
+Neuromuscular junction
+Skeletal muscle contraction
+Smooth muscle physiology
+Cardiac muscle physiology
+Cardiac cycle
+Heart sounds
+ECG
+Cardiac output
+Blood pressure regulation
+Microcirculation
+Shock physiology
+Coronary circulation
+Cerebral circulation
+Pulmonary circulation
+Respiratory mechanics
+Lung volumes
+Gas exchange
+Oxygen transport
+Carbon dioxide transport
+Regulation of respiration
+Hypoxia
+Cyanosis
+Acid–base physiology
+Body fluid compartments
+Edema physiology
+Renal blood flow
+Glomerular filtration
+Tubular reabsorption
+Tubular secretion
+Countercurrent mechanism
+Micturition reflex
+Regulation of sodium
+Regulation of potassium
+Regulation of calcium
+Endocrine physiology basics
+Hypothalamus
+Pituitary hormones
+Thyroid hormones
+Parathyroid hormone
+Adrenal hormones
+Insulin physiology
+Glucagon physiology
+Growth hormone
+Reproductive hormones
+Menstrual cycle
+Spermatogenesis
+Pregnancy physiology
+Lactation physiology
+Gastrointestinal motility
+Gastric secretion
+Pancreatic secretion
+Bile secretion
+Digestion and absorption
+Liver functions
+Basal metabolic rate
+Temperature regulation
+Exercise physiology
+Aging physiology
+Stress response
+Hemoglobin function
+RBC physiology
+WBC physiology
+Platelet physiology
+Hemostasis
+Immunophysiology
+CSF physiology
+Sleep physiology
+EEG
+Vision physiology
+Auditory physiology
+Pain pathways
+Reflexes
+Autonomic nervous system
+Case-based physiology
 
 MCQ:
 ${mcqText}
@@ -152,7 +152,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (GENERAL MEDICINE ONLY)
+// CLAIM ROWS (PHYSIOLOGY ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -167,7 +167,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "General Medicine")
+    .eq("subject", "Physiology")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -231,7 +231,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 GENERAL MEDICINE MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 PHYSIOLOGY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

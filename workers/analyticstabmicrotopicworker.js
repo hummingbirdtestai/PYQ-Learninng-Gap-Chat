@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-micro-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-bio-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (USE AS-IS — DO NOT TOUCH)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Microbiology PYQ MCQs.
+You classify NEET-PG Biochemistry PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -37,158 +37,108 @@ RULES (STRICT):
 OUTPUT:
 <one topic name only>
 
-ALLOWED TOPICS (ONLY THESE 150):
+ALLOWED TOPICS (ONLY THESE):
 
-Louis Pasteur
-Koch’s postulates
-Sterilization methods
-Disinfection levels
-Antiseptics
-Culture media
-Enriched media
-Transport media
-Anaerobic culture
-Bacterial spores
-Bacterial toxins
-Endotoxins vs exotoxins
-Normal flora
-Biofilms
-Nosocomial infections
-Innate immunity
-Adaptive immunity
-Antigen structure
-Antibody structure
-IgG
-IgA
-IgM
-IgE
-Complement system
-Hypersensitivity reactions
-Autoimmunity
-Immunodeficiency disorders
-Cytokines
-Interferons
-Vaccines
-Staphylococcus aureus
-Coagulase-negative staphylococci
-MRSA
-Streptococcus pyogenes
-Streptococcus pneumoniae
-Viridans streptococci
-Enterococcus
-Corynebacterium diphtheriae
-Listeria monocytogenes
-Bacillus anthracis
-Bacillus cereus
-Clostridium perfringens
-Clostridium tetani
-Clostridium botulinum
-Actinomycosis
-Nocardia
-Neisseria gonorrhoeae
-Neisseria meningitidis
-Meningococcal vaccine
-Escherichia coli
-Klebsiella pneumoniae
-Proteus
-Salmonella typhi
-Shigella
-Vibrio cholerae
-Vibrio parahaemolyticus
-Campylobacter jejuni
-Helicobacter pylori
-Pseudomonas aeruginosa
-Legionella
-Yersinia pestis (Plague)
-Bordetella pertussis
-Haemophilus influenzae
-Mycoplasma
-Chlamydia trachomatis
-Chlamydia pneumoniae
-Lymphogranuloma venereum
-Granuloma inguinale
-Rickettsial diseases
-Coxiella burnetii
-Leptospira
-Borrelia
-Mycobacterium tuberculosis
-Atypical mycobacteria
-Tuberculin test
-IGRA
-GeneXpert
-Herpes simplex virus
-Varicella zoster virus
-Cytomegalovirus
-Epstein–Barr virus
-Poxvirus
-Parvovirus
-Hepatitis B
-Hepatitis A
-Hepatitis C
-Poliovirus
-Rabies virus
-Influenza virus
-Dengue virus
-Japanese encephalitis
-Rotavirus
-HIV
-Candida albicans
-Oral candidiasis
-Aspergillus
-Cryptococcus neoformans
-Mucormycosis
-Pneumocystis jirovecii
-Entamoeba histolytica
-Amoebiasis
-Giardia lamblia
-Giardiasis
-Trichomonas vaginalis
-Plasmodium falciparum
-Plasmodium malariae
-Malaria
-Toxoplasma gondii
-Toxoplasmosis
-Cryptosporidium
-Leishmania
-Kala-azar
-Ascaris lumbricoides
-Hookworm
-Ancylostoma braziliense
-Strongyloides stercoralis
-Trichuris trichiura
-Taenia solium
-Taenia saginata
-Echinococcus granulosus
-Hydatid cyst
-Schistosoma haematobium
-Schistosomiasis
-Wuchereria bancrofti
-Microscopy
-Staining methods
-Acid-fast staining
-Culture techniques
-Serological tests
-ELISA
-Complement fixation test
-Precipitation test
-Agglutination test
+Cell membrane
+Transport mechanisms
+Carbohydrate digestion
+Glycolysis
+TCA cycle
+Electron transport chain
+Oxidative phosphorylation
+Glycogen metabolism
+Gluconeogenesis
+HMP shunt
+Fructose metabolism
+Galactose metabolism
+Diabetes mellitus
+Hypoglycemia
+Lipid digestion
+Fatty acid oxidation
+Fatty acid synthesis
+Ketone bodies
+Cholesterol metabolism
+Lipoproteins
+Atherosclerosis
+Protein digestion
+Amino acid metabolism
+Transamination
+Deamination
+Urea cycle
+Inborn errors metabolism
+Phenylketonuria
+Maple syrup urine disease
+Porphyria
+Heme synthesis
+Heme degradation
+Hemoglobin structure
+Oxygen dissociation curve
+Acid–base balance
+Enzymes
+Enzyme kinetics
+Enzyme inhibition
+Vitamins
+Fat-soluble vitamins
+Water-soluble vitamins
+Vitamin deficiencies
+Minerals
+Calcium metabolism
+Phosphate metabolism
+Iron metabolism
+Copper metabolism
+Zinc metabolism
+Free radicals
+Antioxidants
+Reactive oxygen species
+DNA structure
+RNA structure
+DNA replication
+DNA repair
+Transcription
+Translation
+Genetic code
+Mutations
+Epigenetics
+Recombinant DNA
 PCR
-Diarrheal diseases
-Sexually transmitted infections
-CNS infections
-Respiratory infections
-Opportunistic infections
-Zoonotic diseases
-Food poisoning
-Scombroid poisoning
-Catheter-associated UTI
-Antibiotic resistance
-ESBL
-Carbapenem resistance
-Biosecurity
-Emerging infections
-Pandemic pathogens
-Image-based microbiology
+Blotting techniques
+Chromatography
+Spectrophotometry
+Electrophoresis
+Clinical enzymes
+Liver function tests
+Renal function tests
+Thyroid function tests
+Cardiac markers
+Tumor markers
+Plasma proteins
+Acute phase reactants
+Immunoglobulins
+Complement proteins
+Blood buffers
+Detoxification reactions
+Cytochrome P450
+Xenobiotics
+Nutrition
+Balanced diet
+PEM
+Obesity
+Starvation
+Metabolic syndrome
+Hormone receptors
+Second messengers
+Signal transduction
+Nitric oxide
+Eicosanoids
+Prostaglandins
+Leukotrienes
+Nitrogen balance
+Glycoproteins
+Proteoglycans
+Collagen synthesis
+Elastin
+Lab errors
+Case-based biochemistry
 
 MCQ:
 ${mcqText}
@@ -222,7 +172,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (MICROBIOLOGY ONLY)
+// CLAIM ROWS (BIOCHEMISTRY ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -237,7 +187,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Microbiology")
+    .eq("subject", "Biochemistry")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -279,7 +229,7 @@ async function clearLocks(ids) {
 // PROCESS ONE ROW
 // ─────────────────────────────────────────────
 async function processRow(row) {
-  let topic = await callOpenAI(buildPrompt(row.mcq));
+  const topic = await callOpenAI(buildPrompt(row.mcq));
 
   if (!topic) {
     throw new Error("❌ Empty topic returned");
@@ -301,7 +251,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 MICROBIOLOGY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 BIOCHEMISTRY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

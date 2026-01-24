@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-pathology-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-anatomy-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (USE AS-IS — DO NOT TOUCH)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Pathology PYQ MCQs.
+You classify NEET-PG Anatomy PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,106 +39,86 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Cell injury
-Cell death
-Apoptosis
-Necrosis
-Cellular adaptations
-Free radical injury
-Inflammation – acute
-Inflammation – chronic
-Granulomatous inflammation
-Healing and repair
-Edema
-Hyperemia and congestion
-Thrombosis
-Embolism
-Shock
-Amyloidosis
-Hyaline change
-Calcification
-Pigments
-Hemodynamic disorders
-Neoplasia – basics
-Oncogenes
-Tumor suppressor genes
-Carcinogenesis
-Tumor grading and staging
-Paraneoplastic syndromes
-Metastasis
-Tumor markers
-Hematopoiesis
-Anemia – classification
-Microcytic anemia
-Macrocytic anemia
-Hemolytic anemia
-Aplastic anemia
-Thalassemia
-Sickle cell disease
-Leukemias – acute
-Leukemias – chronic
-Lymphomas
-Plasma cell disorders
-Bleeding disorders
-Coagulation pathways
-Platelet disorders
-Transfusion reactions
-Immune system – basics
-Hypersensitivity reactions
-Autoimmune diseases
-Immunodeficiency disorders
-Amyloid light chain disease
-Infections – pathology
-Tuberculosis pathology
-Viral cytopathic effects
-Glomerular diseases
-Nephrotic syndrome
-Nephritic syndrome
-Tubulointerstitial diseases
-Acute kidney injury
-Chronic kidney disease
-Liver cirrhosis
-Hepatitis pathology
-Fatty liver disease
-Portal hypertension
-Gallbladder pathology
-Esophageal diseases
-Gastritis
-Peptic ulcer disease
-Intestinal malabsorption
-Inflammatory bowel disease
-Colorectal carcinoma
-Pancreatitis
-Diabetes pathology
-Thyroid disorders
-Parathyroid disorders
-Pituitary adenomas
-Adrenal disorders
-Lung infections
-Interstitial lung disease
-Lung carcinoma
-Breast pathology
-Cervical pathology
-Ovarian tumors
-Endometrial pathology
-Prostatic diseases
-Testicular tumors
-Bone tumors
-Soft tissue tumors
-Muscle disorders
-Skin tumors
-Vasculitis
-Systemic sclerosis
-Rheumatoid arthritis
-SLE
-CNS tumors
-Neurodegenerative diseases
-Stroke pathology
-Myopathies
-Pediatric tumors
-Genetic disorders
-Metabolic storage diseases
-Case-based pathology
+Osteology
+Arthrology
+Myology
+Anatomy terminology
+Anatomical planes
+Upper limb – shoulder
+Upper limb – arm
+Upper limb – forearm
+Upper limb – hand
+Brachial plexus
+Lower limb – hip
+Lower limb – thigh
+Lower limb – leg
+Lower limb – foot
+Lumbosacral plexus
+Thoracic wall
+Mediastinum
+Heart anatomy
+Coronary arteries
+Lung anatomy
+Pleura
+Diaphragm
+Abdominal wall
+Inguinal canal
+Peritoneum
+Stomach anatomy
+Small intestine
+Large intestine
+Liver anatomy
+Portal vein
+Pancreas anatomy
+Spleen anatomy
+Kidney anatomy
+Ureter anatomy
+Urinary bladder
+Male genital organs
+Female genital organs
+Pelvic floor
+Head and neck – triangles
+Thyroid anatomy
+Pharynx anatomy
+Larynx anatomy
+Nose and sinuses
+Orbit anatomy
+Cranial nerves
+Brainstem anatomy
+Cerebellum
+Basal ganglia
+Internal capsule
+Ventricular system
+Spinal cord
+Meninges
+CSF circulation
+Blood supply of brain
+Autonomic nervous system
+Sympathetic chain
+Parasympathetic system
+Endocrine glands
+Pituitary anatomy
+Pineal gland
+Adrenal anatomy
+Thyroid blood supply
+Lymphatic system
+Thoracic duct
+Surface anatomy
+Radiological anatomy
+Developmental anatomy
+Pharyngeal arches
+Embryonic folding
+Congenital anomalies
+Hernias anatomy
+Applied anatomy – upper limb
+Applied anatomy – lower limb
+Applied anatomy – abdomen
+Applied anatomy – thorax
+Applied anatomy – head neck
+Neuroanatomy lesions
+Vascular anatomy
+Cross-sectional anatomy
+Case-based anatomy
 
 MCQ:
 ${mcqText}
@@ -172,7 +152,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (PATHOLOGY ONLY)
+// CLAIM ROWS (ANATOMY ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -187,7 +167,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Pathology")
+    .eq("subject", "Anatomy")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -251,7 +231,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 PATHOLOGY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 ANATOMY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

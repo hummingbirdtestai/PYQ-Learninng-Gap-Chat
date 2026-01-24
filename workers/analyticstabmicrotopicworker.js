@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-ortho-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-forensic-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (STRICT — DO NOT MODIFY)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Orthopedics PYQ MCQs.
+You classify NEET-PG Forensic Medicine PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,56 +39,56 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Bone healing
-Fracture classification
-Open fractures
-Compartment syndrome
-Osteomyelitis
-Septic arthritis
-Tuberculosis bone
-Rickets
-Osteomalacia
-Osteoporosis
-Metabolic bone disease
-Bone tumors
-Primary bone tumors
-Secondary bone tumors
-Soft tissue tumors
-Upper limb fractures
-Lower limb fractures
-Pelvic fractures
-Spine fractures
-Spinal cord injury
-Disc prolapse
-Low back pain
-Scoliosis
-Kyphosis
-Lordosis
-Congenital hip dislocation
-Perthes disease
-Slipped capital femoral epiphysis
-Club foot
-Genu valgum
-Genu varum
-Osteoarthritis
-Rheumatoid arthritis
-Ankylosing spondylitis
-Shoulder disorders
-Knee disorders
-Meniscal injury
-Ligament injuries
-Sports injuries
-Amputations
-Prosthesis
-Rehabilitation
-Orthopedic infections
-Hand injuries
-Foot deformities
-Pediatric orthopedics
-Orthopedic emergencies
-Orthopedic instruments
-Imaging in orthopedics
-Case-based orthopedics
+Medical jurisprudence
+Legal duties doctor
+Consent
+Medical negligence
+Autopsy procedure
+Cause of death
+Time since death
+Postmortem changes
+Putrefaction
+Rigor mortis
+Livor mortis
+Mechanical injuries
+Firearm injuries
+Sharp weapon injuries
+Blunt force injuries
+Burns forensic
+Electrical injuries
+Drowning
+Asphyxia
+Hanging
+Strangulation
+Sexual offences
+Virginity tests
+Age estimation
+Identification
+Fingerprints
+DNA profiling
+Forensic toxicology
+Alcohol intoxication
+Opioid poisoning
+Barbiturate poisoning
+Organophosphate poisoning
+Snake bite forensic
+Food poisoning forensic
+Infanticide
+Foeticide
+Dowry death
+Custodial death
+Exhumation
+Court procedures
+Medical certificates
+Injury certification
+Poison analysis
+Chemical examination
+Forensic psychiatry
+Insanity defense
+Professional misconduct
+Ethics forensic
+Case-based forensic
+Integrated forensic cases
 
 MCQ:
 ${mcqText}
@@ -122,7 +122,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (ORTHOPEDICS ONLY)
+// CLAIM ROWS (FORENSIC MEDICINE ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -137,7 +137,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Orthopedics")
+    .eq("subject", "Forensic Medicine")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -201,7 +201,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 ORTHOPEDICS MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 FORENSIC MEDICINE MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

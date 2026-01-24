@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-surgery-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-ortho-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (STRICT — DO NOT MODIFY)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG General Surgery PYQ MCQs.
+You classify NEET-PG Orthopedics PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,56 +39,56 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Surgical infections
-Wound healing
-Shock and trauma
-Fluid therapy
-Blood transfusion
-Preoperative assessment
-Postoperative care
-Surgical anatomy
-Hernias
-Inguinal hernia
-Femoral hernia
-Umbilical hernia
-Intestinal obstruction
-Acute abdomen
-Appendicitis
-Peritonitis
-Gastrointestinal bleeding
-Peptic ulcer disease
-Colorectal carcinoma
-Hemorrhoids
-Fistula in ano
-Anal fissure
-Breast lumps
-Breast carcinoma
-Thyroid swellings
-Goiter
-Thyroid carcinoma
-Salivary gland disorders
-Gallstones
-Acute cholecystitis
-Obstructive jaundice
-Pancreatitis
-Pancreatic carcinoma
-Liver abscess
-Portal hypertension
-Varicose veins
-DVT
-Peripheral arterial disease
-Burns
-Head injury
-Neck swellings
-Lymphadenopathy
+Bone healing
+Fracture classification
+Open fractures
+Compartment syndrome
+Osteomyelitis
+Septic arthritis
+Tuberculosis bone
+Rickets
+Osteomalacia
+Osteoporosis
+Metabolic bone disease
+Bone tumors
+Primary bone tumors
+Secondary bone tumors
 Soft tissue tumors
-Bone tumors – surgery
-Urology basics
-Renal stones
-Prostate enlargement
-Testicular torsion
-Hydrocele
-Case-based surgery
+Upper limb fractures
+Lower limb fractures
+Pelvic fractures
+Spine fractures
+Spinal cord injury
+Disc prolapse
+Low back pain
+Scoliosis
+Kyphosis
+Lordosis
+Congenital hip dislocation
+Perthes disease
+Slipped capital femoral epiphysis
+Club foot
+Genu valgum
+Genu varum
+Osteoarthritis
+Rheumatoid arthritis
+Ankylosing spondylitis
+Shoulder disorders
+Knee disorders
+Meniscal injury
+Ligament injuries
+Sports injuries
+Amputations
+Prosthesis
+Rehabilitation
+Orthopedic infections
+Hand injuries
+Foot deformities
+Pediatric orthopedics
+Orthopedic emergencies
+Orthopedic instruments
+Imaging in orthopedics
+Case-based orthopedics
 
 MCQ:
 ${mcqText}
@@ -122,7 +122,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (GENERAL SURGERY ONLY)
+// CLAIM ROWS (ORTHOPEDICS ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -137,7 +137,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "General Surgery")
+    .eq("subject", "Orthopedics")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -201,7 +201,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 GENERAL SURGERY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 ORTHOPEDICS MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

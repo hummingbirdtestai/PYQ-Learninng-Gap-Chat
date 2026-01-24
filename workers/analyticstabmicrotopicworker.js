@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-bio-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-pharma-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (USE AS-IS — DO NOT TOUCH)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Biochemistry PYQ MCQs.
+You classify NEET-PG Pharmacology PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,106 +39,106 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Cell membrane
-Transport mechanisms
-Carbohydrate digestion
-Glycolysis
-TCA cycle
-Electron transport chain
-Oxidative phosphorylation
-Glycogen metabolism
-Gluconeogenesis
-HMP shunt
-Fructose metabolism
-Galactose metabolism
-Diabetes mellitus
-Hypoglycemia
-Lipid digestion
-Fatty acid oxidation
-Fatty acid synthesis
-Ketone bodies
-Cholesterol metabolism
-Lipoproteins
-Atherosclerosis
-Protein digestion
-Amino acid metabolism
-Transamination
-Deamination
-Urea cycle
-Inborn errors metabolism
-Phenylketonuria
-Maple syrup urine disease
-Porphyria
-Heme synthesis
-Heme degradation
-Hemoglobin structure
-Oxygen dissociation curve
-Acid–base balance
-Enzymes
-Enzyme kinetics
+Pharmacokinetics
+Absorption
+Distribution
+Metabolism
+Excretion
+Bioavailability
+Volume of distribution
+Clearance
+Half-life
+Steady state
+Pharmacodynamics
+Dose–response curve
+Therapeutic index
+Adverse drug reactions
+Drug interactions
+Enzyme induction
 Enzyme inhibition
-Vitamins
-Fat-soluble vitamins
-Water-soluble vitamins
-Vitamin deficiencies
-Minerals
-Calcium metabolism
-Phosphate metabolism
-Iron metabolism
-Copper metabolism
-Zinc metabolism
-Free radicals
-Antioxidants
-Reactive oxygen species
-DNA structure
-RNA structure
-DNA replication
-DNA repair
-Transcription
-Translation
-Genetic code
-Mutations
-Epigenetics
-Recombinant DNA
-PCR
-Blotting techniques
-Chromatography
-Spectrophotometry
-Electrophoresis
-Clinical enzymes
-Liver function tests
-Renal function tests
-Thyroid function tests
-Cardiac markers
-Tumor markers
-Plasma proteins
-Acute phase reactants
-Immunoglobulins
-Complement proteins
-Blood buffers
-Detoxification reactions
-Cytochrome P450
-Xenobiotics
-Nutrition
-Balanced diet
-PEM
-Obesity
-Starvation
-Metabolic syndrome
-Hormone receptors
-Second messengers
-Signal transduction
-Nitric oxide
-Eicosanoids
-Prostaglandins
-Leukotrienes
-Nitrogen balance
-Glycoproteins
-Proteoglycans
-Collagen synthesis
-Elastin
-Lab errors
-Case-based biochemistry
+Autonomic pharmacology
+Cholinergic drugs
+Anticholinergics
+Adrenergic agonists
+Adrenergic blockers
+Antihypertensives
+Diuretics
+Antianginals
+Antiarrhythmics
+Heart failure drugs
+Anticoagulants
+Antiplatelets
+Thrombolytics
+NSAIDs
+Opioids
+General anesthetics
+Local anesthetics
+Sedatives
+Hypnotics
+Antiepileptics
+Antipsychotics
+Antidepressants
+Mood stabilizers
+Antianxiety drugs
+Parkinson drugs
+Alzheimer drugs
+Antimicrobials
+Penicillins
+Cephalosporins
+Carbapenems
+Aminoglycosides
+Macrolides
+Fluoroquinolones
+Tetracyclines
+Antitubercular drugs
+Antileprosy drugs
+Antifungals
+Antivirals
+Anti-HIV drugs
+Antimalarials
+Antihelminthics
+Antiprotozoals
+Anticancer drugs
+Alkylating agents
+Antimetabolites
+Microtubule inhibitors
+Hormonal anticancer drugs
+Immunosuppressants
+Corticosteroids
+Thyroid drugs
+Antidiabetic drugs
+Insulin
+Oral hypoglycemics
+Lipid-lowering drugs
+Drugs for gout
+Drugs for osteoporosis
+Antiasthma drugs
+Antitussives
+Antiulcer drugs
+Antiemetics
+Laxatives
+Antidiarrheals
+Contraceptives
+Oxytocics
+Tocolytics
+Erectile dysfunction drugs
+Drugs in pregnancy
+Drugs in renal failure
+Drugs in liver disease
+Pharmacovigilance
+Schedule drugs
+Essential medicines
+Clinical trials
+Drug resistance
+Drug abuse
+Toxicology basics
+Chelating agents
+Heavy metal poisoning
+Pesticide poisoning
+Antidotes
+Vaccine pharmacology
+Gene therapy drugs
+Case-based pharmacology
 
 MCQ:
 ${mcqText}
@@ -172,7 +172,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (BIOCHEMISTRY ONLY)
+// CLAIM ROWS (PHARMACOLOGY ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -187,7 +187,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Biochemistry")
+    .eq("subject", "Pharmacology")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -251,7 +251,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 BIOCHEMISTRY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 PHARMACOLOGY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

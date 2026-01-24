@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-pharma-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-pathology-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (USE AS-IS — DO NOT TOUCH)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Pharmacology PYQ MCQs.
+You classify NEET-PG Pathology PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,106 +39,106 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Pharmacokinetics
-Absorption
-Distribution
-Metabolism
-Excretion
-Bioavailability
-Volume of distribution
-Clearance
-Half-life
-Steady state
-Pharmacodynamics
-Dose–response curve
-Therapeutic index
-Adverse drug reactions
-Drug interactions
-Enzyme induction
-Enzyme inhibition
-Autonomic pharmacology
-Cholinergic drugs
-Anticholinergics
-Adrenergic agonists
-Adrenergic blockers
-Antihypertensives
-Diuretics
-Antianginals
-Antiarrhythmics
-Heart failure drugs
-Anticoagulants
-Antiplatelets
-Thrombolytics
-NSAIDs
-Opioids
-General anesthetics
-Local anesthetics
-Sedatives
-Hypnotics
-Antiepileptics
-Antipsychotics
-Antidepressants
-Mood stabilizers
-Antianxiety drugs
-Parkinson drugs
-Alzheimer drugs
-Antimicrobials
-Penicillins
-Cephalosporins
-Carbapenems
-Aminoglycosides
-Macrolides
-Fluoroquinolones
-Tetracyclines
-Antitubercular drugs
-Antileprosy drugs
-Antifungals
-Antivirals
-Anti-HIV drugs
-Antimalarials
-Antihelminthics
-Antiprotozoals
-Anticancer drugs
-Alkylating agents
-Antimetabolites
-Microtubule inhibitors
-Hormonal anticancer drugs
-Immunosuppressants
-Corticosteroids
-Thyroid drugs
-Antidiabetic drugs
-Insulin
-Oral hypoglycemics
-Lipid-lowering drugs
-Drugs for gout
-Drugs for osteoporosis
-Antiasthma drugs
-Antitussives
-Antiulcer drugs
-Antiemetics
-Laxatives
-Antidiarrheals
-Contraceptives
-Oxytocics
-Tocolytics
-Erectile dysfunction drugs
-Drugs in pregnancy
-Drugs in renal failure
-Drugs in liver disease
-Pharmacovigilance
-Schedule drugs
-Essential medicines
-Clinical trials
-Drug resistance
-Drug abuse
-Toxicology basics
-Chelating agents
-Heavy metal poisoning
-Pesticide poisoning
-Antidotes
-Vaccine pharmacology
-Gene therapy drugs
-Case-based pharmacology
+Cell injury
+Cell death
+Apoptosis
+Necrosis
+Cellular adaptations
+Free radical injury
+Inflammation – acute
+Inflammation – chronic
+Granulomatous inflammation
+Healing and repair
+Edema
+Hyperemia and congestion
+Thrombosis
+Embolism
+Shock
+Amyloidosis
+Hyaline change
+Calcification
+Pigments
+Hemodynamic disorders
+Neoplasia – basics
+Oncogenes
+Tumor suppressor genes
+Carcinogenesis
+Tumor grading and staging
+Paraneoplastic syndromes
+Metastasis
+Tumor markers
+Hematopoiesis
+Anemia – classification
+Microcytic anemia
+Macrocytic anemia
+Hemolytic anemia
+Aplastic anemia
+Thalassemia
+Sickle cell disease
+Leukemias – acute
+Leukemias – chronic
+Lymphomas
+Plasma cell disorders
+Bleeding disorders
+Coagulation pathways
+Platelet disorders
+Transfusion reactions
+Immune system – basics
+Hypersensitivity reactions
+Autoimmune diseases
+Immunodeficiency disorders
+Amyloid light chain disease
+Infections – pathology
+Tuberculosis pathology
+Viral cytopathic effects
+Glomerular diseases
+Nephrotic syndrome
+Nephritic syndrome
+Tubulointerstitial diseases
+Acute kidney injury
+Chronic kidney disease
+Liver cirrhosis
+Hepatitis pathology
+Fatty liver disease
+Portal hypertension
+Gallbladder pathology
+Esophageal diseases
+Gastritis
+Peptic ulcer disease
+Intestinal malabsorption
+Inflammatory bowel disease
+Colorectal carcinoma
+Pancreatitis
+Diabetes pathology
+Thyroid disorders
+Parathyroid disorders
+Pituitary adenomas
+Adrenal disorders
+Lung infections
+Interstitial lung disease
+Lung carcinoma
+Breast pathology
+Cervical pathology
+Ovarian tumors
+Endometrial pathology
+Prostatic diseases
+Testicular tumors
+Bone tumors
+Soft tissue tumors
+Muscle disorders
+Skin tumors
+Vasculitis
+Systemic sclerosis
+Rheumatoid arthritis
+SLE
+CNS tumors
+Neurodegenerative diseases
+Stroke pathology
+Myopathies
+Pediatric tumors
+Genetic disorders
+Metabolic storage diseases
+Case-based pathology
 
 MCQ:
 ${mcqText}
@@ -172,7 +172,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (PHARMACOLOGY ONLY)
+// CLAIM ROWS (PATHOLOGY ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -187,7 +187,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Pharmacology")
+    .eq("subject", "Pathology")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -251,7 +251,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 PHARMACOLOGY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 PATHOLOGY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

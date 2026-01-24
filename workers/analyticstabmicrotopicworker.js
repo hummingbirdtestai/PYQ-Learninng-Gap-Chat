@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-psychiatry-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-ent-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (STRICT — DO NOT MODIFY)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Psychiatry PYQ MCQs.
+You classify NEET-PG ENT PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,56 +39,56 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Psychiatric interview
-Mental status examination
-Classification of mental disorders
-Schizophrenia
-Delusional disorders
-Mood disorders
-Major depression
-Bipolar disorder
-Anxiety disorders
-Panic disorder
-Phobias
-OCD
-PTSD
-Somatoform disorders
-Dissociative disorders
-Personality disorders
-Substance use disorders
-Alcohol dependence
-Opioid dependence
-Cannabis dependence
-Nicotine dependence
-Childhood psychiatric disorders
-ADHD
-Autism spectrum disorders
-Learning disorders
-Eating disorders
-Sleep disorders
-Sexual disorders
-Psychosexual disorders
-Dementia
-Delirium
-Amnestic disorders
-Neurocognitive disorders
-Intellectual disability
-Mental retardation laws
-Suicide risk assessment
-Self-harm
-Psychiatric emergencies
-Psychopharmacology basics
-Antipsychotic drugs
-Antidepressant drugs
-Mood stabilizers
-Anxiolytics
-Electroconvulsive therapy
-Psychotherapy
-Behavior therapy
-Cognitive therapy
-Community psychiatry
-Legal aspects psychiatry
-Case-based psychiatry
+Anatomy ear
+Physiology ear
+Hearing tests
+Deafness
+Otitis externa
+Otitis media
+CSOM
+Cholesteatoma
+Otosclerosis
+Vertigo
+Meniere disease
+Facial nerve palsy
+Nasal anatomy
+Epistaxis
+Rhinitis
+Sinusitis
+Nasal polyps
+Deviated nasal septum
+Nasopharyngeal carcinoma
+Adenoids
+Tonsillitis
+Peritonsillar abscess
+Oropharyngeal tumors
+Laryngeal anatomy
+Laryngitis
+Hoarseness
+Vocal cord palsy
+Laryngeal carcinoma
+Tracheostomy
+Foreign body airway
+Head neck anatomy
+Neck swellings
+Thyroid swellings
+Salivary gland disorders
+Parotid tumors
+Submandibular gland
+Sialolithiasis
+Oral cavity lesions
+Oral leukoplakia
+Oral cancer
+Sleep apnea
+Snoring
+ENT trauma
+Fracture nasal bone
+ENT infections
+ENT instruments
+Audiometry
+Endoscopy ENT
+ENT emergencies
+Case-based ENT
 
 MCQ:
 ${mcqText}
@@ -122,7 +122,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (PSYCHIATRY ONLY)
+// CLAIM ROWS (ENT ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -137,7 +137,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Psychiatry")
+    .eq("subject", "ENT")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -180,10 +180,7 @@ async function clearLocks(ids) {
 // ─────────────────────────────────────────────
 async function processRow(row) {
   const topic = await callOpenAI(buildPrompt(row.mcq));
-
-  if (!topic) {
-    throw new Error("❌ Empty topic returned");
-  }
+  if (!topic) throw new Error("❌ Empty topic returned");
 
   await supabase
     .from("mcq_analysis")
@@ -201,7 +198,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 PSYCHIATRY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 ENT MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {
@@ -217,9 +214,7 @@ async function processRow(row) {
       for (let i = 0; i < claimed.length; i += BATCH_SIZE) {
         const batch = claimed.slice(i, i + BATCH_SIZE);
 
-        const results = await Promise.allSettled(
-          batch.map(processRow)
-        );
+        const results = await Promise.allSettled(batch.map(processRow));
 
         results.forEach((res, idx) => {
           if (res.status === "fulfilled") {

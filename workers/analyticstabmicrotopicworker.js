@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-forensic-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-psychiatry-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (STRICT — DO NOT MODIFY)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Forensic Medicine PYQ MCQs.
+You classify NEET-PG Psychiatry PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,56 +39,56 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Medical jurisprudence
-Legal duties doctor
-Consent
-Medical negligence
-Autopsy procedure
-Cause of death
-Time since death
-Postmortem changes
-Putrefaction
-Rigor mortis
-Livor mortis
-Mechanical injuries
-Firearm injuries
-Sharp weapon injuries
-Blunt force injuries
-Burns forensic
-Electrical injuries
-Drowning
-Asphyxia
-Hanging
-Strangulation
-Sexual offences
-Virginity tests
-Age estimation
-Identification
-Fingerprints
-DNA profiling
-Forensic toxicology
-Alcohol intoxication
-Opioid poisoning
-Barbiturate poisoning
-Organophosphate poisoning
-Snake bite forensic
-Food poisoning forensic
-Infanticide
-Foeticide
-Dowry death
-Custodial death
-Exhumation
-Court procedures
-Medical certificates
-Injury certification
-Poison analysis
-Chemical examination
-Forensic psychiatry
-Insanity defense
-Professional misconduct
-Ethics forensic
-Case-based forensic
-Integrated forensic cases
+Psychiatric interview
+Mental status examination
+Classification of mental disorders
+Schizophrenia
+Delusional disorders
+Mood disorders
+Major depression
+Bipolar disorder
+Anxiety disorders
+Panic disorder
+Phobias
+OCD
+PTSD
+Somatoform disorders
+Dissociative disorders
+Personality disorders
+Substance use disorders
+Alcohol dependence
+Opioid dependence
+Cannabis dependence
+Nicotine dependence
+Childhood psychiatric disorders
+ADHD
+Autism spectrum disorders
+Learning disorders
+Eating disorders
+Sleep disorders
+Sexual disorders
+Psychosexual disorders
+Dementia
+Delirium
+Amnestic disorders
+Neurocognitive disorders
+Intellectual disability
+Mental retardation laws
+Suicide risk assessment
+Self-harm
+Psychiatric emergencies
+Psychopharmacology basics
+Antipsychotic drugs
+Antidepressant drugs
+Mood stabilizers
+Anxiolytics
+Electroconvulsive therapy
+Psychotherapy
+Behavior therapy
+Cognitive therapy
+Community psychiatry
+Legal aspects psychiatry
+Case-based psychiatry
 
 MCQ:
 ${mcqText}
@@ -122,7 +122,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (FORENSIC MEDICINE ONLY)
+// CLAIM ROWS (PSYCHIATRY ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -137,7 +137,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Forensic Medicine")
+    .eq("subject", "Psychiatry")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -201,7 +201,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 FORENSIC MEDICINE MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 PSYCHIATRY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

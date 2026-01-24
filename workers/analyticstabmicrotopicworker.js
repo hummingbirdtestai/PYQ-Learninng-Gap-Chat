@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-ent-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-dermatology-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (STRICT — DO NOT MODIFY)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG ENT PYQ MCQs.
+You classify NEET-PG Dermatology PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,56 +39,36 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Anatomy ear
-Physiology ear
-Hearing tests
-Deafness
-Otitis externa
-Otitis media
-CSOM
-Cholesteatoma
-Otosclerosis
-Vertigo
-Meniere disease
-Facial nerve palsy
-Nasal anatomy
-Epistaxis
-Rhinitis
-Sinusitis
-Nasal polyps
-Deviated nasal septum
-Nasopharyngeal carcinoma
-Adenoids
-Tonsillitis
-Peritonsillar abscess
-Oropharyngeal tumors
-Laryngeal anatomy
-Laryngitis
-Hoarseness
-Vocal cord palsy
-Laryngeal carcinoma
-Tracheostomy
-Foreign body airway
-Head neck anatomy
-Neck swellings
-Thyroid swellings
-Salivary gland disorders
-Parotid tumors
-Submandibular gland
-Sialolithiasis
-Oral cavity lesions
-Oral leukoplakia
-Oral cancer
-Sleep apnea
-Snoring
-ENT trauma
-Fracture nasal bone
-ENT infections
-ENT instruments
-Audiometry
-Endoscopy ENT
-ENT emergencies
-Case-based ENT
+Skin anatomy
+Primary skin lesions
+Secondary skin lesions
+Bacterial skin infections
+Viral skin infections
+Fungal skin infections
+Parasitic skin diseases
+Dermatitis
+Atopic dermatitis
+Contact dermatitis
+Psoriasis
+Lichen planus
+Acne vulgaris
+Rosacea
+Urticaria
+Drug eruptions
+Bullous disorders
+Vesiculobullous diseases
+Pigmentary disorders
+Vitiligo
+Hair disorders
+Nail disorders
+Sexually transmitted skin diseases
+Leprosy
+Cutaneous tuberculosis
+Skin tumors
+Melanoma
+Occupational dermatoses
+Photodermatoses
+Case-based dermatology
 
 MCQ:
 ${mcqText}
@@ -122,7 +102,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (ENT ONLY)
+// CLAIM ROWS (DERMATOLOGY ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -137,7 +117,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "ENT")
+    .eq("subject", "Dermatology")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -198,7 +178,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 ENT MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 DERMATOLOGY MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

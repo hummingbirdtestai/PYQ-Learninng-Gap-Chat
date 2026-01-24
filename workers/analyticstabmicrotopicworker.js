@@ -13,14 +13,14 @@ const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-obg-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `mcq-community-topic-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
 // PROMPT (USE AS-IS — DO NOT TOUCH)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqText) {
   return `
-You classify NEET-PG Obstetrics and Gynaecology PYQ MCQs.
+You classify NEET-PG Community Medicine (PSM) PYQ MCQs.
 
 Your ONLY output is the value to be written into the column:
 new_topic TEXT
@@ -39,86 +39,76 @@ OUTPUT:
 
 ALLOWED TOPICS (ONLY THESE):
 
-Female reproductive anatomy
-Puberty
-Menstrual cycle
-Ovulation
-Hormonal regulation
-Amenorrhea
-Dysmenorrhea
-Abnormal uterine bleeding
-Polycystic ovary syndrome
-Endometriosis
-Fibroid uterus
-Adenomyosis
-Pelvic inflammatory disease
-Infertility – female
-Assisted reproductive techniques
-Contraception – methods
-Oral contraceptive pills
-Emergency contraception
-Medical termination pregnancy
-Physiology of pregnancy
-Antenatal care
-High-risk pregnancy
-Anemia in pregnancy
-Hypertensive disorders pregnancy
-Gestational diabetes
-Antepartum hemorrhage
-Placenta previa
-Abruptio placentae
-Preterm labor
-PROM
-Intrauterine growth restriction
-Rh incompatibility
-Multiple pregnancy
-Malpresentations
-Cephalopelvic disproportion
-Normal labor
-Stages of labor
-Induction of labor
-Augmentation of labor
-Operative vaginal delivery
-Cesarean section
-Postpartum hemorrhage
-Puerperium
-Lactation
-Breast disorders
-Obstetric emergencies
-Gynecological oncology basics
-Cervical cancer
-Endometrial cancer
-Ovarian tumors
-Vulvar disorders
-Vaginal discharge
-Sexually transmitted infections – OBG
-Urogenital prolapse
-Urinary incontinence
-Menopause
-Hormone replacement therapy
-Gestational trophoblastic disease
-Ectopic pregnancy
-Abortion complications
-Gynecological instruments
-Fetal monitoring
-Cardiotocography
-Ultrasound in OBG
-Prenatal screening
-Prenatal diagnosis
-Ethics in OBG
-Case-based obstetrics
-Case-based gynecology
-Gynecological surgeries
-Ovarian hyperstimulation
-Cervical screening
-PAP smear
-HPV infection
-HPV vaccine
-Sexual health counseling
-Adolescent gynecology
-Postmenopausal bleeding
-Assisted delivery complications
-Integrated OBG cases
+Epidemiology basics
+Incidence and prevalence
+Screening tests
+Sensitivity and specificity
+Predictive values
+Epidemiological study designs
+Bias and confounding
+Surveillance
+Outbreak investigation
+Communicable disease control
+Non-communicable diseases
+Levels of prevention
+Primary health care
+Health indicators
+Health planning
+National health programs
+National tuberculosis program
+National HIV program
+Universal immunization program
+Cold chain
+Vaccines – schedules
+Nutrition programs
+Protein energy malnutrition
+Micronutrient deficiencies
+Maternal mortality
+Infant mortality
+Family planning
+Contraceptive methods
+Population dynamics
+Demography
+Sociology in health
+Health education
+Communication methods
+Environmental health
+Water purification
+Air pollution
+Waste disposal
+Occupational health
+Industrial hazards
+Accidents and injuries
+Disaster management
+Mental health programs
+School health services
+Geriatric health
+Adolescent health
+Urban health
+Rural health services
+Health care delivery system
+Health economics
+Cost-benefit analysis
+Health insurance
+Biomedical waste management
+Infection control
+Hospital waste
+Food hygiene
+Food adulteration
+Vector control
+Mosquito-borne diseases
+Zoonotic diseases
+Climate change health
+Genetics in community
+Occupational diseases
+Health legislation
+Ethics in public health
+Research methodology
+Biostatistics basics
+Vital statistics
+Census
+Sample size
+Case-based community medicine
 
 MCQ:
 ${mcqText}
@@ -152,7 +142,7 @@ async function callOpenAI(prompt, attempt = 1) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (OBG ONLY)
+// CLAIM ROWS (COMMUNITY MEDICINE ONLY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
@@ -167,7 +157,7 @@ async function claimRows(limit) {
   const { data: rows, error } = await supabase
     .from("mcq_analysis")
     .select("id, mcq")
-    .eq("subject", "Obstetrics and Gynaecology")
+    .eq("subject", "Community Medicine")
     .not("mcq", "is", null)
     .is("new_topic", null)
     .is("mcq_lock", null)
@@ -231,7 +221,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 OBG MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 COMMUNITY MEDICINE MCQ TOPIC CLASSIFIER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

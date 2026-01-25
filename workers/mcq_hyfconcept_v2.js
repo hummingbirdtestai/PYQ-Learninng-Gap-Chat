@@ -15,9 +15,8 @@ const WORKER_ID =
   process.env.WORKER_ID ||
   `mcq-hyf-to-concept-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
-// ─────────────────────────────────────────────
-// PROMPT (USE AS-IS — DO NOT MODIFY)
-// ─────────────────────────────────────────────
+
+
 function buildPrompt(question) {
   return `
 You are a **Senior NEET-PG / INI-CET faculty with 30+ years of experience**, specializing in **rank-differentiating, last-minute revision** for postgraduate medical entrance examinations.
@@ -204,7 +203,7 @@ FORMATTING & RENDERING RULES
 ────────────────────────────────
 
 QUESTION:
-${JSON.stringify(question, null, 2)}
+${question}
 `;
 }
 
@@ -295,16 +294,39 @@ async function claimRows(limit) {
 }
 
 // ─────────────────────────────────────────────
-// PROCESS ONE ROW
+// PROCESS ONE ROW (FIXED)
 // ─────────────────────────────────────────────
 async function processRow(row) {
-  let raw = await callOpenAI(buildPrompt(row.mcq_json));
+  // 🚨 HARD GUARD — PREVENT NULL / EMPTY JSON FROM HITTING OPENAI
+  if (
+    !row.mcq_json ||
+    typeof row.mcq_json !== "object" ||
+    Array.isArray(row.mcq_json) ||
+    Object.keys(row.mcq_json).length === 0
+  ) {
+    console.warn(`⚠️ Skipping invalid mcq_json | row=${row.id}`);
+
+    await supabase
+      .from("mcq_hyf_list")
+      .update({
+        mcq_json_lock: null,
+        mcq_json_lock_at: null
+      })
+      .eq("id", row.id);
+
+    return false;
+  }
+
+  // ✅ ALWAYS PASS STRING TO OPENAI
+  const questionText = JSON.stringify(row.mcq_json, null, 2);
+
+  let raw = await callOpenAI(buildPrompt(questionText));
   let parsed;
 
   try {
     parsed = safeParseJson(raw);
   } catch {
-    raw = await callOpenAI(buildPrompt(row.mcq_json));
+    raw = await callOpenAI(buildPrompt(questionText));
     parsed = safeParseJson(raw);
   }
 
@@ -343,9 +365,9 @@ async function processRow(row) {
         );
 
         results.forEach((res, idx) => {
-          if (res.status === "fulfilled") {
+          if (res.status === "fulfilled" && res.value) {
             console.log("   ✅ concept_v2 generated");
-          } else {
+          } else if (res.status === "rejected") {
             console.error(`   ❌ Failed row ${batch[idx].id}`, res.reason);
           }
         });

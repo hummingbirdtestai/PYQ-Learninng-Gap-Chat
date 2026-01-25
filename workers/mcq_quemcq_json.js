@@ -11,7 +11,6 @@ const BATCH_SIZE   = parseInt(process.env.MCQ_BATCH_SIZE || "10", 10);
 const SLEEP_MS     = parseInt(process.env.MCQ_LOOP_SLEEP_MS || "200", 10);
 const LOCK_TTL_MIN = parseInt(process.env.MCQ_LOCK_TTL_MIN || "10", 10);
 
-
 const WORKER_ID =
   process.env.WORKER_ID ||
   `mcq-reconstruction-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
@@ -165,21 +164,25 @@ function safeParseJson(raw) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS
+// CLAIM ROWS (LOCK-ONLY STRATEGY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
-  // Clear expired locks
+  // 1️⃣ Clear expired locks
   await supabase
     .from("mcq_reconstruction_queue")
-    .update({ mcq_json_lock: null, mcq_json_lock_at: null, status: "pending" })
+    .update({
+      mcq_json_lock: null,
+      mcq_json_lock_at: null
+    })
     .lt("mcq_json_lock_at", cutoff);
 
+  // 2️⃣ Fetch eligible rows
   const { data: rows, error } = await supabase
     .from("mcq_reconstruction_queue")
     .select("id, mcq_json")
-    .eq("status", "pending")
+    .is("updated_mcq_json", null)
     .is("mcq_json_lock", null)
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -189,12 +192,12 @@ async function claimRows(limit) {
 
   const ids = rows.map(r => r.id);
 
+  // 3️⃣ Lock rows
   const { data: locked, error: err2 } = await supabase
     .from("mcq_reconstruction_queue")
     .update({
       mcq_json_lock: WORKER_ID,
-      mcq_json_lock_at: new Date().toISOString(),
-      status: "processing"
+      mcq_json_lock_at: new Date().toISOString()
     })
     .in("id", ids)
     .is("mcq_json_lock", null)
@@ -205,7 +208,7 @@ async function claimRows(limit) {
 }
 
 // ─────────────────────────────────────────────
-// PROCESS ONE ROW
+// PROCESS SINGLE ROW
 // ─────────────────────────────────────────────
 async function processRow(row) {
   const mcqText = JSON.stringify(row.mcq_json, null, 2);
@@ -226,7 +229,7 @@ async function processRow(row) {
       updated_mcq_json: parsed,
       mcq_json_lock: null,
       mcq_json_lock_at: null,
-      status: "completed"
+      updated_at: new Date().toISOString()
     })
     .eq("id", row.id);
 
@@ -259,9 +262,9 @@ async function processRow(row) {
 
         results.forEach((res, idx) => {
           if (res.status === "fulfilled") {
-            console.log("   ✅ MCQ reconstructed");
+            // intentionally quiet
           } else {
-            console.error(`   ❌ Failed row ${batch[idx].id}`, res.reason);
+            console.error(`❌ Failed row ${batch[idx].id}`, res.reason);
           }
         });
       }

@@ -16,7 +16,7 @@ const WORKER_ID =
   `mcq-hyf-to-concept-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 function buildPrompt(question) {
-  const q =
+  const safeQuestion =
     typeof question === "string" && question.trim()
       ? question
       : JSON.stringify(question ?? {}, null, 2);
@@ -206,9 +206,10 @@ FORMATTING & RENDERING RULES
 ────────────────────────────────
 
 QUESTION:
-${q}
+${safeQuestion}
 `;
 }
+
 
 // ─────────────────────────────────────────────
 // HELPERS

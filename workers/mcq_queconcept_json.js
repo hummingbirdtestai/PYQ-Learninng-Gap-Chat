@@ -211,12 +211,12 @@ function safeParseJson(raw) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS
+// CLAIM ROWS (LOCK-ONLY STRATEGY)
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
-  // Clear expired locks
+  // 1️⃣ Clear expired locks
   await supabase
     .from("mcq_reconstruction_queue")
     .update({
@@ -225,7 +225,7 @@ async function claimRows(limit) {
     })
     .lt("updated_mcq_json_lock_at", cutoff);
 
-  // Fetch eligible rows
+  // 2️⃣ Fetch eligible rows
   const { data, error } = await supabase
     .from("mcq_reconstruction_queue")
     .select("id, updated_mcq_json")
@@ -240,12 +240,12 @@ async function claimRows(limit) {
 
   const ids = data.map(r => r.id);
 
+  // 3️⃣ Lock rows
   const { data: locked, error: err2 } = await supabase
     .from("mcq_reconstruction_queue")
     .update({
       updated_mcq_json_lock: WORKER_ID,
-      updated_mcq_json_lock_at: new Date().toISOString(),
-      status: "processing"
+      updated_mcq_json_lock_at: new Date().toISOString()
     })
     .in("id", ids)
     .is("updated_mcq_json_lock", null)
@@ -277,7 +277,6 @@ async function processRow(row) {
       updated_concept_json: parsed,
       updated_mcq_json_lock: null,
       updated_mcq_json_lock_at: null,
-      status: "completed",
       updated_at: new Date().toISOString()
     })
     .eq("id", row.id);
@@ -289,11 +288,12 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 MCQ → HYF+MNEMONIC WORKER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 MCQ → CONCEPT+MNEMONIC WORKER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);
+
       if (!claimed.length) {
         await sleep(SLEEP_MS);
         continue;
@@ -309,10 +309,8 @@ async function processRow(row) {
         );
 
         results.forEach((res, idx) => {
-          if (res.status === "fulfilled") {
-            console.log("   ✅ concept+mnemonic generated");
-          } else {
-            console.error(`   ❌ Failed row ${batch[idx].id}`, res.reason);
+          if (res.status !== "fulfilled") {
+            console.error(`❌ Failed row ${batch[idx].id}`, res.reason);
           }
         });
       }

@@ -218,11 +218,17 @@ function isRetryable(e) {
 }
 
 async function callOpenAI(prompt, attempt = 1) {
+  // 🚨 ABSOLUTE GUARANTEE — NEVER SEND NULL TO OPENAI
+  if (typeof prompt !== "string" || !prompt.trim()) {
+    throw new Error("❌ callOpenAI received invalid prompt");
+  }
+
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
       messages: [{ role: "user", content: prompt }]
     });
+
     return resp.choices?.[0]?.message?.content || "";
   } catch (e) {
     if (isRetryable(e) && attempt <= 2) {
@@ -232,6 +238,7 @@ async function callOpenAI(prompt, attempt = 1) {
     throw e;
   }
 }
+
 
 // ─────────────────────────────────────────────
 // SAFE JSON PARSE
@@ -319,6 +326,20 @@ async function processRow(row) {
 
   // ✅ ALWAYS PASS STRING TO OPENAI
   const questionText = JSON.stringify(row.mcq_json, null, 2);
+
+  if (!questionText || typeof questionText !== "string") {
+    console.warn(`⚠️ Invalid questionText | row=${row.id}`);
+  
+    await supabase
+      .from("mcq_hyf_list")
+      .update({
+        mcq_json_lock: null,
+        mcq_json_lock_at: null
+      })
+      .eq("id", row.id);
+  
+    return false;
+  }
 
   let raw = await callOpenAI(buildPrompt(questionText));
   let parsed;

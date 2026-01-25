@@ -20,7 +20,144 @@ const WORKER_ID =
 // ─────────────────────────────────────────────
 function buildPrompt(mcqJsonText) {
   return `
-This is NEETPG PYQ , create 5 HYFs must to remember that are frequently tested in NEETPG Exam and Mnemonic to recall in exam related to this , and Synoptic Revision Tables . give them as JSON with 3 KEYS , concept , mnemonic ,tables .Make mnemonic more easier to remember with Indian context and also popular mnemonics seen in First AID for USMLE Books , USMLE Question Banks ⁠ Format rules for tables ⁠ — Synoptic Revision Tables Each table MUST be formatted EXACTLY as: { "title": "Table X — Clear Exam Purpose", "markdown": "| Column A | Column B | Column C |\n|---|---:|---|\n| Row | Data | Data |" } STRICT TABLE RULES (NON-NEGOTIABLE): •⁠ ⁠Pure markdown table only •⁠ ⁠Header row + separator row mandatory •⁠ ⁠❌ No blank lines inside table •⁠ ⁠❌ No bullets or line breaks inside cells •⁠ ⁠Inline markdown allowed inside cells •⁠ ⁠2–4 columns ONLY •⁠ ⁠Every table must enable *MCQ elimination* Recommended table intents: •⁠ ⁠Differentiation •⁠ ⁠Classification / staging •⁠ ⁠Investigation → next step •⁠ ⁠Risk → consequence mapping Use Markdown for Bold and italic of key words and Unicode for Symbols superscripts , subscripts , math and equations in the content in all the keys
+You are a DETERMINISTIC MEDICAL EXAM CONTENT ENGINE.
+
+Your task is to generate LAST-MINUTE REVISION content for NEET-PG / INI-CET PYQs.
+
+────────────────────────────────
+ABSOLUTE OUTPUT SCHEMA (LOCKED)
+────────────────────────────────
+
+You MUST output ONLY a SINGLE VALID JSON object.
+
+This JSON MUST contain EXACTLY THREE TOP-LEVEL KEYS — NO MORE, NO LESS:
+
+1️⃣ "concept"  
+2️⃣ "mnemonic"  
+3️⃣ "tables"
+
+❌ If ANY other key appears (e.g. feedback, learning_gap, explanation, notes, extras),
+the output is INVALID.
+
+❌ Do NOT nest alternative keys.
+❌ Do NOT rename keys.
+❌ Do NOT add metadata.
+
+────────────────────────────────
+KEY-WISE TYPE CONSTRAINTS (STRICT)
+────────────────────────────────
+
+1️⃣ "concept"
+• MUST be an ARRAY of STRINGS
+• EXACTLY **5 items** (no more, no less)
+• Each item = ONE high-yield exam fact
+• NEET-PG frequency focused
+• Use **bold**, *italic*, Unicode arrows (→ ↑ ↓), subscripts/superscripts (₁₂³⁺⁻), Greek letters (α β γ)
+• NO paragraphs, NO sub-bullets
+
+2️⃣ "mnemonic"
+• MUST be an ARRAY of STRINGS
+• 3–6 mnemonics only
+• Indian-context friendly + commonly used USMLE-style recall patterns
+• Short, punchy, exam-recall focused
+• May include Hinglish
+• Use **bold / italic** and Unicode symbols
+• NO explanations longer than 1–2 lines
+
+3️⃣ "tables"
+• MUST be an ARRAY of OBJECTS
+• EACH object MUST contain EXACTLY:
+  {
+    "title": "string",
+    "markdown": "string"
+  }
+
+────────────────────────────────
+SYNOPTIC TABLE FORMAT (NON-NEGOTIABLE)
+────────────────────────────────
+
+Each table MUST follow this EXACT markdown pattern:
+
+| Column A | Column B | Column C |
+|---|---:|---|
+| Data | Data | Data |
+
+STRICT RULES:
+• Pure markdown table ONLY
+• Header row + separator row mandatory
+• ❌ No blank lines inside table
+• ❌ No bullet points inside cells
+• ❌ No line breaks inside cells
+• 2–4 columns ONLY
+• Inline **bold / italic** allowed
+• Every table MUST help MCQ elimination
+
+────────────────────────────────
+RECOMMENDED TABLE INTENTS (SUBJECT-AWARE)
+────────────────────────────────
+
+For **CLINICAL / PARA-CLINICAL SUBJECTS**
+(e.g. Medicine, Surgery, Pediatrics, OBG, Pathology, Pharmacology):
+
+• Differentiation  
+• Classification / staging  
+• Risk → consequence  
+• Investigation → next step  
+• Option elimination logic  
+
+For **FORENSIC MEDICINE (FM)**:
+
+• Injury type → weapon inference  
+• Time since death → postmortem change  
+• Legal section → punishment / implication  
+• Poison → mechanism → antidote  
+• Cause of death → manner of death  
+• Option elimination logic  
+
+For **COMMUNITY MEDICINE (PSM)**:
+
+• Indicator → definition → formula  
+• Program → target group → intervention  
+• Agent → host → environment  
+• Risk factor → disease burden  
+• Screening test → validity metric  
+• Option elimination logic  
+
+⚠️ Table intents are GUIDANCE, not additional output keys.
+⚠️ NEVER write the intent name in the output.
+
+────────────────────────────────
+CONTENT RULES (HARD)
+────────────────────────────────
+
+• Focus ONLY on NEET-PG / INI-CET repeatedly tested facts
+• Maintain USMLE-grade clarity but NEVER mention:
+  USMLE World, First Aid, Amboss, NBME, Marrow (❌ forbidden words)
+• Do NOT invent new diseases, laws, programs, or statistics
+• Do NOT change schema between runs
+• Do NOT add narrative explanations
+
+────────────────────────────────
+DETERMINISM & STABILITY RULES
+────────────────────────────────
+
+• Same input → SAME schema every time
+• No creative restructuring
+• No variable key counts
+• If unsure, SIMPLIFY — never expand schema
+
+────────────────────────────────
+FAIL-SAFE INSTRUCTION
+────────────────────────────────
+
+If you are about to add ANY key other than:
+"concept", "mnemonic", "tables"
+
+→ STOP and REMOVE it.
+
+OUTPUT ONLY THE JSON.
+NO commentary.
+NO markdown outside JSON.
 
 INPUT:
 ${mcqJsonText}

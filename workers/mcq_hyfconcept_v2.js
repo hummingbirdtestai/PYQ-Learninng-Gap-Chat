@@ -15,9 +15,12 @@ const WORKER_ID =
   process.env.WORKER_ID ||
   `mcq-hyf-to-concept-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
-
-
 function buildPrompt(question) {
+  const q =
+    typeof question === "string" && question.trim()
+      ? question
+      : JSON.stringify(question ?? {}, null, 2);
+
   return `
 You are a **Senior NEET-PG / INI-CET faculty with 30+ years of experience**, specializing in **rank-differentiating, last-minute revision** for postgraduate medical entrance examinations.
 
@@ -203,7 +206,7 @@ FORMATTING & RENDERING RULES
 ────────────────────────────────
 
 QUESTION:
-${question}
+${q}
 `;
 }
 

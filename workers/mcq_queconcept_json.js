@@ -20,33 +20,7 @@ const WORKER_ID =
 // ─────────────────────────────────────────────
 function buildPrompt(mcqJsonText) {
   return `
-This is NEETPG PYQ , there are 5 HYFs must remeber and Mnemonic to recall in exam related to this , that are frequently tested in NEETPG Exam . give them as JSON with 2 KEYS , concept and mnemonic Make mnemonic more easier to remeber with Indian context and also popular mnemonics seen in First AID for USMLE Books , USMLE Question Banks
-Also add a key Table :
-⁠ tables ⁠ — Synoptic Revision Tables
-
-Each table MUST be formatted EXACTLY as:
-
-{
-  "title": "Table X — Clear Exam Purpose",
-  "markdown": "| Column A | Column B | Column C |\n|---|---:|---|\n| Row | Data | Data |"
-}
-
-STRICT TABLE RULES (NON-NEGOTIABLE):
-• Pure markdown table only
-• Header row + separator row mandatory
-• ❌ No blank lines inside table
-• ❌ No bullets or line breaks inside cells
-• Inline markdown allowed inside cells
-• 2–4 columns ONLY
-• Every table must enable MCQ elimination
-
-Recommended table intents:
-• Differentiation
-• Classification / staging
-• Investigation → next step
-• Risk → consequence mapping
-
-Use Markdown for Bold and italic of key words and Unicode for Symbols superscripts , subscripts , math and equations
+This is NEETPG PYQ , create 5 HYFs must to remember that are frequently tested in NEETPG Exam and Mnemonic to recall in exam related to this , and Synoptic Revision Tables . give them as JSON with 3 KEYS , concept , mnemonic ,tables .Make mnemonic more easier to remember with Indian context and also popular mnemonics seen in First AID for USMLE Books , USMLE Question Banks ⁠ Format rules for tables ⁠ — Synoptic Revision Tables Each table MUST be formatted EXACTLY as: { "title": "Table X — Clear Exam Purpose", "markdown": "| Column A | Column B | Column C |\n|---|---:|---|\n| Row | Data | Data |" } STRICT TABLE RULES (NON-NEGOTIABLE): •⁠ ⁠Pure markdown table only •⁠ ⁠Header row + separator row mandatory •⁠ ⁠❌ No blank lines inside table •⁠ ⁠❌ No bullets or line breaks inside cells •⁠ ⁠Inline markdown allowed inside cells •⁠ ⁠2–4 columns ONLY •⁠ ⁠Every table must enable *MCQ elimination* Recommended table intents: •⁠ ⁠Differentiation •⁠ ⁠Classification / staging •⁠ ⁠Investigation → next step •⁠ ⁠Risk → consequence mapping Use Markdown for Bold and italic of key words and Unicode for Symbols superscripts , subscripts , math and equations in the content in all the keys
 
 INPUT:
 ${mcqJsonText}

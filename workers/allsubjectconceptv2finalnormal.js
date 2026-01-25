@@ -15,17 +15,8 @@ const WORKER_ID =
   process.env.WORKER_ID ||
   `concept-normalizer-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
-// ⛔ SUBJECTS TO IGNORE
-const EXCLUDED_SUBJECTS = [
-  "Community Medicine",
-  "Forensic Medicine"
-];
-
-// ✅ LOG CONTROL (IMPORTANT)
-let lastRemaining = null;
-
 // ─────────────────────────────────────────────
-// PROMPT (UNCHANGED)
+// PROMPT (USE AS-IS — DO NOT TOUCH)
 // ─────────────────────────────────────────────
 function buildPrompt(conceptText) {
   return `
@@ -36,7 +27,178 @@ Your job is ONLY to:
 - Preserve ONLY genuine medical subject content EXACTLY as written
 - Pack the cleaned content into a renderer-safe fixed JSON structure
 
-Return ONE valid JSON object ONLY.
+You must NOT:
+- Rewrite, paraphrase, summarize, or reorder content
+- Add explanations or new headings
+- Improve clarity, style, pedagogy, or structure
+- Introduce new fields or inferred labels
+
+--------------------------------------------------
+ABSOLUTE EXCLUSION RULE (CRITICAL)
+--------------------------------------------------
+The following MUST NEVER appear in output, even if present in input:
+
+- Any prompt instructions
+- Any generation rules
+- Any meta descriptions of format
+- Any constraints about how content was written
+- Any buzzword rules, limits, or guidance
+
+Examples that MUST be REMOVED completely:
+
+- “25 Most High-Yield Facts (buzzwords — exam recall)”
+- “(Each line ≤6 words; bold+italic limited to 1–2 words)”
+- “STRICT RULES”
+- “IMPORTANT FORMATTING RULES”
+- “Examiner expects…”
+- “Do not explain…”
+- “Purpose: …”
+- Any line explaining HOW content was generated rather than WHAT the medical content is
+
+ONLY medical subject matter must remain.
+
+--------------------------------------------------
+GLOBAL PRESERVATION RULES
+--------------------------------------------------
+
+1. PRESERVE REAL MEDICAL CONTENT AS-IS
+- Keep wording, tone, and order EXACTLY
+- Preserve **bold**, *italic*, ***bold+italic***
+- Preserve Unicode symbols, arrows, bullets, emojis
+- Preserve markdown ONLY if it is part of medical content
+
+2. REMOVE DECORATIVE SEPARATORS
+Remove divider-only lines such as:
+------
+******
+=====
+______
+
+--------------------------------------------------
+MANDATORY OUTPUT (JSON ONLY)
+--------------------------------------------------
+
+Return ONE valid JSON object.
+
+No explanations.
+No markdown outside JSON.
+No extra keys.
+
+{
+  "concept": "",
+  "cases": [],
+  "high_yield_facts": [],
+  "tables": [],
+  "exam_pointers": []
+}
+
+--------------------------------------------------
+STRICT STRUCTURE RULES (RENDERER-SAFE)
+--------------------------------------------------
+
+"concept"
+- Type: STRING
+- Pack the entire cleaned concept section
+- Keep headings, bullets, and emphasis exactly
+
+
+
+- Do NOT summarize or restructure
+
+
+--------------------------------------------------
+
+"cases"  (STRICTLY ENFORCED)
+
+Each case MUST be an OBJECT in this exact format:
+
+{
+  "Case title here": {
+    "Clinical history": "...",
+    "Physical exam": "...",
+    "Investigations": "...",
+    "Differential": "...",
+    "Treatment": "..."
+  }
+}
+
+Rules:
+- Each case is ONE object
+- Case title is mandatory
+- Section names must come only from the content
+- Do NOT invent missing sections
+- Omit missing sections silently
+- Preserve wording exactly
+
+Flat or untitled cases are INVALID.
+
+--------------------------------------------------
+
+"high_yield_facts"
+- Include ONLY actual medical buzzword lines
+- Do NOT include section titles, rules, constraints, or meta commentary
+- Each array item = one original medical fact line
+- Preserve ***bold+italic*** exactly
+
+--------------------------------------------------
+"tables"
+
+Each table MUST be a separate OBJECT:
+{
+  "title": "<table title if present, else null>",
+  "markdown": "<ENTIRE table markdown EXACTLY as given>"
+}
+
+Rules:
+- Preserve markdown verbatim
+- Do NOT convert tables to rows or columns
+- Do NOT merge, summarize, or reinterpret tables
+
+--------------------------------------------------
+
+"exam_pointers"
+- Include exam tips, mnemonics, warnings, clinical pearls
+- Exclude instructions on how to write answers
+- Preserve wording and formatting exactly
+
+--------------------------------------------------
+FINAL VALIDATION CHECK
+--------------------------------------------------
+
+Before output, ensure:
+- Output is JSON only
+- Medical content is unchanged
+- Prompt / meta / instructional content is fully removed
+- All cases are titled objects
+- No instructional headings exist inside arrays
+- Structure is renderer-safe and deterministic
+{
+  "concept": "STRING — full cleaned medical concept content exactly as written, including headings, bullets, emphasis, and markdown that is part of the medical content.",
+  "cases": [
+    {
+      "Case title here": {
+        "Clinical history": "Exact medical text as written.",
+        "Physical exam": "Exact medical text as written.",
+        "Investigations": "Exact medical text as written.",
+        "Differential": "Exact medical text as written.",
+        "Treatment": "Exact medical text as written."
+      }
+    }
+  ],
+  "high_yield_facts": [
+    "Exact medical buzzword line as written",
+    "Another exact medical buzzword line"
+  ],
+  "tables": [
+    {
+      "title": "Table title exactly as written, or null if not present",
+      "markdown": "| Entire table markdown preserved exactly |\n|---|---|\n| As provided | No changes |"
+    }
+  ],
+  "exam_pointers": [
+    "Exact exam tip, mnemonic, or clinical pearl as written"
+  ]
+}
 
 CONTENT:
 ${conceptText}
@@ -49,8 +211,8 @@ ${conceptText}
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function isRetryable(e) {
-  return /timeout|429|temporar|unavailable|ECONNRESET|ETIMEDOUT/i
-    .test(String(e?.message || e));
+  const s = String(e?.message || e);
+  return /timeout|429|temporar|unavailable|ECONNRESET|ETIMEDOUT/i.test(s);
 }
 
 async function callOpenAI(prompt, attempt = 1) {
@@ -86,57 +248,33 @@ function safeParseJson(raw) {
 }
 
 // ─────────────────────────────────────────────
-// CLAIM ROWS (CLEAN LOGGING)
+// CLAIM ROWS
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
-  // 1️⃣ Clear expired locks
+  // Clear expired locks
   await supabase
     .from("all_subjects_raw")
     .update({ concept_lock: null, concept_lock_at: null })
     .lt("concept_lock_at", cutoff);
 
-  // 2️⃣ Count remaining (LOG ONLY IF CHANGED)
-  const { count: remaining, error: countErr } = await supabase
-    .from("all_subjects_raw")
-    .select("id", { count: "exact", head: true })
-    .not("concept", "is", null)
-    .is("concept_v2_final", null)
-    .not(
-      "subject",
-      "in",
-      `(${EXCLUDED_SUBJECTS.map(s => `"${s}"`).join(",")})`
-    );
-
-  if (countErr) throw countErr;
-
-  if (remaining !== lastRemaining) {
-    console.log(`📊 Remaining rows to normalize: ${remaining ?? 0}`);
-    lastRemaining = remaining;
-  }
-
-  // 3️⃣ Fetch rows
-  const { data: rows, error } = await supabase
+  // Fetch unlocked rows needing normalization
+  const { data, error } = await supabase
     .from("all_subjects_raw")
     .select("id, concept")
     .not("concept", "is", null)
     .is("concept_v2_final", null)
     .is("concept_lock", null)
-    .not(
-      "subject",
-      "in",
-      `(${EXCLUDED_SUBJECTS.map(s => `"${s}"`).join(",")})`
-    )
     .order("created_at", { ascending: true })
     .limit(limit);
 
   if (error) throw error;
-  if (!rows?.length) return [];
+  if (!data?.length) return [];
 
-  const ids = rows.map(r => r.id);
+  const ids = data.map(r => r.id);
 
-  // 4️⃣ Lock rows
+  // Lock rows
   const { data: locked, error: err2 } = await supabase
     .from("all_subjects_raw")
     .update({
@@ -148,11 +286,6 @@ async function claimRows(limit) {
     .select("id, concept");
 
   if (err2) throw err2;
-
-  if (locked.length) {
-    console.log(`⚙️ Claimed ${locked.length} rows`);
-  }
-
   return locked || [];
 }
 
@@ -171,13 +304,15 @@ async function clearLocks(ids) {
 // PROCESS ONE ROW
 // ─────────────────────────────────────────────
 async function processRow(row) {
-  let raw = await callOpenAI(buildPrompt(row.concept));
+  const prompt = buildPrompt(row.concept);
+
+  let raw = await callOpenAI(prompt);
   let parsed;
 
   try {
     parsed = safeParseJson(raw);
   } catch {
-    raw = await callOpenAI(buildPrompt(row.concept));
+    raw = await callOpenAI(prompt);
     parsed = safeParseJson(raw);
   }
 
@@ -202,7 +337,6 @@ async function processRow(row) {
   while (true) {
     try {
       const claimed = await claimRows(LIMIT);
-
       if (!claimed.length) {
         await sleep(SLEEP_MS);
         continue;
@@ -216,16 +350,13 @@ async function processRow(row) {
         );
 
         results.forEach((res, idx) => {
-          if (res.status === "fulfilled") {
-            console.log("   ✅ concept_v2_final generated");
-          } else {
-            console.error(`   ❌ Failed row ${batch[idx].id}`, res.reason);
+          if (res.status !== "fulfilled") {
             clearLocks([batch[idx].id]);
           }
         });
       }
     } catch (e) {
-      console.error("❌ Worker loop error:", e);
+      console.error("❌ Worker error:", e);
       await sleep(1000);
     }
   }

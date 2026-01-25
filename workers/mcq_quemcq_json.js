@@ -36,32 +36,75 @@ TASK (NON-NEGOTIABLE)
 ────────────────────────────────
 You MUST reconstruct this ONE MCQ into a FULL NEET-PG–LEVEL MCQ by:
 
-• Re-synthesizing a complete stem
-• Increasing difficulty
-• Making options closely competing
-• Preserving the SAME tested concept
+• Re-synthesizing a complete stem (clinical or concept-integrated as appropriate)
+• Increasing difficulty to match real NEET-PG patterns
+• Making answer options closely competing
+• Ensuring the correct answer is ABSOLUTELY correct
+• Preserving the SAME tested concept as the original PYQ
 
 ────────────────────────────────
 MANDATORY OUTPUT FORMAT
 ────────────────────────────────
 Output MUST be a SINGLE JSON ARRAY with EXACTLY ONE object.
 
+The MCQ object MUST follow this structure EXACTLY:
+
 {
   "stem": "",
-  "options": { "A": "", "B": "", "C": "", "D": "" },
-  "feedback": { "A": "", "B": "", "C": "", "D": "" },
+  "options": {
+    "A": "",
+    "B": "",
+    "C": "",
+    "D": ""
+  },
+  "feedback": {
+    "A": "",
+    "B": "",
+    "C": "",
+    "D": ""
+  },
   "learning_gap": "💡 One-line high-yield takeaway",
   "correct_answer": "",
   "year_of_exam": ""
 }
 
 ────────────────────────────────
+FEEDBACK RULES (VERY IMPORTANT)
+────────────────────────────────
+For EVERY option (A–D):
+
+✅ If CORRECT:
+• Explicitly reinforce the tested concept
+• Explain WHY it is correct
+• Include mechanism, embryologic basis, associations, or exam pearls
+
+❌ If WRONG:
+• Identify the learning gap
+• Explain why a student might choose this option
+• Correct the misconception
+• Do NOT repeat explanations across options
+
+────────────────────────────────
+FORMATTING RULES (STRICT)
+────────────────────────────────
+• Use **bold** and *italic* sparingly (keywords only)
+• Use Unicode arrows → ↑ ↓
+• Use subscripts/superscripts (₁₂³⁺⁻)
+• Use Greek letters (α β Δ μ)
+• Minimal emojis only where relevant (✅ ❌ 💡)
+
+────────────────────────────────
 ABSOLUTE PROHIBITIONS
 ────────────────────────────────
 ❌ NO markdown outside JSON  
 ❌ NO extra keys  
+❌ NO missing fields  
+❌ NO trailing commas  
 ❌ NO explanations outside JSON  
+❌ DO NOT add concept_value  
 ❌ DO NOT generate more than ONE MCQ  
+
+If any rule cannot be satisfied, output NOTHING.
 
 INPUT:
 ${mcqJsonText}

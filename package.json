@@ -103,6 +103,7 @@
     "start:allsubjectconceptv2finalnormal": "node workers/allsubjectconceptv2finalnormal.js",
      "start:allsubjectconceptv2finalnormalfmcm": "node workers/allsubjectconceptv2finalnormalfmcm.js",
     "start:analyticstabmicrotopicworker": "node workers/analyticstabmicrotopicworker.js",
+    "start:mcq_hyfmcq_json": "node workers/mcq_hyfmcq_json.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

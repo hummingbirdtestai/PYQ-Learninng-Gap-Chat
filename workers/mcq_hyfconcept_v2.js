@@ -77,11 +77,134 @@ MANDATORY OUTPUT FORMAT
 ────────────────────────────────
 SECTION-WISE CONTENT RULES
 ────────────────────────────────
-[ PROMPT CONTINUES — UNCHANGED ]
+
+1️⃣ `concept` — Central Exam Concepts
+
+• Single **markdown string**
+• Bullet points only (`-`)
+• Focus on:
+  – Core mechanisms  
+  – Classifications  
+  – Thresholds / cut-offs  
+  – Key associations & exclusions  
+• Merge overlapping ideas  
+• Use ***bold + italic*** ONLY for recall-critical anchors  
+• ❌ NO tables inside this field  
+• ❌ NO numbered lists  
+
+────────────────────────────────
+
+2️⃣ `cases` — Clinical MCQ-Style Vignettes
+
+• Generate **as many cases as needed** to cover ALL subtopics  
+• Each case MUST be wrapped EXACTLY as:
+
+{
+  "Case X — Diagnosis": {
+    "Clinical history": "",
+    "Physical examination": "",
+    "Investigations": "",
+    "Differential": "",
+    "Treatment": ""
+  }
+}
+
+STRICT RULES:
+• All **5 keys are mandatory** (spelling must match exactly)  
+• Paragraph style (NEET-PG MCQ depth)  
+• Reflect real exam vignettes  
+• ❌ No bullet lists inside values  
+• ❌ No teaching narration  
+
+────────────────────────────────
+
+3️⃣ `high_yield_facts` — CORE EXAM SECTION
+
+• Generate **ALL HYFs required** to cover every subtopic  
+• ❌ DO NOT cap or limit the number  
+• Each HYF must:
+  – Be ≤ **6 words**  
+  – Be a single factual statement  
+  – Be reversible (Q ↔️ A)  
+  – Not repeat another HYF  
+
+STRICT FORMATTING RULES:
+• Use ***bold + italic*** on **ONLY 1–2 recall-critical words**  
+• ❌ NEVER bold the entire sentence  
+• ❌ No numbering or prefixes  
+• Unicode allowed:
+  → ↑ ↓ ± ≥ ≤  
+  α β Δ μ  
+  ₁₂³ ⁺ ⁻  
+
+Example (VALID):
+"***Subgaleal*** hemorrhage → hypovolemic shock"
+
+Example (INVALID):
+"***Subgaleal hemorrhage causes hypovolemic shock***"
+
+────────────────────────────────
+
+4️⃣ `tables` — Synoptic Revision Tables
+
+Each table MUST be formatted EXACTLY as:
+
+{
+  "title": "Table X — Clear Exam Purpose",
+  "markdown": "| Column A | Column B | Column C |\n|---|---:|---|\n| Row | Data | Data |"
+}
+
+STRICT TABLE RULES (NON-NEGOTIABLE):
+• Pure markdown table only  
+• Header row + separator row mandatory  
+• ❌ No blank lines inside table  
+• ❌ No bullets or line breaks inside cells  
+• Inline markdown allowed inside cells  
+• 2–4 columns ONLY  
+• Every table must enable **MCQ elimination**
+
+Recommended table intents:
+• Differentiation  
+• Classification / staging  
+• Investigation → next step  
+• Risk → consequence mapping  
+
+────────────────────────────────
+
+5️⃣ `exam_pointers` — Optional but Recommended
+
+• Short, actionable exam pearls  
+• Practical MCQ tips  
+• ❌ No repetition of HYFs  
+• One string = one pointer  
+
+────────────────────────────────
+GLOBAL NON-NEGOTIABLE RULES
+────────────────────────────────
+
+• NEET-PG / INI-CET relevance ONLY  
+• No textbook narration  
+• No filler content  
+• No repetition across sections  
+• No missing subtopic  
+• No invented facts  
+• FAIL the output if schema or rules are violated  
+
+────────────────────────────────
+FORMATTING & RENDERING RULES
+────────────────────────────────
+
+• JSON must be parseable without modification  
+• Markdown + Unicode only  
+• ❌ No HTML  
+• ❌ No LaTeX  
+• ❌ No outer code fences  
+• Inline emphasis ONLY (***bold + italic***)  
+
 ────────────────────────────────
 
 QUESTION:
-${question}
+${JSON.stringify(question, null, 2)}
 `;
 }
 

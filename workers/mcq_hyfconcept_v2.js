@@ -78,7 +78,7 @@ MANDATORY OUTPUT FORMAT
 SECTION-WISE CONTENT RULES
 ────────────────────────────────
 
-1️⃣ `concept` — Central Exam Concepts
+1️⃣ \`concept\` — Central Exam Concepts
 
 • Single **markdown string**
 • Bullet points only (`-`)
@@ -94,7 +94,7 @@ SECTION-WISE CONTENT RULES
 
 ────────────────────────────────
 
-2️⃣ `cases` — Clinical MCQ-Style Vignettes
+2️⃣ \`cases\` — Clinical MCQ-Style Vignettes
 
 • Generate **as many cases as needed** to cover ALL subtopics  
 • Each case MUST be wrapped EXACTLY as:
@@ -118,7 +118,7 @@ STRICT RULES:
 
 ────────────────────────────────
 
-3️⃣ `high_yield_facts` — CORE EXAM SECTION
+3️⃣ \`high_yield_facts\` — CORE EXAM SECTION
 
 • Generate **ALL HYFs required** to cover every subtopic  
 • ❌ DO NOT cap or limit the number  
@@ -145,7 +145,7 @@ Example (INVALID):
 
 ────────────────────────────────
 
-4️⃣ `tables` — Synoptic Revision Tables
+4️⃣ \`tables\` — Synoptic Revision Tables
 
 Each table MUST be formatted EXACTLY as:
 
@@ -171,7 +171,7 @@ Recommended table intents:
 
 ────────────────────────────────
 
-5️⃣ `exam_pointers` — Optional but Recommended
+5️⃣ \`exam_pointers\` — Optional but Recommended
 
 • Short, actionable exam pearls  
 • Practical MCQ tips  

@@ -107,6 +107,7 @@
     "start:mcq_hyfconcept_v2": "node workers/mcq_hyfconcept_v2.js",
     "start:mcq_quemcq_json": "node workers/mcq_quemcq_json.js",
     "start:mcq_queconcept_json": "node workers/mcq_queconcept_json.js",
+    "start:topicunitworker": "node workers/topicunitworker.ts",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

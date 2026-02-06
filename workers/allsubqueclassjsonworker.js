@@ -6,10 +6,10 @@ const openai = require("../config/openaiClient");
 // SETTINGS
 // ─────────────────────────────────────────────
 const MODEL        = process.env.CONCEPT_MODEL || "gpt-5-mini";
-const LIMIT        = parseInt(process.env.CONCEPT_LIMIT || "150", 10);
-const BATCH_SIZE   = parseInt(process.env.CONCEPT_BATCH_SIZE || "10", 10);
-const SLEEP_MS     = parseInt(process.env.CONCEPT_LOOP_SLEEP_MS || "200", 10);
-const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "10", 10);
+const LIMIT        = parseInt(process.env.CONCEPT_LIMIT || "30", 10);
+const BATCH_SIZE   = parseInt(process.env.CONCEPT_BATCH_SIZE || "5", 10);
+const SLEEP_MS     = parseInt(process.env.CONCEPT_LOOP_SLEEP_MS || "500", 10);
+const LOCK_TTL_MIN = parseInt(process.env.CONCEPT_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||

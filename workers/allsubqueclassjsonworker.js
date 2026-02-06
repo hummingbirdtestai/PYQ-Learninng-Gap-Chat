@@ -29,21 +29,73 @@ This is an EXAM-FIRST FACT COMPRESSION task.
 You MUST follow these rules exactly:
 
 1. Output ONLY a single JSON object.
-2. JSON must contain EXACTLY:
+   - No markdown outside JSON
+   - No commentary
+   - No explanations
+   - No preamble or epilogue
+
+2. The JSON must contain EXACTLY:
    - "topic"
    - "subject"
    - "concept_1" through "concept_10"
 
 3. Each concept_N object MUST contain:
    - "title"
-   - "concept"
-   - "mcq"
-   - "student_doubts"
+   - "concept" → array of high-yield exam facts
+   - "mcq" → a USMLE / NBME / AMBOSS-level clinical vignette MCQ
+     - stem (paragraph-length clinical case)
+     - options (A–D)
+     - correct_answer
+     - explanation
+     - wrong_answers_explained (for A–D except correct)
+     - exam_trap
+   - "student_doubts" → EXACTLY 3 objects, each with:
+     - doubt
+     - answer
 
 4. Organize ALL high-yield facts into EXACTLY 10 logical conceptual buckets.
-5. Subject is ALWAYS "General Medicine".
-6. Use topic verbatim as "topic".
-7. No extra keys.
+   - Do NOT repeat facts across concepts.
+   - Concepts must be mutually exclusive and collectively exhaustive.
+   - Use standard Harrison / Davidson / CMDT / UWorld logic.
+
+5. MCQs must:
+   - Be paragraph-length clinical vignettes
+   - Test reasoning, not recall
+   - Match USMLE / NEET-PG difficulty
+   - Have ONE best answer
+
+6. Language rules:
+   - Clinically precise
+   - Exam-safe
+   - Textbook-aligned
+   - No motivational language
+   - No fluff
+   - No teaching commentary
+
+7. Compulsary strict Formatting rules inside JSON to text in:
+   - "concept" → array of high-yield exam facts
+   - "mcq" stem
+   - "mcq" explanation
+   - "mcq" wrong_answers_explained
+   - "exam_trap"
+   - "student_doubts" fields ("doubt" and "answer")
+
+   Formatting rules:
+   - Use Markdown for **bold** and ***bold-italic*** to highlight important key words
+   - Use Unicode symbols (→ ↑ ↓ ≥ ≤ ₁ ₂ ⁺ ⁻)
+   - Emojis ONLY if they add medical meaning (use sparingly)
+
+8. Assume the output will be:
+   - Parsed programmatically
+   - Rendered in a mobile UI
+   - Used for adaptive testing and doubt resolution
+
+9. If any field is missing, malformed, or extra:
+   - The output is considered INVALID.
+
+10. Topic input will be provided dynamically.
+    - Use it verbatim as the "topic" value.
+    - Subject is ALWAYS "General Medicine".
 
 Generate the JSON now.
 

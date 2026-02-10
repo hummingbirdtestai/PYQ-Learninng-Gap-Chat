@@ -86,6 +86,9 @@ async function claimRows(limit) {
     .limit(limit);
 
   if (error) throw error;
+
+  console.log("🔍 Rows fetched for HYF:", data?.length);
+  
   if (!data?.length) return [];
 
   const ids = data.map(r => r.id);
@@ -121,8 +124,7 @@ async function processRow(row) {
     .update({
       hyf_number: value,
       concept_lock: null,
-      concept_lock_at: null,
-      updated_at: new Date().toISOString()
+      concept_lock_at: null
     })
     .eq("id", row.id);
 

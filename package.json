@@ -110,6 +110,7 @@
     "start:allsubqueclassjsonworker.js": "node workers/allsubqueclassjsonworker.js",
     "start:final_buzzword_class_worker.js": "node workers/final_buzzword_class_worker.js",
     "start:allsubjecthyf_number.js": "node workers/allsubjecthyf_number.js",
+    "start:hyfNotes40Worker.js": "node workers/hyfNotes40Worker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

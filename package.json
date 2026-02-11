@@ -114,6 +114,8 @@
     "start:hyfNotes75Worker.js": "node workers/hyfNotes75Worker.js",
     "start:mcq_hyf_notesmajor_worker.js": "node workers/mcq_hyf_notesmajor_worker.js",
     "start:mcq_hyf_notesminor_worker.js": "node workers/mcq_hyf_notesminor_worker.js",
+    "start:notes_hyf_mcq_worker.js": "node workers/notes_hyf_mcq_worker.js",
+    "start:notes_hyf_mcq_minorworker.js": "node workers/notes_hyf_mcq_minorworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

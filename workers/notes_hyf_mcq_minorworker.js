@@ -5,25 +5,25 @@ const openai = require("../config/openaiClient");
 // ─────────────────────────────────────────────
 // SETTINGS
 // ─────────────────────────────────────────────
-const MODEL        = process.env.MCQ_BUCKET_MODEL || "gpt-5-mini";
-const LIMIT        = parseInt(process.env.MCQ_BUCKET_LIMIT || "100", 10);
-const BATCH_SIZE   = parseInt(process.env.MCQ_BUCKET_BATCH_SIZE || "5", 10);
-const SLEEP_MS     = parseInt(process.env.MCQ_BUCKET_LOOP_SLEEP_MS || "300", 10);
-const LOCK_TTL_MIN = parseInt(process.env.MCQ_BUCKET_LOCK_TTL_MIN || "15", 10);
+const MODEL        = process.env.NOTES_HYF_MCQ_MODEL || "gpt-5-mini";
+const LIMIT        = parseInt(process.env.NOTES_HYF_MCQ_LIMIT || "100", 10);
+const BATCH_SIZE   = parseInt(process.env.NOTES_HYF_MCQ_BATCH_SIZE || "5", 10);
+const SLEEP_MS     = parseInt(process.env.NOTES_HYF_MCQ_LOOP_SLEEP_MS || "300", 10);
+const LOCK_TTL_MIN = parseInt(process.env.NOTES_HYF_MCQ_LOCK_TTL_MIN || "15", 10);
 
 const WORKER_ID =
   process.env.WORKER_ID ||
-  `mcq-bucket-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
+  `notes-hyf-mcq-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT (EXACTLY AS PROVIDED)
+// PROMPT (USE EXACTLY AS GIVEN)
 // ─────────────────────────────────────────────
-function buildPrompt(notesHyfJson) {
+function buildPrompt(notesHyf) {
   return `
-Each Topic has 2 Buckets . Create one mcq per Bucket on the High Yield facts created .
+Each Topic has 5 Buckets. Create one mcq per Bucket on the High Yield facts created.
 
-The JSON MUST contain EXACTLY 2 Bucket objects, named ONLY:
-"bucket_1" through "bucket_2"
+The JSON MUST contain EXACTLY 5 Bucket objects, named ONLY:
+"bucket_1" through "bucket_5"
 
 📝 MCQ RULES (CRITICAL)
 
@@ -35,7 +35,7 @@ Each MCQ object MUST contain EXACTLY the following keys IN THIS ORDER:
 - USMLE-style clinical case vignette
 - Must clearly imply History → Examination → Investigation
 - Paragraph style (not bullets)
-- Each MCQ be of High Quality and Standard and tone of First Aid / AMBOSS / UWorld / NBME tone
+- Each MCQ be of High Quality and Standard and tone of First Aid / AMBOSS / UWorld /NBME tone
 
 2. "options"
 - Object with EXACTLY 4 keys:
@@ -45,14 +45,13 @@ Each MCQ object MUST contain EXACTLY the following keys IN THIS ORDER:
 - MUST be exactly "A", "B", "C", or "D"
 
 4. "exam_trap"
-
 5. "answer"
 - What is the Common Exam Traps examiner sets in framing the MCQ and what is Correct answer and how to remember
 
 Give output Strictly as JSON
 
 HIGH YIELD FACTS:
-${JSON.stringify(notesHyfJson)}
+${JSON.stringify(notesHyf)}
 `;
 }
 
@@ -110,16 +109,16 @@ async function claimRows(limit) {
   // Clear expired locks
   await supabase
     .from("mcq_hyf_list")
-    .update({ concept_lock: null, concept_lock_at: null })
-    .lt("concept_lock_at", cutoff);
+    .update({ mcq_json_lock: null, mcq_json_lock_at: null })
+    .lt("mcq_json_lock_at", cutoff);
 
   const { data, error } = await supabase
     .from("mcq_hyf_list")
     .select("id, notes_hyf")
-    .eq("topic_type", "Major")
+    .eq("topic_type", "Minor")
     .not("notes_hyf", "is", null)
     .is("notes_hyf_mcq", null)
-    .is("concept_lock", null)
+    .is("mcq_json_lock", null)
     .order("created_at", { ascending: true })
     .limit(limit);
 
@@ -131,11 +130,11 @@ async function claimRows(limit) {
   const { data: locked, error: err2 } = await supabase
     .from("mcq_hyf_list")
     .update({
-      concept_lock: WORKER_ID,
-      concept_lock_at: new Date().toISOString()
+      mcq_json_lock: WORKER_ID,
+      mcq_json_lock_at: new Date().toISOString()
     })
     .in("id", ids)
-    .is("concept_lock", null)
+    .is("mcq_json_lock", null)
     .select("id, notes_hyf");
 
   if (err2) throw err2;
@@ -155,8 +154,8 @@ async function processRow(row) {
       .from("mcq_hyf_list")
       .update({
         notes_hyf_mcq: json,
-        concept_lock: null,
-        concept_lock_at: null
+        mcq_json_lock: null,
+        mcq_json_lock_at: null
       })
       .eq("id", row.id);
 
@@ -169,8 +168,8 @@ async function processRow(row) {
     await supabase
       .from("mcq_hyf_list")
       .update({
-        concept_lock: null,
-        concept_lock_at: null
+        mcq_json_lock: null,
+        mcq_json_lock_at: null
       })
       .eq("id", row.id);
 
@@ -182,7 +181,7 @@ async function processRow(row) {
 // MAIN LOOP
 // ─────────────────────────────────────────────
 (async function main() {
-  console.log(`🧠 MCQ BUCKET WORKER STARTED | ${WORKER_ID}`);
+  console.log(`🧠 NOTES HYF → MCQ WORKER STARTED | ${WORKER_ID}`);
 
   while (true) {
     try {

@@ -20,56 +20,42 @@ const WORKER_ID =
 // ─────────────────────────────────────────────
 function buildPrompt(question) {
   return `
-give 20 Buzz word styled High Yield facts Must to remember in 2 Buckets , each with 10 Buzz word Styled HYFs. each in less than 6 Words , numbered globally from "1" to "20" , for each Bucket 1 USMLE Styled Clinical case Vignette based MCQ with 4 Options and Correct Answer and Exam Trap in the MCQ and what to Remember in Exam to test the HYFs in each of the Bucket .
-
+give 20 Buzz word styled High Yield facts Must to remember in 2 Buckets , each with 10 Buzz word Styled HYFs. each in less than 6 Words , numbered globally from "1" to "20" 
 ────────────────────────────────────
 JSON STRUCTURE (STRICT — DO NOT DEVIATE)
 ────────────────────────────────────
-{
-  "topic": "<topic_name>",
-  "bucket_1": { ... },
-  "bucket_2": { ... }
+{ 
+  "topic": "<topic_name>", 
+  "bucket_1": { ... }, 
+  "bucket_2": { ... } 
 }
 
 Each bucket MUST contain EXACTLY:
-{
-  "bucket": <1–2>,
-  "title": "concise exam-oriented title",
-  "hyfs": {
-    "1": "...",
-    "2": "...",
-    "3": "...",
-    "4": "...",
-    "10": "..."
-  },
-  "mcq": {
-    "stem": "USMLE-style clinical vignette implying history, exam, investigations",
-    "options": {
-      "A": "...",
-      "B": "...",
-      "C": "...",
-      "D": "..."
-    },
-    "correct_answer": "A | B | C | D",
-    "exam_trap": "common exam confusion tested here",
-    "what_to_remember": "single decisive recall point for exams"
-  }
+{ 
+  "bucket": <1–2>, 
+  "title": "concise exam-oriented title", 
+  "hyfs": { 
+    "1": "...", 
+    "2": "...", 
+    "3": "...", 
+    "4": "...", 
+    "10": "..." 
+  } 
 }
 
 ────────────────────────────────────
 HIGH-YIELD FACT (HYF) RULES — VERY STRICT
 ────────────────────────────────────
-• Total HYFs = EXACTLY 20 (10 per bucket)
-• HYFs must be numbered globally from "1" to "20"
-• - MUST contain **EXACTLY ONE word** that is ***bold + italic***
--Unicode arrows (↑ ↓ →), symbols (±, ≤, ≥), subscripts allowed
+• Total HYFs = EXACTLY 20 (10 per bucket)  
+• HYFs must be numbered globally from "1" to "20"  
+• MUST contain EXACTLY ONE word that is **bold + italic**  
+• Unicode arrows (↑ ↓ →), symbols (±, ≤, ≥), subscripts allowed  
 
 GENERATE THE JSON NOW as code
 
 TOPIC:
 ${question}
 
-GENERATE THE JSON NOW as code
 `;
 }
 

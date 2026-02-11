@@ -111,6 +111,7 @@
     "start:final_buzzword_class_worker.js": "node workers/final_buzzword_class_worker.js",
     "start:allsubjecthyf_number.js": "node workers/allsubjecthyf_number.js",
     "start:hyfNotes40Worker.js": "node workers/hyfNotes40Worker.js",
+    "start:hyfNotes75Worker.js": "node workers/hyfNotes75Worker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

@@ -112,6 +112,8 @@
     "start:allsubjecthyf_number.js": "node workers/allsubjecthyf_number.js",
     "start:hyfNotes40Worker.js": "node workers/hyfNotes40Worker.js",
     "start:hyfNotes75Worker.js": "node workers/hyfNotes75Worker.js",
+    "start:mcq_hyf_notesmajor_worker.js": "node workers/mcq_hyf_notesmajor_worker.js",
+    "start:mcq_hyf_notesminor_worker.js": "node workers/mcq_hyf_notesminor_worker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

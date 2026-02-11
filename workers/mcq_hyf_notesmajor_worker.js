@@ -16,7 +16,7 @@ const WORKER_ID =
   `mcq-hyf-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT (USE AS IS — DO NOT MODIFY)
+// PROMPT
 // ─────────────────────────────────────────────
 function buildPrompt(mcqJson) {
   return `
@@ -55,10 +55,10 @@ Each bucket MUST contain EXACTLY:
 HIGH-YIELD FACT (HYF) RULES — VERY STRICT
 ────────────────────────────────────
 
-• Total HYFs = EXACTLY 50 (10 per bucket)  
-• HYFs must be numbered globally from "1" to "50"  
-• MUST contain EXACTLY ONE word that is **bold + italic**  
-• Unicode arrows (↑ ↓ →), symbols (±, ≤, ≥), subscripts allowed  
+• Total HYFs = EXACTLY 50 (10 per bucket)
+• HYFs must be numbered globally from "1" to "50"
+• MUST contain EXACTLY ONE word that is **bold + italic**
+• Unicode arrows (↑ ↓ →), symbols (±, ≤, ≥), subscripts allowed
 
 GENERATE THE JSON NOW as code
 
@@ -77,11 +77,32 @@ function isRetryable(e) {
     .test(String(e?.message || e));
 }
 
+function extractJson(text) {
+  if (!text) throw new Error("Empty model response");
+
+  // Remove code fences
+  let cleaned = text
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  // Try to extract first JSON object if extra text exists
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace  = cleaned.lastIndexOf("}");
+
+  if (firstBrace !== -1 && lastBrace !== -1) {
+    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+  }
+
+  return JSON.parse(cleaned);
+}
+
 async function callOpenAI(prompt, attempt = 1) {
   try {
     const resp = await openai.chat.completions.create({
       model: MODEL,
-      messages: [{ role: "user", content: prompt }]
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.2
     });
 
     return resp.choices?.[0]?.message?.content?.trim();
@@ -139,25 +160,36 @@ async function claimRows(limit) {
 // PROCESS ROW
 // ─────────────────────────────────────────────
 async function processRow(row) {
-  const raw = await callOpenAI(buildPrompt(row.mcq_json));
-
-  let json;
   try {
-    json = JSON.parse(raw);
-  } catch {
-    throw new Error("Invalid JSON returned by model");
+    const raw = await callOpenAI(buildPrompt(row.mcq_json));
+    const json = extractJson(raw);
+
+    await supabase
+      .from("mcq_hyf_list")
+      .update({
+        notes_hyf: json,
+        mcq_json_lock: null,
+        mcq_json_lock_at: null
+      })
+      .eq("id", row.id);
+
+    return true;
+
+  } catch (err) {
+    console.error("❌ Row failed:", row.id);
+    console.error(err.message);
+
+    // Release lock on failure
+    await supabase
+      .from("mcq_hyf_list")
+      .update({
+        mcq_json_lock: null,
+        mcq_json_lock_at: null
+      })
+      .eq("id", row.id);
+
+    throw err;
   }
-
-  await supabase
-    .from("mcq_hyf_list")
-    .update({
-      notes_hyf: json,
-      mcq_json_lock: null,
-      mcq_json_lock_at: null
-    })
-    .eq("id", row.id);
-
-  return true;
 }
 
 // ─────────────────────────────────────────────
@@ -189,7 +221,7 @@ async function processRow(row) {
       }
 
     } catch (e) {
-      console.error("❌ Worker error:", e);
+      console.error("❌ Worker loop error:", e.message);
       await sleep(1200);
     }
   }

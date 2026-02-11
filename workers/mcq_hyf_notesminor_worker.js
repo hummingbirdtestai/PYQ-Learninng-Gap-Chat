@@ -16,13 +16,13 @@ const WORKER_ID =
   `mcq-hyf-${process.pid}-${Math.random().toString(36).slice(2,6)}`;
 
 // ─────────────────────────────────────────────
-// PROMPT (USE AS IS — DO NOT MODIFY)
+// PROMPT (CURLY QUOTES FIXED)
 // ─────────────────────────────────────────────
 function buildPrompt(mcqJson) {
   return `
 The following are PYQs in NEETPG converted into Single Liners.
 
-give 20 Buzz word styled High Yield facts Must to remember in 2 Buckets , each with 10 Buzz word Styled HYFs. each in less than 6 Words , numbered globally from "1" to “20"
+give 20 Buzz word styled High Yield facts Must to remember in 2 Buckets , each with 10 Buzz word Styled HYFs. each in less than 6 Words , numbered globally from "1" to "20"
 
 ────────────────────────────────────
 JSON STRUCTURE (STRICT — DO NOT DEVIATE)
@@ -44,7 +44,7 @@ Each bucket MUST contain EXACTLY:
     "2": "...",
     "3": "...",
     "4": "...",
-    “20": "..."
+    "20": "..."
   }
 }
 
@@ -52,10 +52,10 @@ Each bucket MUST contain EXACTLY:
 HIGH-YIELD FACT (HYF) RULES — VERY STRICT
 ────────────────────────────────────
 
-• Total HYFs = EXACTLY 20 (10 per bucket)  
-• HYFs must be numbered globally from "1" to “20"  
-• MUST contain EXACTLY ONE word that is **bold + italic**  
-• Unicode arrows (↑ ↓ →), symbols (±, ≤, ≥), subscripts allowed  
+• Total HYFs = EXACTLY 20 (10 per bucket)
+• HYFs must be numbered globally from "1" to "20"
+• MUST contain EXACTLY ONE word that is **bold + italic**
+• Unicode arrows (↑ ↓ →), symbols (±, ≤, ≥), subscripts allowed
 
 GENERATE THE JSON NOW as code
 
@@ -72,6 +72,17 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 function isRetryable(e) {
   return /timeout|429|temporar|unavailable|ECONNRESET|ETIMEDOUT/i
     .test(String(e?.message || e));
+}
+
+function extractJson(text) {
+  if (!text) throw new Error("Empty model response");
+
+  const cleaned = text
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  return JSON.parse(cleaned);
 }
 
 async function callOpenAI(prompt, attempt = 1) {
@@ -137,25 +148,37 @@ async function claimRows(limit) {
 // PROCESS ROW
 // ─────────────────────────────────────────────
 async function processRow(row) {
-  const raw = await callOpenAI(buildPrompt(row.mcq_json));
-
-  let json;
   try {
-    json = JSON.parse(raw);
-  } catch {
-    throw new Error("Invalid JSON returned by model");
+    const raw = await callOpenAI(buildPrompt(row.mcq_json));
+
+    const json = extractJson(raw);
+
+    await supabase
+      .from("mcq_hyf_list")
+      .update({
+        notes_hyf: json,
+        mcq_json_lock: null,
+        mcq_json_lock_at: null
+      })
+      .eq("id", row.id);
+
+    return true;
+
+  } catch (err) {
+    console.error("❌ Row failed:", row.id);
+    console.error(err.message);
+
+    // RELEASE LOCK ON FAILURE
+    await supabase
+      .from("mcq_hyf_list")
+      .update({
+        mcq_json_lock: null,
+        mcq_json_lock_at: null
+      })
+      .eq("id", row.id);
+
+    throw err;
   }
-
-  await supabase
-    .from("mcq_hyf_list")
-    .update({
-      notes_hyf: json,
-      mcq_json_lock: null,
-      mcq_json_lock_at: null
-    })
-    .eq("id", row.id);
-
-  return true;
 }
 
 // ─────────────────────────────────────────────
@@ -187,7 +210,7 @@ async function processRow(row) {
       }
 
     } catch (e) {
-      console.error("❌ Worker error:", e);
+      console.error("❌ Worker loop error:", e.message);
       await sleep(1200);
     }
   }

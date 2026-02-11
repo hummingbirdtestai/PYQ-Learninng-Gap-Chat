@@ -22,7 +22,7 @@ function buildPrompt(mcqJson) {
   return `
 The following are PYQs in NEETPG converted into Single Liners.
 
-give 50 Buzz word styled High Yield facts Must to remember in 5 Buckets , each with 10 Buzz word Styled HYFs. each in less than 6 Words , numbered globally from "1" to "50"
+give 20 Buzz word styled High Yield facts Must to remember in 2 Buckets , each with 10 Buzz word Styled HYFs. each in less than 6 Words , numbered globally from "1" to “20"
 
 ────────────────────────────────────
 JSON STRUCTURE (STRICT — DO NOT DEVIATE)
@@ -31,23 +31,20 @@ JSON STRUCTURE (STRICT — DO NOT DEVIATE)
 {
   "topic": "<topic_name>",
   "bucket_1": { ... },
-  "bucket_2": { ... },
-  "bucket_3": { ... },
-  "bucket_4": { ... },
-  "bucket_5": { ... }
+  "bucket_2": { ... }
 }
 
 Each bucket MUST contain EXACTLY:
 
 {
-  "bucket": <1–5>,
+  "bucket": <1–2>,
   "title": "concise exam-oriented title",
   "hyfs": {
     "1": "...",
     "2": "...",
     "3": "...",
     "4": "...",
-    "50": "..."
+    “20": "..."
   }
 }
 
@@ -55,8 +52,8 @@ Each bucket MUST contain EXACTLY:
 HIGH-YIELD FACT (HYF) RULES — VERY STRICT
 ────────────────────────────────────
 
-• Total HYFs = EXACTLY 50 (10 per bucket)  
-• HYFs must be numbered globally from "1" to "50"  
+• Total HYFs = EXACTLY 20 (10 per bucket)  
+• HYFs must be numbered globally from "1" to “20"  
 • MUST contain EXACTLY ONE word that is **bold + italic**  
 • Unicode arrows (↑ ↓ →), symbols (±, ≤, ≥), subscripts allowed  
 

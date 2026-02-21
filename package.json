@@ -118,6 +118,7 @@
     "start:notes_hyf_mcq_minorworker.js": "node workers/notes_hyf_mcq_minorworker.js",
     "start:notes_hyf_mcq75_worker.js": "node workers/notes_hyf_mcq75_worker.js",
     "start:notes_hyf_mcq40_worker.js": "node workers/notes_hyf_mcq40_worker.js",
+    "start:liveclass_imagedescriptionworker.js": "node workers/liveclass_imagedescriptionworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

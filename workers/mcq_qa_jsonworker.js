@@ -67,15 +67,7 @@ high_yield_facts
 2. STEM RULE (ABSOLUTE — NO MODIFICATION)
 --------------------------------------------------
 
-PRESERVE the original MCQ stem EXACTLY
-
-DO NOT rewrite
-
-DO NOT paraphrase
-
-✔ ONLY IF clearly incomplete:
-→ Add MINIMAL words to complete meaning
-
+PRESERVE the original MCQ stem and make it complete like the way it is actually asked in NEETPG Exam 
 ✔ REMOVE:
 
 Question numbering (e.g., 1., 24., 130.)
@@ -116,7 +108,7 @@ DO NOT reorder
 5. CORRECT ANSWER
 --------------------------------------------------
 
-Keep EXACTLY same
+Keep EXACTLY same 
 
 Preserve format (A / B / C / D or given format)
 
@@ -127,41 +119,10 @@ Preserve format (A / B / C / D or given format)
 These are NOT facts OR SINGLE LINERS 
 
 They MUST be:
+5 FULL-LENGTH NEETPG EXAMINER-LEVEL QUESTION STEMS + ANSWER
+✔ Stored as STRING
+✔ Not MCQ options
 
-👉 Most probable FUTURE NEET-PG QUESTIONS that can surface in real exam
-👉 Based on PYQ patternand should be moist probable to ask in future NEETPG Exam 
-✔ Wherever possible → use Clinical Case Vignette style but limited to amximum 10 Word Sentence
-👉 Derived from same concept
-
---------------------------------------------------
-EXAMINER THINKING RULE (VERY IMPORTANT)
---------------------------------------------------
-
-Each question MUST follow:
-
-✔ Frequently asked concept OR repeat PYQ pattern
-✔ Core concept that differentiates rank
-✔ Common trap tested in NEETPG
-✔ Directly testable in NEETPG  MCQ
-✔ Clinically or conceptually high-yield
-
-
-❌ DO NOT include:
-
-Rare facts
-
-Paragraph explanations
-
-Theoretical descriptions
-
---------------------------------------------------
-DIFFICULTY STANDARD
---------------------------------------------------
-
-Questions MUST match:
-
-👉 Actual NEETPG paper level
-👉 Crisp, exam-style phrasing
 
 --------------------------------------------------
 FORMAT (STRICT)
@@ -184,15 +145,6 @@ FORMAT (STRICT)
 STRICT RULES
 --------------------------------------------------
 
-EXACTLY 5 Q&A pairs
-
-Questions MUST be directly askable in NEETPG
-
-No explanations
-
-No options
-
-No extra text
 
 --------------------------------------------------
 EMPHASIS RULE
@@ -226,17 +178,11 @@ No extra text outside JSON
 
 Output is WRONG if:
 
-Stem is modified other than to bmake a incomplete stem to become complete 
-
-Options altered
 
 Question numbering retained in stem
 
 Options included in stem
 
-Questions are not exam-level
-
-Questions are not high-yield
 
 Formatting incorrect
 

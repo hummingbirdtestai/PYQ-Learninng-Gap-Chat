@@ -119,40 +119,12 @@ Preserve format (A / B / C / D or given format)
 These are NOT facts OR SINGLE LINERS 
 
 They MUST be:
-5 FULL-LENGTH NEETPG EXAMINER-LEVEL QUESTION STEMS + ANSWER
+5 FULL-LENGTH NEETPG EXAMINER-LEVEL QUESTION STEMS (Not MCQ) without MCQ options ,  they appear in Future NEETPG EXAM + ANSWER
 ✔ Stored as STRING
 ✔ Not MCQ options
+CREATE the 5 Questions and Answers as string , not as array or nested objects , as a value in the Key ,high_yield_facts
 
-
---------------------------------------------------
-FORMAT (STRICT)
---------------------------------------------------
-**Question 1:** <clinical vignette / exam-level question>  
-**Answer:** <precise answer>  
-
-**Question 2:** <clinical vignette / exam-level question>  
-**Answer:** <precise answer>  
-
-**Question 3:** <clinical vignette / exam-level question>  
-**Answer:** <precise answer>  
-
-**Question 4:** <clinical vignette / exam-level question>  
-**Answer:** <precise answer>  
-
-**Question 5:** <clinical vignette / exam-level question>  
-**Answer:** <precise answer>
---------------------------------------------------
-STRICT RULES
---------------------------------------------------
-
-
---------------------------------------------------
-EMPHASIS RULE
---------------------------------------------------
-
-Use bold for key exam terms
-
-Use italic ONLY for traps
+Use bold for key exam terms that need emphasis and Unicode for symbols, math , superscripts , subscripts , greek letters
 
 --------------------------------------------------
 SPACING RULE

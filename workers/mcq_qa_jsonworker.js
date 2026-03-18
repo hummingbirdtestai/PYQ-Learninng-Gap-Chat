@@ -119,10 +119,10 @@ Preserve format (A / B / C / D or given format)
 These are NOT facts OR SINGLE LINERS
 
 They MUST be:
-5 FULL-LENGTH NEETPG EXAMINER-LEVEL QUESTION STEMS (Not MCQ) without MCQ options, they appear in Future NEETPG EXAM + ANSWER
+5 FULL-LENGTH NEETPG EXAMINER-LEVEL QUESTION STEMS (Not MCQ) without MCQ options, they appear in Future NEETPG EXAM + ANSWER whcih is 1-3 words only
 
 Each Question should be like NEETPG MCQ Stem of Clinical Case Vignette styled in Clinical Subjects and Single liner styled but of NEETPG STYLED in Basic Sciences like Anatomy, Physiology, Biochemistry, Microbiology, Pharmacology, Pathology, Community Medicine, Forensic Medicine
-
+Question should be strictly Stem of MCQ , not a descriptive Question or explanatory nature 
 ✔ Stored as STRING  
 ✔ Not MCQ options  
 

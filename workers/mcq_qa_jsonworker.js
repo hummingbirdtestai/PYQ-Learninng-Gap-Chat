@@ -116,15 +116,19 @@ Preserve format (A / B / C / D or given format)
 6. HIGH_YIELD_FACTS = EXAMINER QUESTIONS (CRITICAL)
 --------------------------------------------------
 
-These are NOT facts OR SINGLE LINERS 
+These are NOT facts OR SINGLE LINERS
 
 They MUST be:
-5 FULL-LENGTH NEETPG EXAMINER-LEVEL QUESTION STEMS (Not MCQ) without MCQ options ,  they appear in Future NEETPG EXAM + ANSWER
-✔ Stored as STRING
-✔ Not MCQ options
-CREATE the 5 Questions and Answers as string , not as array or nested objects , as a value in the Key ,high_yield_facts
+5 FULL-LENGTH NEETPG EXAMINER-LEVEL QUESTION STEMS (Not MCQ) without MCQ options, they appear in Future NEETPG EXAM + ANSWER
 
-Use bold for key exam terms that need emphasis and Unicode for symbols, math , superscripts , subscripts , greek letters
+Each Question should be like NEETPG MCQ Stem of Clinical Case Vignette styled in Clinical Subjects and Single liner styled but of NEETPG STYLED in Basic Sciences like Anatomy, Physiology, Biochemistry, Microbiology, Pharmacology, Pathology, Community Medicine, Forensic Medicine
+
+✔ Stored as STRING  
+✔ Not MCQ options  
+
+CREATE the 5 Questions and Answers as string, not as array or nested objects, as a value in the Key, high_yield_facts
+
+Use bold for key exam terms that need emphasis and Unicode for symbols, math, superscripts, subscripts, greek letters
 
 --------------------------------------------------
 SPACING RULE

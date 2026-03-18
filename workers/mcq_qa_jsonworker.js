@@ -128,8 +128,9 @@ These are NOT facts OR SINGLE LINERS
 
 They MUST be:
 
-👉 Most probable FUTURE NEET-PG QUESTIONS and Clinical Case Vignette styled in Clinical Subjects 
+👉 Most probable FUTURE NEET-PG QUESTIONS that can surface in real exam
 👉 Based on PYQ patternand should be moist probable to ask in future NEETPG Exam 
+✔ Wherever possible → use Clinical Case Vignette style but limited to amximum 10 Word Sentence
 👉 Derived from same concept
 
 --------------------------------------------------
@@ -144,8 +145,6 @@ Each question MUST follow:
 ✔ Directly testable in NEETPG  MCQ
 ✔ Clinically or conceptually high-yield
 
-✔ Wherever possible → use Clinical Case Vignette style
-(USMLE / AMBOSS pattern)
 
 ❌ DO NOT include:
 
@@ -212,15 +211,7 @@ Maintain exact formatting
 Question → newline → Answer → blank line
 
 --------------------------------------------------
-7. NULL HANDLING
---------------------------------------------------
-
-Preserve null values exactly
-
-DO NOT remove keys
-
---------------------------------------------------
-8. STRICT JSON
+7. STRICT JSON
 --------------------------------------------------
 
 Output MUST be valid JSON
@@ -230,12 +221,12 @@ No trailing commas
 No extra text outside JSON
 
 --------------------------------------------------
-9. FAILURE CONDITIONS
+8. FAILURE CONDITIONS
 --------------------------------------------------
 
 Output is WRONG if:
 
-Stem is modified
+Stem is modified other than to bmake a incomplete stem to become complete 
 
 Options altered
 
@@ -247,21 +238,9 @@ Questions are not exam-level
 
 Questions are not high-yield
 
-Clinical style not used where possible
-
 Formatting incorrect
 
 Keys missing
-
-🔴 FINAL EMPHASIS
-
-Think like a 30-year NEET-PG paper setter
-
-Generate predictable future PYQs
-
-Focus on rank-deciding concepts
-
-Prefer clinical vignette traps + recall combos
 
 INPUT MCQ JSON:
 ${JSON.stringify(mcqJson)}

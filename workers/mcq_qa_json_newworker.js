@@ -34,7 +34,7 @@ In each MCQ ,
 
 the string in high_yield_facts ,
 
-should be 5 sets of Question and Answer like Flash cards
+should be 10 sets of Question and Answer like Flash cards
 
 of most hIGH yIEDLF ACTS IN NEETPG Expected in upcoming NEETPG Exam .
 
@@ -52,7 +52,7 @@ aLSO CHECK THE cORRECT ANSWER AND OPTIONS
 
 AND MAKE TEM ORIGINAL LIKE IN ACTUAL neetpg eXAM .
 
-Maintain Mark Up to bold and high light the Key words
+Strict Rule of formatting : Maintain Mark Up to bold and high light the Key words
 
 and Unicode for Superscripts , Subscripts , Greek letters , Symbols , Math .
 
@@ -63,7 +63,10 @@ and complete all MCQs in JSON
 and give the output as JSON
 StriCT rULES : 1) dONT MENTION ORIGINAL STEM OR DONT MENTION REFRAMED STEM EXPLICITY 
 2) kEEP THE neetpg year where the MCQ asked in paranthesis , which is there in original mcq AS is at the end of reframed Stem 
-3) Flashcard styled Questions , should be less than 20 words long and answer only 1-3 words 
+3) 10 Flashcard styled Questions , should be less than 20 words long and answer only 1-3 words . 
+4)  10 Flashcard styled Questions , must be unique , non-reptitive most expected MCQs in upcoming NEETPG Exam and should not repeat the same fact as in the MCQ .
+5) Dont repeat the Fact tested in  MCQ in  10 Flashcard styled Questions
+6) 10 Flashcard styled Questions should be able to cover the entire topic on which the MCQ is asked in totality of all the possible most high yield question that can come in NEETPG WITH 100% accuracy 
 INPUT JSON:
 ${JSON.stringify(mcqJson)}
 `;

@@ -120,6 +120,7 @@
     "start:notes_hyf_mcq40_worker.js": "node workers/notes_hyf_mcq40_worker.js",
     "start:liveclass_imagedescriptionworker.js": "node workers/liveclass_imagedescriptionworker.js",
     "start:mcq_qa_jsonworker.js": "node workers/mcq_qa_jsonworker.js",
+    "start:mcq_qa_json_newworker.js": "node workers/mcq_qa_json_newworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

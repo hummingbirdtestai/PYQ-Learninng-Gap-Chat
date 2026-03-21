@@ -61,7 +61,9 @@ dONT MISS even a Single MCQ in JSON
 and complete all MCQs in JSON
 
 and give the output as JSON
-
+StriCT rULES : 1) dONT MENTION ORIGINAL STEM OR DONT MENTION REFRAMED STEM EXPLICITY 
+2) kEEP THE neetpg year where the MCQ asked in paranthesis , which is there in original mcq AS is at the end of reframed Stem 
+3) Flashcard styled Questions , should be less than 20 words long and answer only 1-3 words 
 INPUT JSON:
 ${JSON.stringify(mcqJson)}
 `;

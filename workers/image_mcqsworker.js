@@ -36,9 +36,7 @@ Your task is to generate a NEETPG-style Integrated Image-Based MCQ.
 
 STEM RULES:
 - Stem MUST be more than 15 words and less than 20 words.
-- MUST include the exact phrase: "Check the Image given."
 - MUST NOT contain any imaging/radiology description or keywords.
-- The stem MUST contain ONLY the phrase "Check the Image given." for image reference.
 
 OPTIONS RULES:
 - Provide exactly 4 options: A, B, C, D
@@ -52,7 +50,6 @@ IMAGE HANDLING RULE (HIGHEST PRIORITY):
 - The model MUST NOT leak any part of "image_description" into the stem.
 
 OUTPUT VALIDATION RULE:
-✔ Stem contains ONLY "Check the Image given."
 ✔ No radiology/imaging keywords present in stem
 ✔ Image description exists ONLY in "image_description"
 

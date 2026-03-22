@@ -19,8 +19,17 @@ const TABLE_NAME = "mcq_hyf_list";
 const LOCK_COL   = "mcq_json_lock";
 const LOCK_AT_COL= "mcq_json_lock_at";
 
+console.log("────────────────────────────────────────────");
+console.log("🚀 WORKER BOOTING");
+console.log("Model:", MODEL);
+console.log("Limit:", LIMIT);
+console.log("Batch Size:", BATCH_SIZE);
+console.log("Lock TTL:", LOCK_TTL_MIN);
+console.log("Worker ID:", WORKER_ID);
+console.log("────────────────────────────────────────────");
+
 // ─────────────────────────────────────────────
-// PROMPT (USE EXACTLY AS PROVIDED — NO CHANGE)
+// PROMPT (UNCHANGED)
 // ─────────────────────────────────────────────
 function buildPrompt(subject, topic, number) {
   return `
@@ -47,6 +56,11 @@ Subject : ${subject}
 Topic : ${topic}
 
 Number : ${number}
+
+You MUST return STRICT VALID JSON ONLY.
+No explanation.
+No markdown.
+No commentary.
 `;
 }
 
@@ -60,7 +74,7 @@ function isRetryable(e) {
     .test(String(e?.message || e));
 }
 
-function extractJson(text) {
+function extractJson(text, rowId) {
   if (!text) throw new Error("Empty model response");
 
   let cleaned = text
@@ -71,24 +85,48 @@ function extractJson(text) {
   const firstBrace = cleaned.indexOf("{");
   const lastBrace  = cleaned.lastIndexOf("}");
 
-  if (firstBrace !== -1 && lastBrace !== -1) {
-    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+  if (firstBrace === -1 || lastBrace === -1) {
+    console.error("❌ JSON boundaries not found for row:", rowId);
+    console.error("RAW OUTPUT:\n", text);
+    throw new Error("No JSON object found");
   }
 
-  return JSON.parse(cleaned);
+  cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("❌ JSON PARSE FAILED for row:", rowId);
+    console.error("CLEANED OUTPUT:\n", cleaned);
+    throw e;
+  }
 }
 
-async function callOpenAI(prompt, attempt = 1) {
+async function callOpenAI(prompt, rowId, attempt = 1) {
   try {
+    console.log(`🧠 Calling OpenAI | Row: ${rowId} | Attempt: ${attempt}`);
+
     const resp = await openai.chat.completions.create({
       model: MODEL,
-      messages: [{ role: "user", content: prompt }]
+      messages: [{ role: "user", content: prompt }],
     });
-    return resp.choices?.[0]?.message?.content?.trim();
+
+    const content = resp.choices?.[0]?.message?.content?.trim();
+
+    if (!content) {
+      console.error("❌ Empty response from OpenAI for row:", rowId);
+    }
+
+    return content;
+
   } catch (e) {
+    console.error(`❌ OpenAI error | Row: ${rowId} | Attempt: ${attempt}`);
+    console.error("Error:", e.message);
+
     if (isRetryable(e) && attempt <= 2) {
+      console.log("🔁 Retrying...");
       await sleep(800 * attempt);
-      return callOpenAI(prompt, attempt + 1);
+      return callOpenAI(prompt, rowId, attempt + 1);
     }
     throw e;
   }
@@ -98,13 +136,16 @@ async function callOpenAI(prompt, attempt = 1) {
 // CLAIM ROWS
 // ─────────────────────────────────────────────
 async function claimRows(limit) {
+  console.log("🔍 Checking for expired locks...");
+
   const cutoff = new Date(Date.now() - LOCK_TTL_MIN * 60000).toISOString();
 
-  // Clear expired locks
   await supabase
     .from(TABLE_NAME)
     .update({ [LOCK_COL]: null, [LOCK_AT_COL]: null })
     .lt(LOCK_AT_COL, cutoff);
+
+  console.log("🔎 Fetching eligible rows...");
 
   const { data, error } = await supabase
     .from(TABLE_NAME)
@@ -115,8 +156,17 @@ async function claimRows(limit) {
     .order("created_at", { ascending: true })
     .limit(limit);
 
-  if (error) throw error;
-  if (!data?.length) return [];
+  if (error) {
+    console.error("❌ Claim error:", error);
+    throw error;
+  }
+
+  if (!data?.length) {
+    console.log("🟡 No rows available");
+    return [];
+  }
+
+  console.log(`📦 Found ${data.length} eligible rows`);
 
   const ids = data.map(r => r.id);
 
@@ -130,7 +180,12 @@ async function claimRows(limit) {
     .is(LOCK_COL, null)
     .select("id, subject, new_topic, number");
 
-  if (err2) throw err2;
+  if (err2) {
+    console.error("❌ Lock error:", err2);
+    throw err2;
+  }
+
+  console.log(`🔒 Locked ${locked?.length || 0} rows`);
   return locked || [];
 }
 
@@ -138,13 +193,26 @@ async function claimRows(limit) {
 // PROCESS ROW
 // ─────────────────────────────────────────────
 async function processRow(row) {
-  try {
-    const raw = await callOpenAI(
-      buildPrompt(row.subject, row.new_topic, row.number)
-    );
-    const json = extractJson(raw);
+  console.log("────────────────────────────");
+  console.log("▶ Processing Row:", row.id);
+  console.log("Subject:", row.subject);
+  console.log("Topic:", row.new_topic);
+  console.log("Number:", row.number);
 
-    await supabase
+  try {
+    const prompt = buildPrompt(row.subject, row.new_topic, row.number);
+
+    console.log("📤 Prompt Preview:", prompt.substring(0, 200), "...");
+
+    const raw = await callOpenAI(prompt, row.id);
+
+    console.log("📥 Raw Model Output Preview:", raw?.substring(0, 200));
+
+    const json = extractJson(raw, row.id);
+
+    console.log("✅ JSON Parsed Successfully for row:", row.id);
+
+    const { error } = await supabase
       .from(TABLE_NAME)
       .update({
         cheat_sheet: json,
@@ -153,10 +221,17 @@ async function processRow(row) {
       })
       .eq("id", row.id);
 
+    if (error) {
+      console.error("❌ Supabase update error:", error);
+      throw error;
+    }
+
+    console.log("💾 Saved successfully:", row.id);
     return true;
 
   } catch (err) {
     console.error("❌ Row failed:", row.id);
+    console.error("Reason:", err.message);
 
     await supabase
       .from(TABLE_NAME)
@@ -166,6 +241,7 @@ async function processRow(row) {
       })
       .eq("id", row.id);
 
+    console.log("🔓 Lock released for:", row.id);
     throw err;
   }
 }
@@ -185,21 +261,22 @@ async function processRow(row) {
         continue;
       }
 
-      console.log(`📥 Picked ${claimed.length} rows`);
-
       for (let i = 0; i < claimed.length; i += BATCH_SIZE) {
         const batch = claimed.slice(i, i + BATCH_SIZE);
+
+        console.log(`⚙️ Processing batch of ${batch.length}`);
+
         const results = await Promise.allSettled(batch.map(processRow));
 
         const success = results.filter(r => r.status === "fulfilled").length;
         const failed  = results.filter(r => r.status === "rejected").length;
 
-        console.log(`⚙️ Batch done | Success: ${success} | Failed: ${failed}`);
+        console.log(`📊 Batch Result | Success: ${success} | Failed: ${failed}`);
       }
 
     } catch (e) {
       console.error("❌ Worker loop error:", e.message);
-      await sleep(1200);
+      await sleep(1500);
     }
   }
 })();

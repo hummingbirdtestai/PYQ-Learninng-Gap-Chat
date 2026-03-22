@@ -80,7 +80,7 @@ OUTPUT FORMAT (STRICT JSON ONLY):
   }
 ]
 
-Return STRICT VALID JSON ARRAY ONLY.
+
 No explanation.
 No markdown.
 No commentary.

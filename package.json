@@ -121,6 +121,7 @@
     "start:liveclass_imagedescriptionworker.js": "node workers/liveclass_imagedescriptionworker.js",
     "start:mcq_qa_jsonworker.js": "node workers/mcq_qa_jsonworker.js",
     "start:mcq_qa_json_newworker.js": "node workers/mcq_qa_json_newworker.js",
+    "start:cheatsheetgenworker.js": "node workers/cheatsheetgenworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

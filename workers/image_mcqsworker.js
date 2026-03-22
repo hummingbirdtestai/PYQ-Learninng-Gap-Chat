@@ -36,6 +36,7 @@ Your task is to generate a NEETPG-style Integrated Image-Based MCQ.
 
 STEM RULES:
 - Stem MUST be more than 15 words and less than 20 words.
+- MUST include the exact phrase: "Check the Image given."
 - MUST NOT contain any imaging/radiology description or keywords.
 
 OPTIONS RULES:

@@ -161,7 +161,6 @@ async function claimRows(limit) {
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select(`id, ${IN_COL}, ${TOPIC_COL}`)
-    .eq("subject", "General Medicine")
     .not(IN_COL, "is", null)
     .is(OUT_COL, null)
     .is(LOCK_COL, null)

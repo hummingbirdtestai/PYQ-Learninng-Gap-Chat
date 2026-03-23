@@ -150,7 +150,7 @@ async function claimRows(limit) {
     .not(IN_COL, "is", null)
     .is(OUT_COL, null)
     .eq("is_mcq_image_type", false)
-    .gte("exam_serial", 30)
+    .gte("exam_serial", 31)
     .lte("exam_serial", 100)
     .is(LOCK_COL, null)
     .limit(limit);

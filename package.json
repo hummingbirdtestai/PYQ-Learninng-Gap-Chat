@@ -124,6 +124,7 @@
     "start:cheatsheetgenworker.js": "node workers/cheatsheetgenworker.js",
     "start:image_mcqsworker.js": "node workers/image_mcqsworker.js",
     "start:image_mcqsnonworker.js": "node workers/image_mcqsnonworker.js",
+    "start:ultimate_cheatsheetworker.js": "node workers/ultimate_cheatsheetworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

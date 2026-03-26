@@ -77,7 +77,7 @@ async function claimRows(limit) {
   const { data, error } = await supabase
     .from(TABLE)
     .select("id, image_mcqs")
-    .eq("check_image_yes_no", "YES")
+    .eq("check_image_yes_no", "yes")
     .not("image_mcqs", "is", null)
     .is("stem", null)
     .is(LOCK_COL, null)

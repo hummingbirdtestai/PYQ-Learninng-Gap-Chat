@@ -117,7 +117,7 @@ async function claimRows(limit) {
   const { data, error } = await supabase
     .from(TABLE)
     .select("id, topic")
-    .is("notes", null)
+    .or("notes.is.null,notes.eq.{}")
     .is(LOCK_COL, null)
     .limit(limit);
 

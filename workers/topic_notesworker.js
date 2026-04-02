@@ -51,6 +51,26 @@ function buildPrompt(topic) {
       "Each item must contain ONLY: question, answer",
       "Generate exact counts as specified",
       "Do NOT use MCQ format; only Question → Answer format"
+    ],
+    "level_definitions": {
+      "Level_1": "Recall-based, one-liner, fact-based questions",
+      "Level_2": "Single-step clinical reasoning (interpretation, diagnosis)",
+      "Level_3": "Multi-step reasoning (timeline + complication + diagnosis/management)",
+      "Level_4": "Trap-based or conflicting scenarios requiring prioritization or identifying what NOT to do"
+    },
+    "formatting_rules": [
+      "Use Markdown for highlighting (e.g., **important terms**)",
+      "Use Unicode superscripts/subscripts (e.g., O₂, CO₂, mmHg)",
+      "Use Unicode symbols (→, ↑, ↓, ±, Δ)",
+      "Use Greek letters where relevant (α, β)",
+      "Keep answers concise but include high-yield explanation",
+      "Highlight final diagnosis or key concept in bold"
+    ],
+    "content_expectation": [
+      "Questions must be exam-oriented and clinically relevant",
+      "Level 3 and Level 4 must reflect UWorld/AMBOSS difficulty",
+      "Include decision-making and management-based reasoning in higher levels",
+      "Ensure logical progression from basic to advanced across levels"
     ]
   }
 }`;

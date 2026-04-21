@@ -127,6 +127,7 @@
     "start:ultimate_cheatsheetworker.js": "node workers/ultimate_cheatsheetworker.js",
     "start:image_mcqworkercorrection.js": "node workers/image_mcqworkercorrection.js",
     "start:topic_notesworker.js": "node workers/topic_notesworker.js",
+    "start:mcq-pattern-tables-worker.js": "node workers/mcq-pattern-tables-worker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

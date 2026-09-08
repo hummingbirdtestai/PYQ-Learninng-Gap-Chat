@@ -129,6 +129,7 @@
     "start:topic_notesworker.js": "node workers/topic_notesworker.js",
     "start:mcq-pattern-tables-worker.js": "node workers/mcq-pattern-tables-worker.js",
     "start:mock-exam-mcq-worker.js": "node workers/mock-exam-mcq-worker.js",
+    "start:explanationfmgeworker.js": "node workers/explanationfmgeworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

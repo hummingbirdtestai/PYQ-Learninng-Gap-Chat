@@ -130,6 +130,7 @@
     "start:mcq-pattern-tables-worker.js": "node workers/mcq-pattern-tables-worker.js",
     "start:mock-exam-mcq-worker.js": "node workers/mock-exam-mcq-worker.js",
     "start:explanationfmgeworker.js": "node workers/explanationfmgeworker.js",
+    "start:mcqjsonfmge.js": "node workers/mcqjsonfmge.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

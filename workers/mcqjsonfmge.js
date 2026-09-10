@@ -49,67 +49,98 @@ console.log("🚀 FMGE MOCK QUESTION WORKER STARTED:", WORKER_ID);
 // ─────────────────────────────────────────────
 function buildPrompt(questionConcept) {
   return `
-You are an expert medical education specialist and item writer for elite medical examinations (USMLE Step 1/2CK, NEET-PG, and FMGE). Your task is to transform a raw "Previous Year Topic" (PYT) clinical concept into a gold-standard, 100% error-free clinical vignette multiple-choice question (MCQ).
+You are an expert medical MCQ writer for USMLE Step 1/2CK, NEET-PG, and FMGE. Convert each supplied PYT/concept into ONE medically accurate, exam-standard clinical vignette MCQ.
 
-Output the result in two distinct parts:
+STEM
 
-A valid, clean JSON object containing the question elements.
-A comprehensive, UWorld/AMBOSS-quality text explanation placed immediately below the JSON block.
+Write a 30–40 word clinical stem requiring 2–3 levels of reasoning: infer the condition → recognize the relevant complication/anatomy/physiology → answer the tested concept.
 
-1. The Question Stem Rules (The "No Giveaways" Mandate)
+Never reveal the answer pathway. Do not explicitly name the target diagnosis, structure, gene, enzyme, vessel, pathway, biochemical state, or mechanism being tested. Show findings; make the student infer them.
 
-3-Level Clinical Thinking Required: Never explicitly name the primary diagnosis, the specific anatomical structure involved, the mutated gene, or the active biochemical state anywhere in the stem.
-Level 1: Interpret physical signs, demographics, and raw labs to deduce the underlying condition/disease state.
-Level 2: Recognize the acute secondary complication, exact spatial anatomy, or metabolic environment.
-Level 3: Identify the management step, embryological origin, or intracellular mediator.
-Chronological Trajectory: The stem must follow a strict real-world timeline: Demographics & Risk Factors/Habits → Chief Complaint → Vital Signs → Physical Examination → Initial Interventions/Imaging/Endoscopy/Labs already completed → The final question prompt.
-The Red Herring Rule: Include exactly one clinically accurate but distracting history element or physical finding that points to a common misdiagnosis, forcing the student to cross-reference it with objective labs/imaging to rule it out.
+Use a logical clinical sequence where applicable:
+context/risk → presentation → relevant examination/vitals → relevant investigations/intervention → lead-in.
 
-2. Advanced Stem Formatting & Lab Rules
+Include exactly one plausible red herring only when it genuinely competes with the correct diagnosis.
 
-Mandatory Raw Laboratory Values: Do not use descriptive terms like "anemia," "leukocytosis," "hyperkalemia," or "renal failure." You must provide a minimum of three raw laboratory values relevant to the case, formatted with standard reference ranges in parentheses. Example: Hemoglobin: 8.2 g/dL (Normal: 13.5–17.5).
-Pathophysiological Vital Synchronization: Vital signs must perfectly match the patient's state. A patient in shock or severe distress must demonstrate matching vital abnormalities (e.g., concurrent hypotension, tachycardia, and altered mental status/diaphoresis).
+Discriminatory Value Rule
 
-3. CRITICAL: The "Anti-Giveaway" Negative Constraints (Strictly Enforced)
+Every stem detail must do at least one:
 
-CRITICAL ABSOLUTE FORBIDDEN RULE: Do NOT describe what the target organs, cells, enzymes, arteries, or pathways are actively doing inside the body. For example, never say "Hepatocytes are increasing glycogen synthesis" or "Endoscopy shows an ulcer eroding a tortuous artery along the superior pancreatic border."
-Instead, SHOW, don't tell: Stop the narrative immediately after describing the patient's presentation, gross endoscopic/imaging visual findings, and raw laboratory numbers. Force the student to completely infer the intracellular behaviors, biochemical directions, or exact vessel names themselves.
-The Lead-In Interrogative Rule: The final sentence of the stem must never contain conceptual hints, disease names, or physiological processes. Do not ask: "Deficiency of which nutrient would impair the luminal chemical conversion required to increase bioavailability?" Instead, ask abstractly: "Which of the following mucosal proteins is directly dependent on the patient's primary dietary modifier for functional transport?"
+Support the correct answer.
+Weaken a distractor.
+Establish necessary timing/severity/context.
+Serve as the intentional red herring.
 
-4. The Option Block Constraints
+Delete everything else. Never add decorative demographics, history, normal findings, routine vitals, or irrelevant tests merely to make the vignette realistic.
 
-Strict Word Count Cap: Every single option must be tightly constrained to 4 to 6 words maximum. Eliminate all conversational filler.
-Grammatical and Structural Symmetry: All four options must be perfectly parallel in length, format, syntax, and parts of speech. If Option A pairs a cell receptor and a mechanical state (e.g., "Alpha-1 receptor mediating contraction"), Options B, C, and D must follow that exact structure.
-The Plausibility & Competition Constraint: Do not include pairs of structural opposites (e.g., "Left fourth arch" and "Right fourth arch") alongside two completely unrelated distractors. This allows test-takers to guess that the answer is one of the two opposites. Keep all four options structurally independent, completely different, but highly clinically competitive and relevant to the organ system being tested.
+Use raw values with reference ranges instead of labels such as “anemia,” “hyperkalemia,” or “leukocytosis.” Include labs/vitals/imaging only when relevant to solving the question. Never invent irrelevant data to satisfy formatting.
 
-5. The 100% Medical Accuracy & Boundary Rule
+Vitals must physiologically match the clinical state.
 
-Strict Anatomical & Embryological Mapping: Explicitly verify transition zones against standard medical textbooks. Do not simplify anatomical boundaries (e.g., remember that the left 4th arch terminates at the left subclavian artery origin; everything distal to it at the isthmus arises from the left dorsal aorta).
-Current Guidelines: Management questions must align perfectly with current global consensus guidelines (e.g., AASLD, EASL, AHA, ACC, GOLD).
+The final lead-in must be neutral and contain no diagnostic or mechanistic hint.
 
-6. Output Format Specifications
+OPTIONS
 
-Deliver the output exactly like this:
+Provide exactly four competitive options (A–D), each 2–5 words.
 
-json
+Options must be:
+
+grammatically and structurally parallel,
+similar in specificity,
+medically plausible,
+mutually distinct,
+from the same conceptual category.
+
+Avoid giveaway opposites, obviously unrelated distractors, or one option that differs conspicuously in length/structure.
+
+ACCURACY
+
+Medical, anatomical, embryological, pharmacological, and biochemical facts must be textbook-accurate. Management questions must follow current accepted guidelines. Do not oversimplify anatomical boundaries or mechanisms.
+
+EXPLANATION
+
+Explain:
+
+Correct Answer Summary: answer + core reason.
+Diagnostic Pathway: concise stepwise reasoning from clues to answer.
+Why Other Options Fail: individually explain B/C/D or whichever are incorrect.
+Examiner's Trap: identify the intended misconception/buzzword trap.
+
+Do not merely restate the answer.
+
+FINAL QUALITY CHECK
+
+Before output, verify:
+
+Stem = 30–40 words.
+Options = 2–5 words each.
+No answer giveaway.
+Every stem detail has discriminatory value.
+Exactly one best answer.
+No medically incorrect distractor logic.
+No unnecessary information.
+OUTPUT
+
+Return ONLY valid JSON:
 
 {
-  "Stem": "[Vignette text according to the rules above]",
-  "A": "[4-6 words]",
-  "B": "[4-6 words]",
-  "C": "[4-6 words]",
-  "D": "[4-6 words]",
-  "Correct Answer": "[Insert A, B, C, or D]"
+"Stem": "...",
+"A": "...",
+"B": "...",
+"C": "...",
+"D": "...",
+"Correct Answer": "A",
+"Explanation": {
+"Correct Answer Summary": "...",
+"Diagnostic Pathway": ["...", "...", "..."],
+"Why the Other Options Fail": {
+"B": "...",
+"C": "...",
+"D": "..."
+},
+"Examiner's Trap": "..."
 }
-
-(Follow directly with the text explanation below the JSON block):
-
-Explanation:
-
-Correct Answer Summary: State the correct option letter and a one-sentence summary of the core physiological/anatomical reason.
-Diagnostic Pathway: Provide a punchy, step-by-step breakdown of how a clinician translates the vignette clues into the correct answer.
-Why the Other Options Fail: Provide an individual bullet point for each incorrect option. Explain its actual clinical use/origin and the exact reason it is wrong or dangerous in this specific scenario.
-Examiner's Trap: Call out the specific cognitive bias, reflex pattern, or buzzword association this question was engineered to exploit.
+}
 
 INPUT QUESTION CONCEPT:
 

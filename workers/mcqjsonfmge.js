@@ -202,11 +202,11 @@ async function callOpenAI(prompt, attempt = 1) {
 function parseGeneratedOutput(rawOutput) {
   let cleaned = rawOutput.trim();
 
-  // Remove opening Markdown fence when present
-  cleaned = cleaned.replace(
-    /^\s*```(?:json)?\s*/i,
-    ""
-  );
+  // Remove Markdown fences when present
+  cleaned = cleaned
+    .replace(/^\s*```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
 
   const firstBrace = cleaned.indexOf("{");
 
@@ -264,14 +264,6 @@ function parseGeneratedOutput(rawOutput) {
 
   const parsed = JSON.parse(jsonText);
 
-  let explanation = cleaned
-    .slice(closingBrace + 1)
-    .replace(/^\s*```\s*/i, "")
-    .replace(/^\s*(?:svg\s*)?/i, "")
-    .replace(/^\s*Explanation\s*:\s*/i, "")
-    .replace(/\s*```\s*$/i, "")
-    .trim();
-
   const stem = String(
     parsed.Stem ?? parsed.stem ?? ""
   ).trim();
@@ -301,12 +293,19 @@ function parseGeneratedOutput(rawOutput) {
     .trim()
     .toUpperCase();
 
+  const explanation =
+    parsed.Explanation ??
+    parsed.explanation ??
+    null;
+
   if (!stem) {
     throw new Error("Generated JSON is missing Stem");
   }
 
   if (!optionA || !optionB || !optionC || !optionD) {
-    throw new Error("Generated JSON is missing one or more options");
+    throw new Error(
+      "Generated JSON is missing one or more options"
+    );
   }
 
   if (!["A", "B", "C", "D"].includes(correctAnswer)) {
@@ -315,16 +314,16 @@ function parseGeneratedOutput(rawOutput) {
     );
   }
 
-  if (!explanation) {
-    throw new Error("Generated explanation is missing");
+  if (
+    !explanation ||
+    typeof explanation !== "object" ||
+    Array.isArray(explanation)
+  ) {
+    throw new Error(
+      "Generated JSON is missing a valid Explanation object"
+    );
   }
 
-  /*
-   * Store both display-friendly keys and correct_answer.
-   *
-   * correct_answer is included because your database CHECK
-   * constraint validates this key.
-   */
   return {
     Stem: stem,
     A: optionA,

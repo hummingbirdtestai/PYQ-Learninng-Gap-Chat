@@ -240,11 +240,20 @@ function parseGeneratedOutput(rawOutput) {
     );
   }
 
-  let totalCards = 0;
+  let totalNotes = 0;
 
   for (const group of parsed.subtopics) {
     if (
       !group ||
+      typeof group !== "object" ||
+      Array.isArray(group)
+    ) {
+      throw new Error(
+        "Every subtopic must be an object"
+      );
+    }
+
+    if (
       typeof group.subtopic !== "string" ||
       !group.subtopic.trim()
     ) {
@@ -254,34 +263,31 @@ function parseGeneratedOutput(rawOutput) {
     }
 
     if (
-      !Array.isArray(group.cards) ||
-      group.cards.length === 0
+      !Array.isArray(group.notes) ||
+      group.notes.length === 0
     ) {
       throw new Error(
-        `No cards found in subtopic: ${group.subtopic}`
+        `No notes found in subtopic: ${group.subtopic}`
       );
     }
 
-    for (const card of group.cards) {
+    for (const note of group.notes) {
       if (
-        !card ||
-        typeof card.q !== "string" ||
-        !card.q.trim() ||
-        typeof card.a !== "string" ||
-        !card.a.trim()
+        typeof note !== "string" ||
+        !note.trim()
       ) {
         throw new Error(
-          `Invalid Q→A card in: ${group.subtopic}`
+          `Invalid note in subtopic: ${group.subtopic}`
         );
       }
 
-      totalCards += 1;
+      totalNotes += 1;
     }
   }
 
-  if (totalCards === 0) {
+  if (totalNotes === 0) {
     throw new Error(
-      "Generated output contains no cards"
+      "Generated output contains no notes"
     );
   }
 
@@ -291,7 +297,7 @@ function parseGeneratedOutput(rawOutput) {
       null,
       2
     ),
-    totalCards
+    totalNotes
   };
 }
 
@@ -544,7 +550,7 @@ async function processRow(row) {
 
     const {
       jsonText,
-      totalCards
+      totalNotes
     } = parseGeneratedOutput(
       rawOutput
     );
@@ -555,7 +561,7 @@ async function processRow(row) {
     );
 
     console.log(
-      `✅ Completed | ${row.subject} | ${row.topic} | ${totalCards} cards`
+      `✅ Completed | ${row.subject} | ${row.topic} | ${totalNotes} notes`
     );
   } catch (error) {
     console.error(

@@ -10,63 +10,50 @@ const openai = require("../config/openaiClient");
 const MODEL =
   process.env.TOPIC_NOTES_MODEL || "gpt-5-mini";
 
-const CLAIM_LIMIT = parseIntegerEnv(
-  "TOPIC_NOTES_LIMIT",
-  5,
-  1,
-  50
-);
-
-const CONCURRENCY = parseIntegerEnv(
-  "TOPIC_NOTES_CONCURRENCY",
-  2,
-  1,
+const LIMIT = parseInt(
+  process.env.TOPIC_NOTES_LIMIT || "1",
   10
 );
 
-const IDLE_MS = parseIntegerEnv(
-  "TOPIC_NOTES_IDLE_MS",
-  5000,
-  250,
-  60000
-);
-
-const LOCK_TTL_MIN = parseIntegerEnv(
-  "TOPIC_NOTES_LOCK_TTL_MIN",
-  30,
-  5,
-  240
-);
-
-const MAX_ATTEMPTS = parseIntegerEnv(
-  "TOPIC_NOTES_MAX_ATTEMPTS",
-  3,
-  1,
+const BATCH_SIZE = parseInt(
+  process.env.TOPIC_NOTES_CONCURRENCY || "1",
   10
 );
 
-const API_RETRIES = parseIntegerEnv(
-  "TOPIC_NOTES_API_RETRIES",
-  2,
-  0,
-  5
+const SLEEP_MS = parseInt(
+  process.env.TOPIC_NOTES_IDLE_MS || "5000",
+  10
+);
+
+const LOCK_TTL_MIN = parseInt(
+  process.env.TOPIC_NOTES_LOCK_TTL_MIN || "30",
+  10
+);
+
+const MAX_ATTEMPTS = parseInt(
+  process.env.TOPIC_NOTES_MAX_ATTEMPTS || "3",
+  10
 );
 
 const TABLE = "topic_notes_source";
 
-const WORKER_ID =
-  process.env.WORKER_ID ||
-  `topic-notes-${process.pid}-${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
+const INPUT_COL = "combined_questions";
+const OUTPUT_COL = "generated_notes";
+const LOCK_COL = "notes_lock";
+const LOCK_AT = "notes_locked_at";
+
+console.log("🚀 TOPIC NOTES WORKER STARTED");
+console.log(
+  `⚙️ Model=${MODEL} | Pickup=${LIMIT} | Concurrent=${BATCH_SIZE}`
+);
 
 // ─────────────────────────────────────────────
 // SYSTEM PROMPT
 // Paste your complete prompt between the backticks.
-// Do not add the Subject, Topic or questions here.
 // ─────────────────────────────────────────────
 
 const SYSTEM_PROMPT = String.raw`
+
 You are an expert medical board-review editor for NEET-PG, FMGE, INI-CET and USMLE Step 1/2 CK.
 
 Benchmark:
@@ -615,11 +602,13 @@ Return ONLY valid JSON inside ONE code block:
 }
 
 No introduction, commentary, scoring, citations or explanations outside JSON.
+
 `.trim();
 
 if (
   !SYSTEM_PROMPT ||
-  SYSTEM_PROMPT === "PASTE YOUR COMPLETE SYSTEM PROMPT HERE"
+  SYSTEM_PROMPT ===
+    "PASTE YOUR COMPLETE SYSTEM PROMPT HERE"
 ) {
   throw new Error(
     "Paste the complete system prompt into SYSTEM_PROMPT"
@@ -627,31 +616,12 @@ if (
 }
 
 // ─────────────────────────────────────────────
-// GENERAL HELPERS
+// HELPERS
 // ─────────────────────────────────────────────
 
-function parseIntegerEnv(name, fallback, min, max) {
-  const value = Number.parseInt(
-    process.env[name] || String(fallback),
-    10
-  );
-
-  if (
-    !Number.isInteger(value) ||
-    value < min ||
-    value > max
-  ) {
-    throw new Error(
-      `${name} must be an integer from ${min} to ${max}`
-    );
-  }
-
-  return value;
-}
-
-const sleep = (milliseconds) =>
+const sleep = (ms) =>
   new Promise((resolve) =>
-    setTimeout(resolve, milliseconds)
+    setTimeout(resolve, ms)
   );
 
 function isRetryable(error) {
@@ -669,7 +639,7 @@ function isRetryable(error) {
 }
 
 // ─────────────────────────────────────────────
-// BUILD USER INPUT
+// BUILD INPUT
 // ─────────────────────────────────────────────
 
 function buildUserInput(row) {
@@ -683,78 +653,71 @@ function buildUserInput(row) {
 }
 
 // ─────────────────────────────────────────────
-// OPENAI CALL
+// CALL OPENAI
 // ─────────────────────────────────────────────
 
-async function generateNotes(row) {
-  let lastError;
+async function callOpenAI(row, attempt = 1) {
+  try {
+    const response =
+      await openai.chat.completions.create({
+        model: MODEL,
 
-  for (
-    let attempt = 0;
-    attempt <= API_RETRIES;
-    attempt += 1
-  ) {
-    try {
-      const response =
-        await openai.chat.completions.create({
-          model: MODEL,
+        response_format: {
+          type: "json_object"
+        },
 
-          messages: [
-            {
-              role: "system",
-              content: SYSTEM_PROMPT
-            },
-            {
-              role: "user",
-              content: buildUserInput(row)
-            }
-          ]
-        });
+        messages: [
+          {
+            role: "system",
+            content: SYSTEM_PROMPT
+          },
+          {
+            role: "user",
+            content: buildUserInput(row)
+          }
+        ]
+      });
 
-      const rawOutput =
-        response.choices?.[0]?.message?.content?.trim();
+    const output =
+      response.choices?.[0]?.message?.content?.trim();
 
-      if (!rawOutput) {
-        throw new Error(
-          "OpenAI returned empty content"
-        );
-      }
+    if (!output) {
+      throw new Error(
+        "OpenAI returned an empty response"
+      );
+    }
 
-      return validateAndNormalizeOutput(rawOutput);
-    } catch (error) {
-      lastError = error;
-
-      const retriesExhausted =
-        attempt === API_RETRIES;
-
-      if (
-        !isRetryable(error) ||
-        retriesExhausted
-      ) {
-        break;
-      }
-
-      const delay =
-        1000 * 2 ** attempt +
-        Math.floor(Math.random() * 250);
+    return output;
+  } catch (error) {
+    if (
+      isRetryable(error) &&
+      attempt <= 2
+    ) {
+      const delay = 1000 * attempt;
 
       console.warn(
-        `⚠️ API retry ${attempt + 1}/${API_RETRIES} after ${delay} ms`
+        `⚠️ OpenAI retry ${attempt}/2 after ${delay} ms`
       );
 
       await sleep(delay);
-    }
-  }
 
-  throw lastError;
+      return callOpenAI(
+        row,
+        attempt + 1
+      );
+    }
+
+    throw error;
+  }
 }
 
 // ─────────────────────────────────────────────
-// VALIDATE GENERATED JSON
+// VALIDATE OUTPUT JSON
 // ─────────────────────────────────────────────
 
-function validateAndNormalizeOutput(rawOutput) {
+function parseGeneratedOutput(rawOutput) {
   const cleaned = rawOutput
+    .trim()
     .replace(/^\s*```(?:json)?\s*/i, "")
     .replace(/\s*```\s*$/i, "")
     .trim();
@@ -765,7 +728,7 @@ function validateAndNormalizeOutput(rawOutput) {
     parsed = JSON.parse(cleaned);
   } catch (error) {
     throw new Error(
-      `Model returned invalid JSON: ${error.message}`
+      `Invalid JSON: ${error.message}`
     );
   }
 
@@ -775,7 +738,7 @@ function validateAndNormalizeOutput(rawOutput) {
     Array.isArray(parsed)
   ) {
     throw new Error(
-      "Output must be one JSON object"
+      "Generated output must be one JSON object"
     );
   }
 
@@ -793,7 +756,7 @@ function validateAndNormalizeOutput(rawOutput) {
     parsed.subtopics.length === 0
   ) {
     throw new Error(
-      "Generated JSON must contain a non-empty subtopics array"
+      "Generated JSON has no subtopics"
     );
   }
 
@@ -802,12 +765,11 @@ function validateAndNormalizeOutput(rawOutput) {
   for (const group of parsed.subtopics) {
     if (
       !group ||
-      typeof group !== "object" ||
       typeof group.subtopic !== "string" ||
       !group.subtopic.trim()
     ) {
       throw new Error(
-        "Every subtopic requires a non-empty name"
+        "A subtopic name is missing"
       );
     }
 
@@ -816,21 +778,20 @@ function validateAndNormalizeOutput(rawOutput) {
       group.cards.length === 0
     ) {
       throw new Error(
-        `Subtopic "${group.subtopic}" has no cards`
+        `No cards found in subtopic: ${group.subtopic}`
       );
     }
 
     for (const card of group.cards) {
       if (
         !card ||
-        typeof card !== "object" ||
         typeof card.q !== "string" ||
         !card.q.trim() ||
         typeof card.a !== "string" ||
         !card.a.trim()
       ) {
         throw new Error(
-          `Invalid Q→A card in "${group.subtopic}"`
+          `Invalid Q→A card in: ${group.subtopic}`
         );
       }
 
@@ -844,116 +805,246 @@ function validateAndNormalizeOutput(rawOutput) {
     );
   }
 
-  /*
-   * generated_notes is a PostgreSQL TEXT column.
-   * Store formatted, valid JSON text.
-   */
-  return JSON.stringify(parsed, null, 2);
+  return {
+    jsonText: JSON.stringify(
+      parsed,
+      null,
+      2
+    ),
+    totalCards
+  };
 }
 
 // ─────────────────────────────────────────────
-// CLAIM JOBS ATOMICALLY
-// Requires claim_topic_notes_jobs() RPC.
+// RELEASE EXPIRED LOCKS
 // ─────────────────────────────────────────────
 
-async function claimJobs() {
-  const { data, error } = await supabase.rpc(
-    "claim_topic_notes_jobs",
-    {
-      p_worker_id: WORKER_ID,
-      p_limit: CLAIM_LIMIT,
-      p_lock_ttl_minutes: LOCK_TTL_MIN,
-      p_max_attempts: MAX_ATTEMPTS
-    }
-  );
+async function releaseExpiredLocks() {
+  const cutoff = new Date(
+    Date.now() -
+      LOCK_TTL_MIN * 60 * 1000
+  ).toISOString();
+
+  const { error } = await supabase
+    .from(TABLE)
+    .update({
+      [LOCK_COL]: false,
+      [LOCK_AT]: null,
+      generation_status: "pending"
+    })
+    .eq(LOCK_COL, true)
+    .eq("generation_status", "processing")
+    .lt(LOCK_AT, cutoff)
+    .is(OUTPUT_COL, null);
 
   if (error) {
     throw new Error(
-      `Failed to claim rows: ${error.message}`
+      `Failed to release expired locks: ${error.message}`
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// CLAIM ROWS
+// No Supabase RPC required.
+// ─────────────────────────────────────────────
+
+async function claimRows(limit) {
+  await releaseExpiredLocks();
+
+  const {
+    data: availableRows,
+    error: selectError
+  } = await supabase
+    .from(TABLE)
+    .select(`
+      id,
+      course_id,
+      subject_id,
+      pyt_id,
+      subject,
+      topic,
+      combined_questions,
+      generation_attempts
+    `)
+    .not(INPUT_COL, "is", null)
+    .is(OUTPUT_COL, null)
+    .eq(LOCK_COL, false)
+    .eq("generation_status", "pending")
+    .eq("active", true)
+    .lt(
+      "generation_attempts",
+      MAX_ATTEMPTS
+    )
+    .order(
+      "created_at",
+      { ascending: true }
+    )
+    .limit(limit);
+
+  if (selectError) {
+    throw new Error(
+      `Failed to select rows: ${selectError.message}`
     );
   }
 
-  return data || [];
+  if (!availableRows?.length) {
+    return [];
+  }
+
+  const claimedRows = [];
+
+  /*
+   * Lock each row conditionally.
+   * If another worker gets the row first,
+   * the update returns no rows.
+   */
+  for (const row of availableRows) {
+    const lockedAt =
+      new Date().toISOString();
+
+    const nextAttempt =
+      Number(
+        row.generation_attempts || 0
+      ) + 1;
+
+    const {
+      data: lockedRows,
+      error: lockError
+    } = await supabase
+      .from(TABLE)
+      .update({
+        [LOCK_COL]: true,
+        [LOCK_AT]: lockedAt,
+        generation_status: "processing",
+        generation_attempts: nextAttempt,
+        generation_error: null
+      })
+      .eq("id", row.id)
+      .eq(LOCK_COL, false)
+      .eq(
+        "generation_status",
+        "pending"
+      )
+      .is(OUTPUT_COL, null)
+      .eq("active", true)
+      .select(`
+        id,
+        course_id,
+        subject_id,
+        pyt_id,
+        subject,
+        topic,
+        combined_questions,
+        generation_attempts
+      `);
+
+    if (lockError) {
+      console.error(
+        `❌ Failed to lock ${row.id}:`,
+        lockError.message
+      );
+
+      continue;
+    }
+
+    if (lockedRows?.length) {
+      claimedRows.push(
+        lockedRows[0]
+      );
+    }
+  }
+
+  return claimedRows;
 }
 
 // ─────────────────────────────────────────────
 // SAVE SUCCESS
-// Only the worker owning the lock can save.
 // ─────────────────────────────────────────────
 
-async function saveSuccess(row, generatedNotes) {
-  const completedAt = new Date().toISOString();
+async function saveSuccess(
+  row,
+  generatedNotes
+) {
+  const completedAt =
+    new Date().toISOString();
 
-  const { data, error } = await supabase
+  const {
+    data: savedRows,
+    error
+  } = await supabase
     .from(TABLE)
     .update({
-      generated_notes: generatedNotes,
+      [OUTPUT_COL]: generatedNotes,
       generation_status: "completed",
       generation_error: null,
       completed_at: completedAt,
-      locked_at: null,
-      locked_by: null
+      [LOCK_COL]: false,
+      [LOCK_AT]: null
     })
     .eq("id", row.id)
-    .eq("generation_status", "processing")
-    .eq("locked_by", WORKER_ID)
-    .is("generated_notes", null)
+    .eq(LOCK_COL, true)
+    .eq(
+      "generation_status",
+      "processing"
+    )
+    .is(OUTPUT_COL, null)
     .select("id");
 
   if (error) {
     throw new Error(
-      `Failed to save generated notes: ${error.message}`
+      `Failed to save notes: ${error.message}`
     );
   }
 
-  if (!data?.length) {
+  if (!savedRows?.length) {
     throw new Error(
-      "Save rejected because this worker no longer owns the lock"
+      "Notes were not saved because the lock changed"
     );
   }
 }
 
 // ─────────────────────────────────────────────
 // SAVE FAILURE
-// Retry until MAX_ATTEMPTS is reached.
 // ─────────────────────────────────────────────
 
-async function saveFailure(row, processingError) {
+async function saveFailure(
+  row,
+  processingError
+) {
   const permanentFailure =
-    row.generation_attempts >= MAX_ATTEMPTS;
+    Number(row.generation_attempts) >=
+    MAX_ATTEMPTS;
 
   const errorMessage = String(
-    processingError?.message || processingError
+    processingError?.message ||
+      processingError
   ).slice(0, 4000);
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from(TABLE)
     .update({
-      generation_status: permanentFailure
-        ? "failed"
-        : "pending",
+      generation_status:
+        permanentFailure
+          ? "failed"
+          : "pending",
 
       generation_error: errorMessage,
-      locked_at: null,
-      locked_by: null
+      [LOCK_COL]: false,
+      [LOCK_AT]: null
     })
     .eq("id", row.id)
-    .eq("generation_status", "processing")
-    .eq("locked_by", WORKER_ID)
-    .select("id");
+    .eq(LOCK_COL, true)
+    .eq(
+      "generation_status",
+      "processing"
+    )
+    .is(OUTPUT_COL, null);
 
   if (error) {
     console.error(
-      `❌ Could not record failure for ${row.id}:`,
+      `❌ Failed to record error for ${row.id}:`,
       error.message
-    );
-
-    return;
-  }
-
-  if (!data?.length) {
-    console.warn(
-      `⚠️ Failure not saved: worker no longer owns ${row.id}`
     );
   }
 }
@@ -962,79 +1053,84 @@ async function saveFailure(row, processingError) {
 // PROCESS ONE TOPIC
 // ─────────────────────────────────────────────
 
-async function processJob(row) {
+async function processRow(row) {
   try {
-    const generatedNotes =
-      await generateNotes(row);
+    console.log(
+      `🧠 Generating | ${row.subject} | ${row.topic}`
+    );
+
+    const rawOutput =
+      await callOpenAI(row);
+
+    const {
+      jsonText,
+      totalCards
+    } = parseGeneratedOutput(
+      rawOutput
+    );
 
     await saveSuccess(
       row,
-      generatedNotes
+      jsonText
     );
 
     console.log(
-      `✅ Completed | ${row.subject} | ${row.topic}`
+      `✅ Completed | ${row.subject} | ${row.topic} | ${totalCards} cards`
     );
   } catch (error) {
     console.error(
-      `❌ Failed | ${row.subject} | ${row.topic} |`,
+      `❌ Failed | ${row.subject} | ${row.topic}:`,
       error?.message || error
     );
 
-    await saveFailure(row, error);
+    await saveFailure(
+      row,
+      error
+    );
   }
 }
 
 // ─────────────────────────────────────────────
-// CONTROL CONCURRENCY
+// PROCESS BATCHES
 // ─────────────────────────────────────────────
 
-async function processWithConcurrency(rows) {
-  let nextIndex = 0;
+async function processRowsInBatches(
+  rows
+) {
+  for (
+    let index = 0;
+    index < rows.length;
+    index += BATCH_SIZE
+  ) {
+    const batch = rows.slice(
+      index,
+      index + BATCH_SIZE
+    );
 
-  async function runner() {
-    while (nextIndex < rows.length) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-
-      await processJob(
-        rows[currentIndex]
-      );
-    }
+    await Promise.allSettled(
+      batch.map(
+        (row) => processRow(row)
+      )
+    );
   }
-
-  const runnerCount = Math.min(
-    CONCURRENCY,
-    rows.length
-  );
-
-  await Promise.all(
-    Array.from(
-      { length: runnerCount },
-      () => runner()
-    )
-  );
 }
 
 // ─────────────────────────────────────────────
 // MAIN LOOP
 // ─────────────────────────────────────────────
 
-async function main() {
+(async function main() {
   console.log(
-    `🚀 Topic Notes worker started: ${WORKER_ID}`
-  );
-
-  console.log(
-    `⚙️ Model=${MODEL} | Claim=${CLAIM_LIMIT} | Concurrent=${CONCURRENCY}`
+    "🧠 TOPIC NOTES WORKER RUNNING"
   );
 
   while (true) {
     try {
-      const rows = await claimJobs();
+      const rows =
+        await claimRows(LIMIT);
 
       if (!rows.length) {
-        await sleep(IDLE_MS);
+        await sleep(SLEEP_MS);
         continue;
       }
 
@@ -1042,7 +1138,9 @@ async function main() {
         `📥 Claimed ${rows.length} topic(s)`
       );
 
-      await processWithConcurrency(rows);
+      await processRowsInBatches(
+        rows
+      );
     } catch (error) {
       console.error(
         "❌ Worker loop error:",
@@ -1050,17 +1148,11 @@ async function main() {
       );
 
       await sleep(
-        Math.max(IDLE_MS, 2000)
+        Math.max(
+          SLEEP_MS,
+          2000
+        )
       );
     }
   }
-}
-
-main().catch((error) => {
-  console.error(
-    "❌ Fatal worker error:",
-    error
-  );
-
-  process.exit(1);
-});
+})();

@@ -133,6 +133,7 @@
     "start:mcqjsonfmge.js": "node workers/mcqjsonfmge.js",
     "start:topicnotesfmge.js": "node workers/topicnotesfmge.js",
     "start:jsonnewneetpg.js": "node workers/jsonnewneetpg.js",
+    "start:neetpgMcqWorker.js": "node workers/neetpgMcqWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

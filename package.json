@@ -134,6 +134,7 @@
     "start:topicnotesfmge.js": "node workers/topicnotesfmge.js",
     "start:jsonnewneetpg.js": "node workers/jsonnewneetpg.js",
     "start:neetpgMcqWorker.js": "node workers/neetpgMcqWorker.js",
+    "start:neetpgNotesWorker.js": "node workers/neetpgNotesWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

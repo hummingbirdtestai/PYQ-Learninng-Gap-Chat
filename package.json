@@ -132,6 +132,7 @@
     "start:explanationfmgeworker.js": "node workers/explanationfmgeworker.js",
     "start:mcqjsonfmge.js": "node workers/mcqjsonfmge.js",
     "start:topicnotesfmge.js": "node workers/topicnotesfmge.js",
+    "start:jsonnewneetpg.js": "node workers/jsonnewneetpg.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

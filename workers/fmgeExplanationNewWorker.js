@@ -89,7 +89,9 @@ THE FOLLOWING IS EXAMPLE
 
 Current:
 
-"Temporal-lobe epilepsy may cause wandering, but usually has impaired awareness/stereotyped episodes rather than organized fugue"
+"Temporal-lobe epilepsy may cause wandering, but usually has impaired
+
+awareness/stereotyped episodes rather than organized fugue"
 
 Better:
 
@@ -97,7 +99,9 @@ Better:
 
 Current:
 
-"Diagnosis requires exclusion of substance use, seizures, head injury, delirium and neurocognitive disorders"
+"Diagnosis requires exclusion of substance use, seizures, head injury,
+
+delirium and neurocognitive disorders"
 
 Better:
 
@@ -105,7 +109,9 @@ Better:
 
 Current:
 
-"Grandiosity continuously since early adulthood → narcissistic PD; grandiosity with ↓ sleep + pressured speech → mania"
+"Grandiosity continuously since early adulthood → narcissistic PD;
+
+grandiosity with ↓ sleep + pressured speech → mania"
 
 Better:
 
@@ -113,8 +119,7 @@ Better:
 
 never fall short of true AMBOSS-level depth —it is the clinical decision linkage. AMBOSS-quality material would more deliberately connect the finding to recognizable disease contexts and mechanism-based discrimination. For example: postherpetic neuralgia + clothing hurts → allodynia; diabetic neuropathy + bedsheet hurts → tactile allodynia; migraine + scalp/hair brushing hurts → central sensitization; CRPS + gentle touch produces severe pain → allodynia. Those are the kinds of clues that convert a memorized definition into a 2-level vignette answer.
 
-There should not be redundancy. Create exceptionally discriminating notes. Instead of repetitions aim for disease-linked clinical clues, mechanism traps, where they genuinely help differentiate an MCQ.
-
+There should not be redundancy. Create exceptionally discriminating notes. Instead of repetitions aim for disease-linked clinical clues, mechanism traps, ,where they genuinely help differentiate an MCQ
 Adding more content would actually make the Rapid Revision tab worse. What is missing is a small number of more discriminating clinical relationships.
 
 For example, the highest-quality notes would deliberately distinguish:
@@ -125,6 +130,8 @@ versus
 
 Deteriorating asthma: respiratory fatigue → PaCO₂ normalizes/↑
 
+That is exactly the kind of physiological transition an examiner can hide inside a vignette.
+
 Similarly:
 
 Wheeze ↓ + dyspnea ↓ → **improvement**
@@ -132,6 +139,8 @@ Wheeze ↓ + dyspnea ↓ → **improvement**
 versus
 
 Wheeze ↓ + air entry ↓ → **impending failure**
+
+That distinction is more valuable than having three separate notes saying silent chest is severe.
 
 Another excellent 2-level linkage would be:
 
@@ -141,32 +150,50 @@ followed by the differentiator:
 
 Sudden hypotension + unilateral absent sounds → **pneumothorax**
 
-For every PYT, aim for roughly this hierarchy:
+Now the student isn't merely recalling complications—they're discriminating between two causes of sudden deterioration.
+
+The standard I would use for RevisionCart
+
+For every PYT, your worker should aim for roughly this hierarchy:
 
 Direct PYT fact → vignette clue → mechanism → differentiator → next-best-step → exception/trap → complication/management linkage.
 
 But only include a category when it adds a genuinely new examinable decision.
 
-Instead of 60–80 repetitive facts, prefer approximately 30–45 exceptionally discriminating notes per PYT, depending on topic breadth.
+So instead of 60–80 repetitive facts, I would prefer approximately 30–45 exceptionally discriminating notes per PYT, depending on topic breadth.
 
-A good note should pass this test:
+A good RevisionCart note should pass this test:
 
 Can this 5–10-word line help the student answer an MCQ that requires one extra inference beyond simple recall?
 
+For example:
+
+Silent chest → **minimal airflow**, not clinical improvement
+
+is good.
+
+Normal PaCO₂ + severe distress → **respiratory fatigue**
+
+is better.
+
+Wheeze ↓ + air entry ↓ → **impending failure**
+
+is excellent.
+
+Ventilated asthma + hypotension → **dynamic hyperinflation**
+
+is excellent.
+
+Hypotension + unilateral absent sounds → **pneumothorax**
+
+is excellent.
+
+Those last three are where your notes start approaching AMBOSS/UWorld-style clinical discrimination while retaining First Aid-like compression.
+
+So I would keep your current JSON architecture and note-length rule exactly as they are, but tighten the generation instruction to prioritize disease-linked clues and competing-diagnosis discrimination over repeated direct facts
 GIVE OUTPUT IN THIS JSON STRUCTURE
 
-{
-  "topic": "string",
-  "subtopics": [
-    {
-      "subtopic": "string",
-      "notes": [
-        "string",
-        "string"
-      ]
-    }
-  ]
-}
+{ "topic": "string", "subtopics": [ { "subtopic": "string", "notes": [ "string", "string" ] } ] }
 `.trim();
 
 // ─────────────────────────────────────────────

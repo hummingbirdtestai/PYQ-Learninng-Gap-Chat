@@ -77,13 +77,6 @@ const API_RETRIES = parseIntegerEnv(
   5
 );
 
-const MAX_OUTPUT_TOKENS = parseIntegerEnv(
-  "INICET_MCQ_MAX_OUTPUT_TOKENS",
-  12000,
-  3000,
-  30000
-);
-
 const WORKER_ID =
   process.env.WORKER_ID ||
   `inicet-mcq-${process.pid}-${Math.random()
@@ -504,8 +497,6 @@ async function generateMcqs(row) {
 
           input: buildUserInput(row),
 
-          max_output_tokens:
-            MAX_OUTPUT_TOKENS
         });
 
       const rawOutput =
@@ -862,7 +853,7 @@ async function main() {
   );
 
   console.log(
-    `⚙️ Model=${MODEL} | Pickup=${PICKUP_LIMIT} | Concurrent=${BATCH_SIZE} | Max output=${MAX_OUTPUT_TOKENS}`
+    `⚙️ Model=${MODEL} | Pickup=${PICKUP_LIMIT} | Concurrent=${BATCH_SIZE}`
   );
 
   while (true) {

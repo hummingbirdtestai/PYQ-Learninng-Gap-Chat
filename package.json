@@ -137,6 +137,7 @@
     "start:neetpgNotesWorker.js": "node workers/neetpgNotesWorker.js",
     "start:fmgeExplanationNewWorker.js": "node workers/fmgeExplanationNewWorker.js",
     "start:neetpgExplanationNewWorker.js": "node workers/neetpgExplanationNewWorker.js",
+    "start:inicetFlashcardWorker.js": "node workers/inicetFlashcardWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

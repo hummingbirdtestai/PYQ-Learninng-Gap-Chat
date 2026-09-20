@@ -267,17 +267,24 @@ function isRetryableError(error) {
     error?.response?.status
   );
 
+  const message =
+    getErrorText(error);
+
   return (
     status === 408 ||
     status === 409 ||
     status === 429 ||
     status >= 500 ||
-    /timeout|temporar|unavailable|rate limit|ECONNRESET|ETIMEDOUT|socket hang up|invalid JSON|empty output|stem has|option .* has|incorrect explanation keys/i.test(
-      getErrorText(error)
+
+    /timeout|temporar|unavailable|rate limit|ECONNRESET|ETIMEDOUT|socket hang up/i.test(
+      message
+    ) ||
+
+    /invalid JSON|empty output|exactly 5|required range|duplicate options|invalid Correct Answer|Diagnostic Pathway|incorrect explanation keys|is missing|is invalid|no valid/i.test(
+      message
     )
   );
 }
-
 function countWords(value) {
   return String(value)
     .trim()
@@ -662,12 +669,7 @@ async function generateMcqs(row) {
 
           text: {
             format: {
-              type: "json_schema",
-              name:
-                "fmge_stage_mcqs",
-              strict: true,
-              schema:
-                MCQ_JSON_SCHEMA
+              type: "json_object"
             }
           }
         });

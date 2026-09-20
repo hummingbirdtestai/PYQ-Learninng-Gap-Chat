@@ -141,6 +141,7 @@
     "start:inicetnotesworker.js": "node workers/inicetnotesworker.js",
     "start:inicetmcqsworker.js": "node workers/inicetmcqsworker.js",
     "start:inicetexplanation.js": "node workers/inicetexplanation.js",
+    "start:neetssexplanation.js": "node workers/neetssexplanation.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

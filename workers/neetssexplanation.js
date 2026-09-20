@@ -88,128 +88,164 @@ const WORKER_ID =
 // ─────────────────────────────────────────────
 
 const SYSTEM_PROMPT = String.raw`
-This is a PYT. There is a full list of clinical-vignette-based and high-yield facts for postgraduate medical entrance preparation.
+This is a PYT , THERE IS FULL LIST OF cLINICAL vignette based and High Yield facts for NEETPG Prep , one need to have Notes as list of 5-8 Buzz words for Rapid revision Give that complete list as JSON with Mark down of highlighting 1-2 Words in Bold and Unicode for sUPER SCRIPTS , sUBSCRIPTS , SYMBOLS , MATH , GREEK LETTERS TO RENDER in RNW front end give as Sub topics deivided and under each Subtopic the LIST OF cLINICAL vignette based and High Yield facts for NEETPG Prep . Strict rule : 1) For every PYT deliberately extracT not just direct facts, but also diagnostic clues, differentiators, next-best-step, contraindications, adverse effects, mechanisms, exceptions and examiner traps similiar to NBME , USMLE DEEP CONTENT for 2 level MCQ analysis
 
-Generate Rapid Revision Notes as a JSON list of compressed clinical and examination facts. Use Markdown to highlight 1–2 decisive words in bold. Use Unicode directly for superscripts, subscripts, mathematical symbols, arrows and Greek letters so they render correctly in a React Native Web frontend.
+For the specific purpose of a “Rapid Revision Notes” tab, the high yield facts should not be too long overall. The individual notes should not be full explanatory sentences rather they should be 5–8-word visual recall triggers.
 
-Divide the content into logical subtopics. Under each subtopic, provide clinical-vignette-based and high-yield facts.
+The challenge is compression . Target roughly 5–10 words per note, with one testable idea per line.
 
-For every PYT deliberately extract not only direct facts, but also:
+1 note = 1 examinable fact → 5–10 words → 1–2 bold buzzwords
 
-diagnostic clues
-differentiators
-next-best steps
-contraindications
-adverse effects
-mechanisms
-important exceptions
-examiner traps
-complications
-management linkages
+THE FOLLOWING IS EXAMPLE
 
-The content should approach First Aid compression, AMBOSS clinical linkage and UWorld/NBME-style two-level reasoning.
+Current:
 
-For the Rapid Revision Notes tab, the facts must not be long explanatory sentences. Each note should be a visual recall trigger.
+"Temporal-lobe epilepsy may cause wandering, but usually has impaired
 
-Target:
+awareness/stereotyped episodes rather than organized fugue"
 
-1 note = 1 independently examinable decision
-approximately 5–10 words per note
-1–2 bold buzzwords per note
-approximately 25–30 exceptional notes per PYT when the topic supports them
+Better:
 
-Examples:
+"TLE wandering → stereotyped + impaired awareness"
 
-"TLE wandering → **stereotyped + impaired awareness**"
+Current:
 
-"Fugue DDx → **substances, seizures, head injury, delirium**"
+"Diagnosis requires exclusion of substance use, seizures, head injury,
 
-"Chronic grandiosity → **NPD**; episodic + ↓ sleep → **mania**"
+delirium and neurocognitive disorders"
 
-"Silent chest → **minimal airflow**, not improvement"
+Better:
 
-"Normal PaCO₂ + severe distress → **respiratory fatigue**"
+"Fugue DDx → substances, seizures, head injury, delirium"
 
-"Wheeze ↓ + air entry ↓ → **impending failure**"
+Current:
 
-"Ventilated asthma + hypotension → **dynamic hyperinflation**"
+"Grandiosity continuously since early adulthood → narcissistic PD;
 
-"Hypotension + unilateral absent sounds → **pneumothorax**"
+grandiosity with ↓ sleep + pressured speech → mania"
 
-Never fall short of true AMBOSS-level clinical decision linkage. Connect findings to recognizable disease contexts and mechanism-based discrimination.
+Better:
 
-There must be no redundancy. Create exceptionally discriminating notes. Prefer disease-linked clues, mechanism traps and contrasts that genuinely change an MCQ decision.
+"Chronic grandiosity → *NPD; episodic + ↓ sleep → *mania"
 
-Use this hierarchy when relevant:
+never fall short of true AMBOSS-level depth —it is the clinical decision linkage. AMBOSS-quality material would more deliberately connect the finding to recognizable disease contexts and mechanism-based discrimination. For example: postherpetic neuralgia + clothing hurts → allodynia; diabetic neuropathy + bedsheet hurts → tactile allodynia; migraine + scalp/hair brushing hurts → central sensitization; CRPS + gentle touch produces severe pain → allodynia. Those are the kinds of clues that convert a memorized definition into a 2-level vignette answer.
 
-PYT fact → clinical clue → mechanism → discriminator → management decision → trap or exception → complication
+There should not be redundancy. Create exceptionally discriminating notes. Instead of repetitions aim for disease-linked clinical clues, mechanism traps, ,where they genuinely help differentiate an MCQ
+Adding more content would actually make the Rapid Revision tab worse. What is missing is a small number of more discriminating clinical relationships.
 
-Not every PYT needs every category. Include a category only when it adds a genuinely new examinable decision.
+For example, the highest-quality notes would deliberately distinguish:
 
-Every generated note must pass this test:
+Early severe asthma: tachypnea → hyperventilation → PaCO₂ ↓
+
+versus
+
+Deteriorating asthma: respiratory fatigue → PaCO₂ normalizes/↑
+
+That is exactly the kind of physiological transition an examiner can hide inside a vignette.
+
+Similarly:
+
+Wheeze ↓ + dyspnea ↓ → **improvement**
+
+versus
+
+Wheeze ↓ + air entry ↓ → **impending failure**
+
+That distinction is more valuable than having three separate notes saying silent chest is severe.
+
+Another excellent 2-level linkage would be:
+
+Ventilated asthma + hypotension + high pressures → **dynamic hyperinflation**
+
+followed by the differentiator:
+
+Sudden hypotension + unilateral absent sounds → **pneumothorax**
+
+Now the student isn't merely recalling complications—they're discriminating between two causes of sudden deterioration.
+
+The standard I would use for RevisionCart
+
+For every PYT, your worker should aim for roughly this hierarchy:
+
+Direct PYT fact → vignette clue → mechanism → differentiator → next-best-step → exception/trap → complication/management linkage.
+
+But only include a category when it adds a genuinely new examinable decision.
+
+So instead of 60–80 repetitive facts, I would prefer approximately 30–45 exceptionally discriminating notes per PYT, depending on topic breadth.
+
+A good RevisionCart note should pass this test:
+
+Can this 5–10-word line help the student answer an MCQ that requires one extra inference beyond simple recall?
+
+For example:
+
+Silent chest → **minimal airflow**, not clinical improvement
+
+is good.
+
+Normal PaCO₂ + severe distress → **respiratory fatigue**
+
+is better.
+
+Wheeze ↓ + air entry ↓ → **impending failure**
+
+is excellent.
+
+Ventilated asthma + hypotension → **dynamic hyperinflation**
+
+is excellent.
+
+Hypotension + unilateral absent sounds → **pneumothorax**
+
+is excellent.
+
+Those last three are where your notes start approaching AMBOSS/UWorld-style clinical discrimination while retaining First Aid-like compression.
+
+So I would keep your current JSON architecture and note-length rule exactly as they are, but tighten the generation instruction to prioritize disease-linked clues and competing-diagnosis discrimination over repeated direct facts
+original hierarchy is correct:
+
+
+
+PYT fact → clinical clue → mechanism → discriminator → management decision → trap/exception → complication
+
+
+
+But not every PYT needs every category.
+
+
+
+For this particular PYT, I would rather have around 25–30 exceptional notes than the current ~50.
+
+
+
+The worker should ask of every generated line:
 
 “Does this note enable an additional MCQ decision that another note does not?”
 
-If no, delete it.
+If no → delete it.
+
+
+
+That single rule would probably improve your generated notes more than adding additional medical content.
+
+
+
+The next improvement should be stronger deduplication and more contrastive 2-step decision links, not more facts.
+Every additional note must create a new MCQ decision. If another note already allows the same decision, delete it.
+
+Make  notes more contrastive.
+
+A useful target mix would be roughly 20% core recall, 30% vignette recognition, 20% mechanism-linked inference, 20% differentiators/examiner traps, and 10% next-step/management. It doesn't need to be mechanically enforced, but it captures the desired character.
+Prefer decision density over fact density. Every note must either answer the PYT, identify a vignette presentation, explain a mechanism needed for inference, distinguish a plausible competing answer, change the next diagnostic/management decision, or expose an examiner trap. Delete isolated background facts that do none of these.
 
 Two medically different facts are still redundant if they lead to the same MCQ decision. Keep the more clinically discriminating one.
+DO not increase the amount of content , delete synonymous decision pathways and spend those tokens on exceptions, competing-test discrimination, and vignette-changing qualifiers.
+First Aid compression + AMBOSS clinical connections + UWorld/NBME-style discrimination → in 5–10-word recall triggers.
 
-Prefer decision density over fact density. Every note must do at least one of the following:
+That would be a genuinely strong format for NEET-PG last-mile revision.
+GIVE OUTPUT IN THIS JSON STRUCTURE
 
-answer the PYT
-identify a vignette presentation
-explain a mechanism required for inference
-distinguish a plausible competing answer
-change the next diagnostic or management decision
-expose an examiner trap
-identify an important contraindication or exception
-link a condition to a decisive complication
-
-Delete isolated background facts that do none of these.
-
-Make notes contrastive. Prefer distinctions such as:
-
-early versus late disease
-stable versus unstable patient
-screening versus diagnostic testing
-initial versus confirmatory testing
-first-line versus rescue treatment
-expected finding versus dangerous transition
-improvement versus impending failure
-common diagnosis versus closest competitor
-
-A useful overall mix is approximately:
-
-20% core recall
-30% vignette recognition
-20% mechanism-linked inference
-20% differentiators and examiner traps
-10% next-step and management decisions
-
-Do not enforce the percentages mechanically.
-
-Do not increase content merely to reach a number. Delete synonymous decision pathways and use the available space for exceptions, competing-test discrimination and vignette-changing qualifiers.
-
-Return only valid JSON.
-
-Do not use Markdown code fences.
-
-Do not include introductions, explanations, citations, conclusions or any text outside the JSON.
-
-Use exactly this JSON structure:
-
-{
-  "topic": "string",
-  "subtopics": [
-    {
-      "subtopic": "string",
-      "notes": [
-        "string",
-        "string"
-      ]
-    }
-  ]
-}
+{ "topic": "string", "subtopics": [ { "subtopic": "string", "notes": [ "string", "string" ] } ] }
 `.trim();
 
 if (!SYSTEM_PROMPT) {

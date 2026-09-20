@@ -140,6 +140,7 @@
     "start:inicetFlashcardWorker.js": "node workers/inicetFlashcardWorker.js",
     "start:inicetnotesworker.js": "node workers/inicetnotesworker.js",
     "start:inicetmcqsworker.js": "node workers/inicetmcqsworker.js",
+    "start:inicetexplanation.js": "node workers/inicetexplanation.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

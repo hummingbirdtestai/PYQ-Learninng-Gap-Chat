@@ -355,6 +355,9 @@ function requireNonEmptyString(
 
 function buildUserInput(row) {
   return [
+    "Return exactly one valid json object and no text outside the json object.",
+    'The root json structure must be: {"mcqs": [...]}',
+    "",
     `SUBJECT: ${row.subject}`,
     `EXACT PYT: ${row.pyt}`,
     `PYT NUMBER: ${row.pyt_number ?? "Not supplied"}`,

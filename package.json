@@ -144,6 +144,7 @@
     "start:neetssexplanation.js": "node workers/neetssexplanation.js",
     "start:neetssflattenexplain.js": "node workers/neetssflattenexplain.js",
     "start:fmgemcqstage.js": "node workers/fmgemcqstage.js",
+    "start:neetssSurgeryFlashcardWorker.js": "node workers/neetssSurgeryFlashcardWorker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

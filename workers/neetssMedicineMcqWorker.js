@@ -8,7 +8,7 @@ const INPUT_COL = "notes_json";
 const OUTPUT_COL = "mcq_json";
 const LOCK_COL = "generation_lock";
 const LOCK_AT_COL = "generation_locked_at";
-const MCQ_COUNT = 30;
+const MCQ_COUNT = 10;
 
 function parseIntegerEnv(name, fallback, min, max) {
   const value = Number.parseInt(process.env[name] ?? String(fallback), 10);

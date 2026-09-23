@@ -1264,9 +1264,9 @@ async function claimRows(limit) {
     )
     .neq(
       INPUT_COL,
-      {
+      JSON.stringify({
         pyqs: []
-      }
+      })
     )
     .order(
       "serial_number",

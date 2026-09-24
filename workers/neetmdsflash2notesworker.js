@@ -113,7 +113,7 @@ The objective is NOT to summarize every flashcard.
 
 The objective is to extract the smallest possible set of highest-value examinable decision triggers that allows a student to solve direct, integrated, clinical, radiographic, pathological, procedural, material-science, and treatment-selection MCQs.
 
-CORE FORMAT
+## CORE FORMAT
 
 Organize notes under logical subtopics.
 
@@ -132,7 +132,7 @@ Strict rules:
 9. Every additional note must create a NEW MCQ decision.
 10. If another note already enables the same decision, DELETE the weaker/redundant note.
 
-DEPTH STANDARD
+## DEPTH STANDARD
 
 The notes must combine:
 
@@ -152,7 +152,7 @@ Prefer **decision density over fact density**.
 
 A note should ideally allow the student to make one additional inference beyond simple recall.
 
-DENTAL CLINICAL REASONING STANDARD
+## DENTAL CLINICAL REASONING STANDARD
 
 Convert isolated dental facts into recognizable clinical decision pathways.
 
@@ -186,7 +186,7 @@ Examples:
 
 These are superior to isolated definitions because they connect the fact to the clinical context in which an examiner can hide it.
 
-CONTRASTIVE NOTES
+## CONTRASTIVE NOTES
 
 Prioritize clinically confusable pairs and competing answer choices.
 
@@ -210,7 +210,7 @@ Examples:
 
 The highest-value notes should distinguish plausible competing answers rather than repeat the same concept using different wording.
 
-DENTAL DOMAINS TO EXTRACT WHEN RELEVANT
+## DENTAL DOMAINS TO EXTRACT WHEN RELEVANT
 
 Depending on the PYT, deliberately look for discriminating relationships involving:
 
@@ -253,7 +253,7 @@ Do NOT mechanically generate notes for every domain.
 
 Only include domains supported by the supplied PYT/flashcards and capable of producing a distinct MCQ decision.
 
-PROCEDURAL AND TREATMENT DECISIONS
+## PROCEDURAL AND TREATMENT DECISIONS
 
 Where applicable, prioritize:
 
@@ -283,7 +283,7 @@ patient/tooth factor → modified treatment
 
 These relationships are particularly valuable because NEET MDS and INI-CET MDS frequently test application rather than isolated terminology.
 
-MATERIAL-SCIENCE REASONING
+## MATERIAL-SCIENCE REASONING
 
 For Dental Materials and material-dependent questions, avoid disconnected numerical/property lists unless directly examinable.
 
@@ -311,7 +311,7 @@ Example style:
 
 Do not generate generic material facts unrelated to the PYT.
 
-RADIOLOGY / PATHOLOGY REASONING
+## RADIOLOGY / PATHOLOGY REASONING
 
 Where applicable, connect:
 
@@ -333,7 +333,7 @@ Example:
 
 "Vital tooth + periapical radiolucency → consider **nonendodontic lesion**"
 
-EXAMINER-TRAP RULE
+## EXAMINER-TRAP RULE
 
 Actively search the supplied flashcards for situations where a student may choose a superficially plausible but incorrect answer.
 
@@ -351,7 +351,7 @@ Examples:
 
 Only create a trap when it is supported by the supplied content or directly required to discriminate concepts contained within it.
 
-DEDUPLICATION RULE
+## DEDUPLICATION RULE
 
 This is critical.
 
@@ -377,7 +377,7 @@ Instead, use the saved space for:
 
 Do NOT increase content merely to cover every flashcard individually.
 
-TARGET NOTE MIX
+## TARGET NOTE MIX
 
 Use approximately this character when the topic supports it:
 
@@ -391,7 +391,7 @@ Do NOT mechanically enforce percentages.
 
 They describe the desired character of the final notes.
 
-NOTE COUNT
+## NOTE COUNT
 
 Do not maximize note count.
 
@@ -403,7 +403,7 @@ The number of notes must be determined by the number of UNIQUE examinable decisi
 
 Never add filler merely to reach a target count.
 
-SOURCE DISCIPLINE
+## SOURCE DISCIPLINE
 
 Use the supplied flashcards as the knowledge boundary.
 
@@ -416,16 +416,15 @@ When multiple flashcards represent the same underlying concept, synthesize them 
 PYQ-derived facts should remain represented unless genuinely duplicated by a stronger note.
 
 Future-predicted cards should contribute only when they add a distinct, useful decision pathway.
+## STRICT 10/10 DIAGNOSTIC RULES (CRITICAL OVERRIDES)
 
-STRICT 10/10 DIAGNOSTIC RULES — CRITICAL OVERRIDES
+1. NEVER write static definitions (e.g., Avoid: "DIFOTI uses transillumination"). Always phrase as an action, a contrast, or a conditional pathway (e.g., Prefer: "Early proximal lesion + zero radiation → choose **DIFOTI**").
+2. Every note must force a 3-step decision: [Clinical Variable/Data Point] + [Discriminator/Trap] → [Ultimate Treatment/Diagnosis].
+3. For diagnostic notes, you must strictly map the classic AAE/Exam parameters: Provocation, Lingering Time, and Spontaneous Behavior. 
+4. If a note contains a metric, number, or dimension (e.g., "500 μm"), it must be coupled with its exact clinical consequence or limitation, never listed in isolation.
+5. Force Contrastive Pairs into a single line wherever possible using a semicolon (;) to double the processing density without increasing line count.
 
-1. NEVER write static definitions. Always phrase as an action, contrast, or conditional pathway.
-2. Every note must force a three-step decision: clinical variable/data point + discriminator/trap → ultimate treatment/diagnosis.
-3. For diagnostic notes, map the classic AAE/exam parameters: provocation, lingering time and spontaneous behaviour.
-4. If a note contains a metric, number or dimension, couple it with its exact clinical consequence or limitation.
-5. Force contrastive pairs into one line wherever possible using a semicolon.
-
-QUALITY TEST
+## QUALITY TEST
 
 Every final note must satisfy at least ONE:
 
@@ -442,7 +441,7 @@ Every final note must satisfy at least ONE:
 
 If a note satisfies none → DELETE IT.
 
-WRITING STYLE
+## WRITING STYLE
 
 Use compact arrow-based recall syntax whenever useful.
 
@@ -468,7 +467,7 @@ BAD:
 
 Compress these into decision triggers.
 
-FINAL OUTPUT
+## FINAL OUTPUT
 
 Return ONLY valid JSON.
 
@@ -477,7 +476,7 @@ No explanation.
 No summary.
 No source summary.
 No commentary outside JSON.
-No JSON fences.
+No Markdown code fences.
 No unrecoverable_pyqs field.
 No flashcard counts.
 No metadata unless explicitly requested.
@@ -499,13 +498,15 @@ Use EXACTLY this structure:
 
 The final output must represent:
 
-First Aid compression + NBDE/INBDE clinical integration + AMBOSS clinical connections + NEET MDS/INI-CET MDS examiner discrimination.
+**First Aid compression + NBDE/INBDE clinical integration + AMBOSS clinical connections + NEET MDS/INI-CET MDS examiner discrimination**
 
 Every additional note must create a new MCQ decision.
 
 If another note already enables the same decision, delete it.
 
 Prefer fewer exceptionally discriminating notes over more repetitive notes.
+
+INPUT FLASHCARD JSON:
 `.trim();
 
 if (!SYSTEM_PROMPT) {

@@ -149,6 +149,7 @@
     "start:neetssSurgeryNotesWorker.js": "node workers/neetssSurgeryNotesWorker.js",
     "start:neetssSurgeryMcqWorker.js": "node workers/neetssSurgeryMcqWorker.js",
     "start:neetMdsFlashcardWorker.js": "node workers/neetMdsFlashcardWorker.js",
+    "start:neetMdsFlashcardWorker.js": "node workers/neetmdsflash2notesworker.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

@@ -1067,7 +1067,7 @@ function buildUserInput(row) {
     "",
     "IMPORTANT GENERATION FORMAT:",
     "Inside Why the Other Options Fail, return an array of exactly three objects.",
-    "Each object must have "Option" and "Reason"".,
+    'Each object must have "Option" and "Reason".',
     "Include only the three incorrect option letters.",
     "The worker will convert this array into the final keyed object before saving."
   ].join("\n");

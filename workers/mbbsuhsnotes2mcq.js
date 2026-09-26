@@ -654,23 +654,23 @@ Absolutely NO:
 
 # 16. WHY OTHER OPTIONS FAIL — MANDATORY RULE
 
-The `"Why the Other Options Fail"` object must contain exactly THREE keys corresponding to the incorrect options.
+The "Why the Other Options Fail" object must contain exactly THREE keys corresponding to the incorrect options.
 
-If `"Correct Answer": "A"`:
+If "Correct Answer": "A":
 
-Keys must be `"B"`, `"C"`, `"D"`.
+Keys must be "B", "C", "D".
 
-If `"Correct Answer": "B"`:
+If "Correct Answer": "B":
 
-Keys must be `"A"`, `"C"`, `"D"`.
+Keys must be "A", "C", "D".
 
-If `"Correct Answer": "C"`:
+If "Correct Answer": "C":
 
-Keys must be `"A"`, `"B"`, `"D"`.
+Keys must be "A", "B", "D".
 
-If `"Correct Answer": "D"`:
+If "Correct Answer": "D":
 
-Keys must be `"A"`, `"B"`, `"C"`.
+Keys must be "A", "B", "C".
 
 Each explanation must specifically explain why the actual option written under that letter is incorrect or inferior.
 
@@ -819,13 +819,13 @@ Use exactly this structure:
   ]
 }
 
-Allowed `"Difficulty"` values are exactly:
+Allowed "Difficulty" values are exactly:
 
-- `"Direct"`
-- `"Applied"`
-- `"Distinction"`
+- "Direct"
+- "Applied"
+- "Distinction"
 
-The `"mcqs"` array must contain exactly **10 MCQ objects**.
+The "mcqs" array must contain exactly 10 MCQ objects.
 
 Return syntactically valid, directly parseable JSON only.
 `.trim();
@@ -1067,7 +1067,7 @@ function buildUserInput(row) {
     "",
     "IMPORTANT GENERATION FORMAT:",
     "Inside Why the Other Options Fail, return an array of exactly three objects.",
-    'Each object must have "Option" and "Reason".',
+    "Each object must have "Option" and "Reason"".,
     "Include only the three incorrect option letters.",
     "The worker will convert this array into the final keyed object before saving."
   ].join("\n");

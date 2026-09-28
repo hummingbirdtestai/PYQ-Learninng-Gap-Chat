@@ -155,6 +155,7 @@
     "start:mbbsuhsnotes2flash.js": "node workers/mbbsuhsnotes2flash.js",
     "start:neetsspedtopic2flash.js": "node workers/neetsspedtopic2flash.js",
     "start:neetsspedflash2notes.js": "node workers/neetsspedflash2notes.js",
+    "start:neetssnotes2mcq.js": "node workers/neetssnotes2mcq.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

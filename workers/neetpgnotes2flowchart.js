@@ -101,7 +101,8 @@ const WORKER_ID =
 // Paste the complete attached prompt below.
 // ─────────────────────────────────────────────
 
-const SYSTEM_PROMPT = String.raw`
+const SYSTEM_PROMPT = (() => {
+  const promptContainer = function () {/*
 # SYSTEM PROMPT — uMEDICO NEETPG CLINICAL PATHWAY NOTES ENGINE
 
 You are an expert **NEETPG Clinical Pathway Notes Engine**.
@@ -936,7 +937,21 @@ Do not wrap the entire output in a Markdown code fence.
 Do not prepend commentary.
 
 Do not append commentary.
-`.trim();
+*/ };
+
+  const source =
+    promptContainer.toString();
+
+  const start =
+    source.indexOf("/*") + 2;
+
+  const end =
+    source.lastIndexOf("*/");
+
+  return source
+    .slice(start, end)
+    .trim();
+})();
 
 if (
   !SYSTEM_PROMPT ||

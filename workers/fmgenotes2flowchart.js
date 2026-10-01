@@ -11,6 +11,8 @@ const INPUT_COL = "generated_notes";
 const OUTPUT_COL = "flowcharts";
 const LOCK_COL = "notes_lock";
 const LOCK_AT_COL = "notes_locked_at";
+const COURSE_ID =
+  "7f2cc367-b744-419c-9b47-4626fd5bca64";
 
 function integerEnv(name, fallback, min, max) {
   const value = Number.parseInt(process.env[name] || String(fallback), 10);
@@ -1024,6 +1026,7 @@ async function releaseExpiredLocks() {
   const { error } = await supabase
     .from(TABLE)
     .update({ [LOCK_COL]: false, [LOCK_AT_COL]: null })
+    .eq("course_id", COURSE_ID)
     .eq(LOCK_COL, true)
     .eq("active", true)
     .not(INPUT_COL, "is", null)
@@ -1038,6 +1041,7 @@ async function lockRow(candidate) {
     .from(TABLE)
     .update({ [LOCK_COL]: true, [LOCK_AT_COL]: lockedAt })
     .eq("id", candidate.id)
+    .eq("course_id", COURSE_ID)
     .eq("active", true)
     .eq(LOCK_COL, false)
     .not(INPUT_COL, "is", null)
@@ -1053,6 +1057,7 @@ async function claimRows(limit) {
   const { data, error } = await supabase
     .from(TABLE)
     .select("id,created_at")
+    .eq("course_id", COURSE_ID)
     .eq("active", true)
     .eq(LOCK_COL, false)
     .not(INPUT_COL, "is", null)
@@ -1080,6 +1085,7 @@ async function saveSuccess(row, markdown) {
       [LOCK_AT_COL]: null
     })
     .eq("id", row.id)
+    .eq("course_id", COURSE_ID)
     .eq(LOCK_COL, true)
     .eq(LOCK_AT_COL, row[LOCK_AT_COL])
     .is(OUTPUT_COL, null)
@@ -1093,6 +1099,7 @@ async function releaseLock(row) {
     .from(TABLE)
     .update({ [LOCK_COL]: false, [LOCK_AT_COL]: null })
     .eq("id", row.id)
+    .eq("course_id", COURSE_ID)
     .eq(LOCK_COL, true)
     .eq(LOCK_AT_COL, row[LOCK_AT_COL])
     .is(OUTPUT_COL, null);
@@ -1137,7 +1144,9 @@ async function processBatch(rows) {
 
 async function main() {
   console.log(`TOPIC NOTES -> FLOWCHARTS WORKER STARTED: ${WORKER_ID}`);
-  console.log(`Model=${MODEL} | Input=${INPUT_COL} | Output=${OUTPUT_COL} | Pickup=${PICKUP_LIMIT} | Concurrent=${CONCURRENCY}`);
+  console.log(
+    `Model=${MODEL} | Course=${COURSE_ID} | Input=${INPUT_COL} | Output=${OUTPUT_COL} | Pickup=${PICKUP_LIMIT} | Concurrent=${CONCURRENCY}`
+  );
 
   while (true) {
     try {

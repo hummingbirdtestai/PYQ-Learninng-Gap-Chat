@@ -158,6 +158,7 @@
     "start:neetssnotes2mcq.js": "node workers/neetssnotes2mcq.js",
     "start:neetpgnotes2flowchart.js": "node workers/neetpgnotes2flowchart.js",
     "start:fmgenotes2flowchart.js": "node workers/fmgenotes2flowchart.js",
+    "start:inicetnotes2flowchart.js": "node workers/inicetnotes2flowchart.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

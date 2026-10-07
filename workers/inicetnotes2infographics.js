@@ -5,11 +5,19 @@ require("dotenv").config();
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
 
+// ============================================================
+// DATABASE CONFIGURATION
+// ============================================================
+
 const TABLE = "inicet_pyt_source";
 const INPUT_COL = "mcq_json";
 const OUTPUT_COL = "infographics";
 const LOCK_COL = "generation_lock";
 const LOCK_AT_COL = "generation_locked_at";
+
+// ============================================================
+// ENVIRONMENT HELPERS
+// ============================================================
 
 function integerEnv(name, fallback, min, max) {
   const value = Number.parseInt(
@@ -17,7 +25,11 @@ function integerEnv(name, fallback, min, max) {
     10
   );
 
-  if (!Number.isInteger(value) || value < min || value > max) {
+  if (
+    !Number.isInteger(value) ||
+    value < min ||
+    value > max
+  ) {
     throw new Error(
       `${name} must be an integer between ${min} and ${max}`
     );
@@ -25,6 +37,10 @@ function integerEnv(name, fallback, min, max) {
 
   return value;
 }
+
+// ============================================================
+// WORKER VARIABLES
+// ============================================================
 
 const MODEL =
   process.env.INICET_INFOGRAPHICS_MODEL ||
@@ -78,20 +94,22 @@ const WORKER_ID =
     .toString(36)
     .slice(2, 8)}`;
 
+// ============================================================
+// PASTE YOUR PROMPT BELOW
+// ============================================================
+
 /*
-Paste the complete prompt between the comment markers below.
+Paste your complete prompt between the comment markers.
 
-Markdown backticks and JSON examples are safe inside this section.
+Do not paste the prompt outside the comment.
 
-Important:
 The prompt must not contain the closing comment characters:
-* followed immediately by /
+* immediately followed by /
 */
+
 const SYSTEM_PROMPT = (() => {
   const promptContainer = function () { /*
-mOST OF THE mcqS IN INICET are Clinical , where a Combination of Buzz words are combined and asked the Answer . that Answer can be diagnosis , Next investigation , TREATMENT OF choice , Next step in clinical Management , Pathognomonic feature , direct questions leading to a High yIELD FACT  etc 
-Let us  Build 20 Unique buzz word + buzz word + Buzz word + buzz word + Question and Answer , sure shot to ask 
-so that 200 Topics = 4000 Concepts wioth 16000 Buzz words containning 4000 Q ---> A can be created just like FIRST aID , Amboss 3 Level Quality of NBME UWORLD USMLE Quality for INICET Exam
+PASTE YOUR COMPLETE INICET INFOGRAPHICS PROMPT HERE
   */ };
 
   const source = promptContainer.toString();
@@ -104,16 +122,67 @@ so that 200 Topics = 4000 Concepts wioth 16000 Buzz words containning 4000 Q ---
 if (
   !SYSTEM_PROMPT ||
   SYSTEM_PROMPT.includes(
-    "PASTE YOUR COMPLETE INICET INFOGRAPHICS SYSTEM PROMPT HERE"
+    "PASTE YOUR COMPLETE INICET INFOGRAPHICS PROMPT HERE"
   )
 ) {
   throw new Error(
-    "Paste the complete inline SYSTEM_PROMPT before starting the worker"
+    "Paste your complete prompt inside SYSTEM_PROMPT before starting the worker"
   );
 }
 
+// This contract is appended automatically.
+// You do not need to add these technical formatting rules to your prompt.
+
+const OUTPUT_CONTRACT = `
+OUTPUT FORMAT:
+
+Begin with:
+
+# {{TOPIC}}
+
+Create exactly 20 entries numbered from 1 to 20.
+
+Use this exact structure for every entry:
+
+### 1. Short clinical concept title
+
+**BUZZWORDS:** clue + clue + clue + clue
+
+**Q:** Clinical question
+
+**A:** Direct answer
+
+**LOCK:** Concise high-yield explanation, discriminator, mechanism, or examiner trap
+
+Continue sequentially through:
+
+### 20. Short clinical concept title
+
+MANDATORY RULES:
+
+- Create exactly 20 entries.
+- Number the entries from 1 through 20.
+- Every entry must contain BUZZWORDS, Q, A, and LOCK.
+- Use the supplied MCQ JSON as the factual source.
+- Do not copy the MCQs verbatim.
+- Convert them into rapid-revision clinical buzzword chains.
+- Return only finished Markdown.
+- Do not return JSON.
+- Do not use HTML.
+- Do not use Mermaid.
+- Do not use Markdown tables.
+- Do not wrap the output in a Markdown code fence.
+- Do not add commentary before or after the finished content.
+`;
+
+// ============================================================
+// GENERAL HELPERS
+// ============================================================
+
 const sleep = (milliseconds) =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
+  new Promise((resolve) =>
+    setTimeout(resolve, milliseconds)
+  );
 
 function errorText(error) {
   return String(
@@ -152,26 +221,45 @@ function isRetryable(error) {
   );
 }
 
+function isValidationError(error) {
+  return /empty output|non-empty string|code fence|Markdown heading|numbered entries|exactly 20|identifiable answers|BUZZWORDS|LOCK|prohibited|unexpectedly short|mcq_json|JSON output/i.test(
+    errorText(error)
+  );
+}
+
 function requiredText(value, label) {
   const text = String(value ?? "").trim();
 
   if (!text) {
-    throw new Error(`${label} must be a non-empty string`);
+    throw new Error(
+      `${label} must be a non-empty string`
+    );
   }
 
   return text;
 }
 
+// ============================================================
+// SERIALIZE MCQ JSON
+// ============================================================
+
 function serializeSource(value) {
-  if (value === null || value === undefined) {
-    throw new Error(`${INPUT_COL} is missing`);
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    throw new Error(
+      `${INPUT_COL} is missing`
+    );
   }
 
   if (typeof value === "string") {
     const text = value.trim();
 
     if (!text) {
-      throw new Error(`${INPUT_COL} is empty`);
+      throw new Error(
+        `${INPUT_COL} is empty`
+      );
     }
 
     try {
@@ -192,15 +280,23 @@ function serializeSource(value) {
   );
 }
 
+// ============================================================
+// MODEL INPUT
+// ============================================================
+
 function buildInput(row) {
   return [
-    `Topic: ${row.topic}`,
-    `Subject: ${row.subject}`,
+    `Topic: ${requiredText(row.topic, "Topic")}`,
+    `Subject: ${requiredText(row.subject, "Subject")}`,
     "",
-    "MCQ JSON:",
-    serializeSource(row.mcq_json)
+    "SOURCE MCQ JSON:",
+    serializeSource(row[INPUT_COL])
   ].join("\n");
 }
+
+// ============================================================
+// EXTRACT OPENAI RESPONSE
+// ============================================================
 
 function extractText(response) {
   if (
@@ -223,45 +319,37 @@ function extractText(response) {
     }
   }
 
-  const text = pieces.join("\n").trim();
+  const text = pieces
+    .join("\n")
+    .trim();
 
   if (!text) {
-    throw new Error("OpenAI returned empty output");
+    throw new Error(
+      "OpenAI returned empty output"
+    );
   }
 
   return text;
 }
 
-function findNumberedItems(markdown) {
-  const numbers = new Set();
+// ============================================================
+// NORMALIZE MODEL OUTPUT
+// ============================================================
 
-  const patterns = [
-    /^\s*(?:#{1,6}\s*)?(\d{1,2})[.)]\s+/gm,
-    /^\s*(?:#{1,6}\s*)?\*\*(\d{1,2})[.)]\s+/gm,
-    /^\s*(?:#{1,6}\s*)?Q(?:UESTION)?\s*(\d{1,2})[.):-]?\s*/gim
-  ];
+function removeOuterCodeFence(text) {
+  let output = text.trim();
 
-  for (const pattern of patterns) {
-    let match;
-
-    while ((match = pattern.exec(markdown)) !== null) {
-      const number = Number.parseInt(match[1], 10);
-
-      if (number >= 1 && number <= 20) {
-        numbers.add(number);
-      }
-    }
-  }
-
-  return numbers;
-}
-
-function countAnswerLines(markdown) {
-  const matches = markdown.match(
-    /^\s*(?:[-*]\s*)?(?:\*\*)?(?:A|ANSWER)(?:\*\*)?\s*(?:→|:|-|—)/gim
+  output = output.replace(
+    /^```(?:markdown|md|text|json)?[ \t]*\r?\n/i,
+    ""
   );
 
-  return matches?.length || 0;
+  output = output.replace(
+    /\r?\n```[ \t]*$/i,
+    ""
+  );
+
+  return output.trim();
 }
 
 function normalizeInfographics(raw, topic) {
@@ -270,18 +358,87 @@ function normalizeInfographics(raw, topic) {
     "Generated infographics"
   );
 
-  markdown = markdown.trim();
+  markdown = removeOuterCodeFence(
+    markdown
+  );
 
+  // Remove common unwanted introductory text.
+  markdown = markdown.replace(
+    /^(?:Here (?:is|are)|Below (?:is|are))[^:\n]*:\s*/i,
+    ""
+  );
+
+  const safeTopic = requiredText(
+    topic,
+    "Topic"
+  );
+
+  // Add a main title if the model omitted it.
   if (!/^#\s+\S+/m.test(markdown)) {
-    const safeTopic = requiredText(
-      topic,
-      "Topic"
-    );
-
-    markdown = `# ${safeTopic}\n\n${markdown}`;
+    markdown =
+      `# ${safeTopic}\n\n${markdown}`;
   }
 
-  return markdown;
+  return markdown.trim();
+}
+
+// ============================================================
+// OUTPUT VALIDATION
+// ============================================================
+
+function findNumberedItems(markdown) {
+  const numbers = new Set();
+
+  const patterns = [
+    // ### 1. Title
+    /^\s*#{1,6}\s*\*{0,2}(\d{1,2})[.):\-]\s*/gm,
+
+    // 1. Title
+    /^\s*(\d{1,2})[.)]\s+/gm,
+
+    // **1. Title**
+    /^\s*\*{1,2}(\d{1,2})[.)]\s+/gm,
+
+    // Question 1 / Concept 1 / Entry 1 / Case 1 / Q1
+    /^\s*(?:#{1,6}\s*)?\*{0,2}(?:concept|question|entry|case|pattern|q)\s*[-:#.]?\s*(\d{1,2})\b/gim,
+
+    // JSON-style numbering
+    /"(?:number|concept_number|question_number|id)"\s*:\s*(\d{1,2})\b/gim
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+
+    while (
+      (match = pattern.exec(markdown)) !== null
+    ) {
+      const number = Number.parseInt(
+        match[1],
+        10
+      );
+
+      if (
+        number >= 1 &&
+        number <= 20
+      ) {
+        numbers.add(number);
+      }
+    }
+  }
+
+  return numbers;
+}
+
+function countLabel(markdown, label) {
+  const expression = new RegExp(
+    `^\\s*(?:[-*]\\s*)?(?:#{1,6}\\s*)?\\*{0,2}${label}\\*{0,2}\\s*(?:→|:|-|—)`,
+    "gim"
+  );
+
+  return (
+    markdown.match(expression)?.length ||
+    0
+  );
 }
 
 function validateInfographics(raw) {
@@ -290,18 +447,18 @@ function validateInfographics(raw) {
     "Generated infographics"
   );
 
-  if (
-    markdown.startsWith("```") ||
-    markdown.endsWith("```")
-  ) {
-    throw new Error(
-      "Output is wrapped in a Markdown code fence"
-    );
-  }
-
   if (!/^#\s+\S+/m.test(markdown)) {
     throw new Error(
       "Output lacks a main Markdown heading"
+    );
+  }
+
+  if (
+    /^```/m.test(markdown) &&
+    /```(?:\s*)$/m.test(markdown)
+  ) {
+    throw new Error(
+      "Output still contains a Markdown code fence"
     );
   }
 
@@ -318,6 +475,9 @@ function validateInfographics(raw) {
   if (
     /```(?:mermaid)?[\s\S]*?(?:flowchart|graph|sequenceDiagram)/i.test(
       markdown
+    ) ||
+    /^\s*(?:flowchart|graph|sequenceDiagram)\s+(?:TD|TB|LR|RL)\b/im.test(
+      markdown
     )
   ) {
     throw new Error(
@@ -325,10 +485,16 @@ function validateInfographics(raw) {
     );
   }
 
-  const numberedItems = findNumberedItems(markdown);
+  const numberedItems =
+    findNumberedItems(markdown);
+
   const missingNumbers = [];
 
-  for (let number = 1; number <= 20; number += 1) {
+  for (
+    let number = 1;
+    number <= 20;
+    number += 1
+  ) {
     if (!numberedItems.has(number)) {
       missingNumbers.push(number);
     }
@@ -340,11 +506,45 @@ function validateInfographics(raw) {
     );
   }
 
-  const answerCount = countAnswerLines(markdown);
+  const answerCount =
+    countLabel(markdown, "(?:A|ANSWER)");
 
   if (answerCount < 20) {
     throw new Error(
-      `Output contains only ${answerCount} identifiable answers; expected at least 20`
+      `Output contains only ${answerCount} identifiable answers; expected 20`
+    );
+  }
+
+  const questionCount =
+    countLabel(markdown, "(?:Q|QUESTION)");
+
+  if (questionCount < 20) {
+    throw new Error(
+      `Output contains only ${questionCount} identifiable questions; expected 20`
+    );
+  }
+
+  const buzzwordCount =
+    countLabel(
+      markdown,
+      "(?:BUZZWORDS?|CLINICAL\\s+CLUES?)"
+    );
+
+  if (buzzwordCount < 20) {
+    throw new Error(
+      `Output contains only ${buzzwordCount} identifiable BUZZWORDS sections; expected 20`
+    );
+  }
+
+  const lockCount =
+    countLabel(
+      markdown,
+      "(?:LOCK|MEMORY\\s+LOCK|EXAMINER\\s+TRAP)"
+    );
+
+  if (lockCount < 20) {
+    throw new Error(
+      `Output contains only ${lockCount} identifiable LOCK sections; expected 20`
     );
   }
 
@@ -357,11 +557,19 @@ function validateInfographics(raw) {
   return {
     markdown,
     characters: markdown.length,
-    lines: markdown.split(/\r?\n/).length,
+    lines:
+      markdown.split(/\r?\n/).length,
     numberedItems: numberedItems.size,
-    answers: answerCount
+    answers: answerCount,
+    questions: questionCount,
+    buzzwords: buzzwordCount,
+    locks: lockCount
   };
 }
+
+// ============================================================
+// GENERATE INFOGRAPHICS
+// ============================================================
 
 async function generateInfographics(row) {
   let lastError;
@@ -372,12 +580,24 @@ async function generateInfographics(row) {
     attempt += 1
   ) {
     try {
+      const instructions = [
+        SYSTEM_PROMPT,
+        OUTPUT_CONTRACT.replace(
+          "{{TOPIC}}",
+          requiredText(
+            row.topic,
+            "Topic"
+          )
+        )
+      ].join("\n\n");
+
       const response =
         await openai.responses.create({
           model: MODEL,
-          instructions: SYSTEM_PROMPT,
+          instructions,
           input: buildInput(row),
-          max_output_tokens: MAX_OUTPUT_TOKENS
+          max_output_tokens:
+            MAX_OUTPUT_TOKENS
         });
 
       const rawOutput =
@@ -399,22 +619,21 @@ async function generateInfographics(row) {
         throw error;
       }
 
-      const validationFailure =
-        /empty output|non-empty string|code fence|Markdown heading|numbered entries|identifiable answers|prohibited|unexpectedly short|notes_json/i.test(
-          errorText(error)
-        );
-
       if (
         attempt === API_RETRIES ||
-        (!isRetryable(error) &&
-          !validationFailure)
+        (
+          !isRetryable(error) &&
+          !isValidationError(error)
+        )
       ) {
         break;
       }
 
       const delay =
         1000 * (2 ** attempt) +
-        Math.floor(Math.random() * 400);
+        Math.floor(
+          Math.random() * 400
+        );
 
       console.warn(
         `Retry ${attempt + 1}/${API_RETRIES} after ${delay} ms: ${errorText(error)}`
@@ -426,9 +645,15 @@ async function generateInfographics(row) {
 
   throw (
     lastError ||
-    new Error("Infographics generation failed")
+    new Error(
+      "Infographics generation failed"
+    )
   );
 }
+
+// ============================================================
+// RELEASE EXPIRED LOCKS
+// ============================================================
 
 async function releaseExpiredLocks() {
   const cutoff = new Date(
@@ -454,8 +679,13 @@ async function releaseExpiredLocks() {
   }
 }
 
+// ============================================================
+// LOCK ONE ROW
+// ============================================================
+
 async function lockRow(candidate) {
-  const lockedAt = new Date().toISOString();
+  const lockedAt =
+    new Date().toISOString();
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -489,12 +719,18 @@ async function lockRow(candidate) {
   return data || null;
 }
 
+// ============================================================
+// CLAIM PENDING ROWS
+// ============================================================
+
 async function claimRows(limit) {
   await releaseExpiredLocks();
 
   const { data, error } = await supabase
     .from(TABLE)
-    .select("id,serial_number")
+    .select(
+      "id,serial_number"
+    )
     .eq(LOCK_COL, false)
     .not(INPUT_COL, "is", null)
     .is(OUTPUT_COL, null)
@@ -513,9 +749,10 @@ async function claimRows(limit) {
     return [];
   }
 
-  const results = await Promise.allSettled(
-    data.map(lockRow)
-  );
+  const results =
+    await Promise.allSettled(
+      data.map(lockRow)
+    );
 
   const rows = [];
 
@@ -527,7 +764,9 @@ async function claimRows(limit) {
       rows.push(result.value);
     }
 
-    if (result.status === "rejected") {
+    if (
+      result.status === "rejected"
+    ) {
       console.error(
         "Row-lock error:",
         errorText(result.reason)
@@ -538,7 +777,14 @@ async function claimRows(limit) {
   return rows;
 }
 
-async function saveSuccess(row, markdown) {
+// ============================================================
+// SAVE SUCCESSFUL OUTPUT
+// ============================================================
+
+async function saveSuccess(
+  row,
+  markdown
+) {
   const { data, error } = await supabase
     .from(TABLE)
     .update({
@@ -568,6 +814,10 @@ async function saveSuccess(row, markdown) {
   }
 }
 
+// ============================================================
+// RELEASE ONE ROW LOCK
+// ============================================================
+
 async function releaseLock(row) {
   const { error } = await supabase
     .from(TABLE)
@@ -590,6 +840,10 @@ async function releaseLock(row) {
   }
 }
 
+// ============================================================
+// PROCESS ONE ROW
+// ============================================================
+
 async function processRow(row) {
   console.log(
     `Generating INICET infographics | ${row.subject} | ${row.serial_number} | ${row.topic}`
@@ -605,7 +859,7 @@ async function processRow(row) {
     );
 
     console.log(
-      `Completed | ${row.subject} | ${row.serial_number} | ${row.topic} | entries=${result.numberedItems} | answers=${result.answers} | lines=${result.lines} | characters=${result.characters}`
+      `Completed | ${row.subject} | ${row.serial_number} | ${row.topic} | entries=${result.numberedItems} | questions=${result.questions} | answers=${result.answers} | buzzwords=${result.buzzwords} | locks=${result.locks} | characters=${result.characters}`
     );
 
     return {
@@ -634,6 +888,10 @@ async function processRow(row) {
   }
 }
 
+// ============================================================
+// PROCESS ROWS WITH CONTROLLED CONCURRENCY
+// ============================================================
+
 async function processBatch(rows) {
   let next = 0;
   let creditExhausted = false;
@@ -647,9 +905,13 @@ async function processBatch(rows) {
       next += 1;
 
       const result =
-        await processRow(rows[index]);
+        await processRow(
+          rows[index]
+        );
 
-      if (result.creditExhausted) {
+      if (
+        result.creditExhausted
+      ) {
         creditExhausted = true;
       }
     }
@@ -680,9 +942,13 @@ async function processBatch(rows) {
   };
 }
 
+// ============================================================
+// MAIN WORKER LOOP
+// ============================================================
+
 async function main() {
   console.log(
-    `INICET NOTES -> INFOGRAPHICS WORKER STARTED: ${WORKER_ID}`
+    `INICET MCQ -> INFOGRAPHICS WORKER STARTED: ${WORKER_ID}`
   );
 
   console.log(
@@ -692,10 +958,15 @@ async function main() {
   while (true) {
     try {
       const rows =
-        await claimRows(PICKUP_LIMIT);
+        await claimRows(
+          PICKUP_LIMIT
+        );
 
       if (!rows.length) {
-        await sleep(LOOP_SLEEP_MS);
+        await sleep(
+          LOOP_SLEEP_MS
+        );
+
         continue;
       }
 
@@ -706,7 +977,9 @@ async function main() {
       const result =
         await processBatch(rows);
 
-      if (result.creditExhausted) {
+      if (
+        result.creditExhausted
+      ) {
         process.exit(1);
       }
     } catch (error) {
@@ -728,6 +1001,10 @@ async function main() {
     }
   }
 }
+
+// ============================================================
+// START WORKER
+// ============================================================
 
 main().catch((error) => {
   console.error(

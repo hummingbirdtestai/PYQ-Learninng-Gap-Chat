@@ -185,22 +185,40 @@ function serializeNotes(value) {
 }
 
 function buildInput(row) {
+  const topic = requiredText(
+    row.topic,
+    "Topic"
+  );
+
+  const subject = requiredText(
+    row.subject,
+    "Subject"
+  );
+
   return [
-    `TOPIC: ${requiredText(row.topic, "Topic")}`,
-    `SUBJECT: ${requiredText(row.subject, "Subject")}`,
-    `SERIAL NUMBER: ${row.serial_number}`,
-    `NUMBER OF TIMES ASKED: ${row.number_of_times_asked}`,
+    `TOPIC: ${topic}`,
+    `SUBJECT: ${subject}`,
     "",
-    "SOURCE INICET NOTES JSON:",
-    serializeNotes(row[INPUT_COL]),
+    "SOURCE NOTES:",
+    serializeNotes(row.notes_json),
     "",
-    "Create the finished INICET infographic revision content using only this topic and its supplied notes.",
-    "Create exactly 20 unique numbered clinical buzzword-chain questions.",
-    "Number the entries clearly from 1 through 20.",
-    "Each entry must contain a clinical buzzword chain, a question, a direct answer, and a concise high-yield memory lock or explanation.",
-    "Return only the finished React Native-friendly Markdown.",
-    "Do not include explanations before or after the finished content.",
-    "Do not wrap the output in a Markdown code fence."
+    "Using only the supplied SOURCE NOTES, create exactly 20 unique INICET clinical buzzword-chain Question → Answer entries.",
+    "",
+    "STRICT OUTPUT FORMAT:",
+    `# ${topic}`,
+    "",
+    "### 1. Buzzword + Buzzword + Buzzword + Buzzword → Q: Question?",
+    "",
+    "**A → Direct answer**",
+    "",
+    "**LOCK:** Concise high-yield explanation.",
+    "",
+    "Continue this exact format consecutively from 1 through 20.",
+    "Cover all important concepts from the supplied notes.",
+    "Do not repeat the same concept.",
+    "Return only React Native-friendly Markdown.",
+    "Do not use HTML, tables, Mermaid, or a surrounding code fence.",
+    "Do not include commentary before or after the content."
   ].join("\n");
 }
 
@@ -264,6 +282,26 @@ function countAnswerLines(markdown) {
   );
 
   return matches?.length || 0;
+}
+
+function normalizeInfographics(raw, topic) {
+  let markdown = requiredText(
+    raw,
+    "Generated infographics"
+  );
+
+  markdown = markdown.trim();
+
+  if (!/^#\s+\S+/m.test(markdown)) {
+    const safeTopic = requiredText(
+      topic,
+      "Topic"
+    );
+
+    markdown = `# ${safeTopic}\n\n${markdown}`;
+  }
+
+  return markdown;
 }
 
 function validateInfographics(raw) {
@@ -362,8 +400,17 @@ async function generateInfographics(row) {
           max_output_tokens: MAX_OUTPUT_TOKENS
         });
 
+      const rawOutput =
+        extractText(response);
+
+      const normalizedOutput =
+        normalizeInfographics(
+          rawOutput,
+          row.topic
+        );
+
       return validateInfographics(
-        extractText(response)
+        normalizedOutput
       );
     } catch (error) {
       lastError = error;

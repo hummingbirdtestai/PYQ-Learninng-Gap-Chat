@@ -109,7 +109,9 @@ The prompt must not contain the closing comment characters:
 
 const SYSTEM_PROMPT = (() => {
   const promptContainer = function () { /*
-PASTE YOUR COMPLETE INICET INFOGRAPHICS PROMPT HERE
+mOST OF THE mcqS IN INICET are Clinical , where a Combination of Buzz words are combined and asked the Answer . that Answer can be diagnosis , Next investigation , TREATMENT OF choice , Next step in clinical Management , Pathognomonic feature , direct questions leading to a High yIELD FACT  etc 
+Let us  Build 20 Unique buzz word + buzz word + Buzz word + buzz word + Question and Answer , sure shot to ask 
+so that 200 Topics = 4000 Concepts wioth 16000 Buzz words containning 4000 Q ---> A can be created just like FIRST aID , Amboss 3 Level Quality of NBME UWORLD USMLE Quality for INICET Exam
   */ };
 
   const source = promptContainer.toString();

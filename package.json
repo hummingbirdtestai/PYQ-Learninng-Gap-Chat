@@ -162,6 +162,7 @@
     "start:neetssmedicinenotes2flowchart.js": "node workers/neetssmedicinenotes2flowchart.js",
     "start:neetsssurgerynotes2flowchart.js": "node workers/neetsssurgerynotes2flowchart.js",
     "start:neetsspednotes2flash.js": "node workers/neetsspednotes2flash.js",
+    "start:inicetnotes2infographics.js": "node workers/inicetnotes2infographics.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

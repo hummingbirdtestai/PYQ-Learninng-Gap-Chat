@@ -6,7 +6,7 @@ const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
 
 const TABLE = "inicet_pyt_source";
-const INPUT_COL = "notes_json";
+const INPUT_COL = "mcq_json";
 const OUTPUT_COL = "infographics";
 const LOCK_COL = "generation_lock";
 const LOCK_AT_COL = "generation_locked_at";
@@ -162,63 +162,43 @@ function requiredText(value, label) {
   return text;
 }
 
-function serializeNotes(value) {
+function serializeSource(value) {
   if (value === null || value === undefined) {
-    throw new Error("notes_json is missing");
+    throw new Error(`${INPUT_COL} is missing`);
   }
 
   if (typeof value === "string") {
     const text = value.trim();
 
     if (!text) {
-      throw new Error("notes_json is empty");
+      throw new Error(`${INPUT_COL} is empty`);
     }
 
     try {
-      return JSON.stringify(JSON.parse(text), null, 2);
+      return JSON.stringify(
+        JSON.parse(text),
+        null,
+        2
+      );
     } catch {
       return text;
     }
   }
 
-  return JSON.stringify(value, null, 2);
+  return JSON.stringify(
+    value,
+    null,
+    2
+  );
 }
 
 function buildInput(row) {
-  const topic = requiredText(
-    row.topic,
-    "Topic"
-  );
-
-  const subject = requiredText(
-    row.subject,
-    "Subject"
-  );
-
   return [
-    `TOPIC: ${topic}`,
-    `SUBJECT: ${subject}`,
+    `Topic: ${row.topic}`,
+    `Subject: ${row.subject}`,
     "",
-    "SOURCE NOTES:",
-    serializeNotes(row.notes_json),
-    "",
-    "Using only the supplied SOURCE NOTES, create exactly 20 unique INICET clinical buzzword-chain Question → Answer entries.",
-    "",
-    "STRICT OUTPUT FORMAT:",
-    `# ${topic}`,
-    "",
-    "### 1. Buzzword + Buzzword + Buzzword + Buzzword → Q: Question?",
-    "",
-    "**A → Direct answer**",
-    "",
-    "**LOCK:** Concise high-yield explanation.",
-    "",
-    "Continue this exact format consecutively from 1 through 20.",
-    "Cover all important concepts from the supplied notes.",
-    "Do not repeat the same concept.",
-    "Return only React Native-friendly Markdown.",
-    "Do not use HTML, tables, Mermaid, or a surrounding code fence.",
-    "Do not include commentary before or after the content."
+    "MCQ JSON:",
+    serializeSource(row.mcq_json)
   ].join("\n");
 }
 

@@ -163,6 +163,7 @@
     "start:neetsssurgerynotes2flowchart.js": "node workers/neetsssurgerynotes2flowchart.js",
     "start:neetsspednotes2flash.js": "node workers/neetsspednotes2flash.js",
     "start:inicetnotes2infographics.js": "node workers/inicetnotes2infographics.js",
+    "start:usmlesubtopicjson2notes.js": "node workers/usmlesubtopicjson2notes.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

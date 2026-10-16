@@ -167,6 +167,7 @@
     "start:neetmdsnotes2mcq.js": "node workers/neetmdsnotes2mcq.js",
     "start:usmlenotes2algorithims.js": "node workers/usmlenotes2algorithims.js",
     "start:usmlestep1notes2mcq.js": "node workers/usmlestep1notes2mcq.js",
+    "start:usmlestep1notes2flashcard.js": "node workers/usmlestep1notes2flashcard.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

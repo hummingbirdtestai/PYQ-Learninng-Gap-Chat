@@ -4,6 +4,8 @@
 require("dotenv").config();
 
 const crypto = require("node:crypto");
+const { toFile } = require("openai/uploads");
+
 const { supabase } = require("../config/supabaseClient");
 const openai = require("../config/openaiClient");
 
@@ -234,15 +236,32 @@ async function claimRows(limit) {
 
 // Every request gets the same reference image and prompt,
 // but a different image_content object.
+// Each image-generation request receives:
+// 1. Your exact System Prompt
+// 2. One image_content JSON object
+// 3. The shared reference image
+
 async function generateImage(row, reference) {
   let lastError;
 
-  for (let attempt = 0; attempt <= RETRIES; attempt++) {
+  for (
+    let attempt = 0;
+    attempt <= RETRIES;
+    attempt++
+  ) {
     try {
-      const file = await openai.toFile(
+      // Convert the reference image bytes
+      // into an OpenAI-compatible upload file.
+      const file = await toFile(
         reference.bytes,
         reference.filename,
-        { type: reference.mime }
+        {
+          type: reference.mime,
+        }
+      );
+
+      console.log(
+        `Generating image for ${row.topic} | Image ${row.image_serial}`
       );
 
       const response = await openai.images.edit({
@@ -251,31 +270,63 @@ async function generateImage(row, reference) {
         prompt: buildPrompt(row),
         size: SIZE,
         quality: QUALITY,
-        output_format: "png"
+        output_format: "png",
       });
 
       const base64 = response.data?.[0]?.b64_json;
 
       if (!base64) {
-        throw new Error("OpenAI returned no image data");
+        throw new Error(
+          "OpenAI returned no image data"
+        );
       }
 
-      return Buffer.from(base64, "base64");
+      const imageBuffer = Buffer.from(
+        base64,
+        "base64"
+      );
+
+      if (!imageBuffer.length) {
+        throw new Error(
+          "Generated image buffer is empty"
+        );
+      }
+
+      console.log(
+        `Image generated successfully: ${imageBuffer.length} bytes`
+      );
+
+      return imageBuffer;
 
     } catch (error) {
       lastError = error;
 
-      if (isCreditError(error) ||
-          attempt === RETRIES ||
-          !isRetryable(error)) {
+      console.error(
+        `Image generation attempt ${attempt + 1} failed:`,
+        errorText(error)
+      );
+
+      if (
+        isCreditError(error) ||
+        attempt === RETRIES ||
+        !isRetryable(error)
+      ) {
         break;
       }
 
-      await sleep(1500 * 2 ** attempt);
+      const delay = 1500 * 2 ** attempt;
+
+      console.log(
+        `Retrying after ${delay} ms`
+      );
+
+      await sleep(delay);
     }
   }
 
-  throw lastError;
+  throw lastError || new Error(
+    "Image generation failed"
+  );
 }
 
 function storagePath(row) {

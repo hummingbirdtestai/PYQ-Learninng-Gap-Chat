@@ -95,7 +95,75 @@ The prompt must not contain the closing comment characters:
 */
 const SYSTEM_PROMPT = (() => {
   const promptContainer = function () { /*
-PASTE YOUR COMPLETE NEET PG INFOGRAPHICS PROMPT HERE
+this is the approach to a PYT in NEETPG Exam in algorithmic clinical pathway style  we are creating 3 Infographics which are A4 Sized Hand sCRIPTED REAL TIME COLOUR ILLUSTRATED PICNOMIC MIND MAP INFOGRAPHICS TO DO RAPID REVISION AND PRODUCE A 1 MINUTE reel per each infographic and 3 Minute Reel for each PYT out of 3 Infographics  So create the require text for each of these 3 Infographic Images from the notes on PYT given  give the Out put as JSON mentioning clearly as image 1 , image 2 , image 3  see to that most of High Yield rapid revision content of the nOTES IS DISTRIBUTED INTO THESE 3 iMAGES 
+ GIVE THE OUTPUT JSON AS 
+{
+  "pyt": "string",
+  "exam": "string",
+  "deliverable": "string",
+  "shared_visual_specifications": {
+    "format": "string",
+    "art_style": "string",
+    "layout_rule": "string",
+    "reel_duration_seconds": 60
+  },
+  "images": {
+    "image_1": {
+      "label": "string",
+      "title": "string",
+      "focus": "string",
+      "reel_duration_seconds": 60,
+      "illustrated_panels": [
+        {
+          "heading": "string",
+          "illustration": "string",
+          "text": [
+            "string"
+          ],
+          "exam_trap": "string"
+        }
+      ],
+      "bottom_memory_lock": "string",
+      "narrative_flow": "string"
+    },
+    "image_2": {
+      "label": "string",
+      "title": "string",
+      "focus": "string",
+      "reel_duration_seconds": 60,
+      "illustrated_panels": [
+        {
+          "heading": "string",
+          "illustration": "string",
+          "text": [
+            "string"
+          ],
+          "exam_trap": "string"
+        }
+      ],
+      "bottom_memory_lock": "string",
+      "narrative_flow": "string"
+    },
+    "image_3": {
+      "label": "string",
+      "title": "string",
+      "focus": "string",
+      "reel_duration_seconds": 60,
+      "illustrated_panels": [
+        {
+          "heading": "string",
+          "illustration": "string",
+          "text": [
+            "string"
+          ],
+          "exam_trap": "string"
+        }
+      ],
+      "bottom_memory_lock": "string",
+      "narrative_flow": "string"
+    }
+  }
+}
   */ };
 
   const source = promptContainer.toString();

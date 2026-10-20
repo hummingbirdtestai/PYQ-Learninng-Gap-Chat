@@ -169,6 +169,7 @@
     "start:usmlestep1notes2mcq.js": "node workers/usmlestep1notes2mcq.js",
     "start:usmlestep1notes2flashcard.js": "node workers/usmlestep1notes2flashcard.js",
     "start:neetpgflowchart2infographics.js": "node workers/neetpgflowchart2infographics.js",
+    "start:neetpginforgraphics.js": "node workers/neetpginforgraphics.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

@@ -31,7 +31,7 @@ const REFERENCE_URL =
   "https://heqetxfwzoefgghrmtia.supabase.co/storage/v1/object/public/sample%20image/sickle%20cell%20sample%20image.png";
 
 // Your exact image-generation System Prompt.
-const SYSTEM_PROMPT = `Create ONE premium, publication-quality, A4 PORTRAIT (210 × 297 mm), print-ready medical education infographic, matching the artistic style, colour palette, visual hierarchy and hand-scripted presentation of the supplied reference infographic
+const SYSTEM_PROMPT = `Create ONE premium, publication-quality, A4 PORTRAIT (210 × 297 mm), print-ready medical education infographic, matching the artistic style, colour palette, visual hierarchy and hand-scripted presentation of the supplied reference infographic 
 Use a beautiful, classic hand-painted medical atlas + Picmonic + handwritten medical mind-map aesthetic.
 - Warm ivory-white paper background.
 - Large, exceptionally legible, handwritten-style lettering.
@@ -48,7 +48,7 @@ Avoid photorealistic clinical photography, overcrowding, tiny fonts, excessive d
 - Large, readable handwritten-style fonts.
 - Correct spelling of all medical terms.
 - Scientifically accurate heart, lysosome and histology illustrations.
-- Clearly separated sections numbered
+- Clearly separated sections numbered 
 - Colour-highlighted clinical buzzwords.
 - No text overlapping illustrations.
 - No cropped headings or incomplete arrows.

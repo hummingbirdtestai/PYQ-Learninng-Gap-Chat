@@ -171,6 +171,7 @@
     "start:neetpgflowchart2infographics.js": "node workers/neetpgflowchart2infographics.js",
     "start:neetpginforgraphics.js": "node workers/neetpginforgraphics.js",
     "start:neetssoncotopic2flashcard.js": "node workers/neetssoncotopic2flashcard.js",
+    "start:neetssoncotopic2notes.js": "node workers/neetssoncotopic2notes.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

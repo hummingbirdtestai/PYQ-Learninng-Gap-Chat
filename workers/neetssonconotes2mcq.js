@@ -643,14 +643,24 @@ function errorText(error) {
   );
 }
 
-function isCreditError(error) {
-  return /no credits remaining|insufficient_quota|billing|credit balance|billing_hard_limit/i.test(
-    errorText(error)
+function isFatalOpenAiError(error) {
+  const status = Number(
+    error?.status ||
+      error?.statusCode ||
+      error?.response?.status
+  );
+
+  return (
+    status === 401 ||
+    status === 403 ||
+    /api key has been invalidated|invalid api key|incorrect api key|authentication error|unauthorized|forbidden|no credits remaining|insufficient_quota|billing|credit balance|billing_hard_limit/i.test(
+      errorText(error)
+    )
   );
 }
 
 function isRetryable(error) {
-  if (isCreditError(error)) {
+  if (isFatalOpenAiError(error)) {
     return false;
   }
 
@@ -1102,7 +1112,7 @@ async function generateMcqs(row) {
     } catch (error) {
       lastError = error;
 
-      if (isCreditError(error)) {
+      if (isFatalOpenAiError(error)) {
         throw error;
       }
 
@@ -1345,18 +1355,18 @@ async function processRow(row) {
     );
 
     return {
-      creditExhausted: false
+      fatalApiError: false
     };
   } catch (error) {
     await releaseLock(row);
 
-    if (isCreditError(error)) {
+    if (isFatalOpenAiError(error)) {
       console.error(
-        "OpenAI credits exhausted. Worker will stop safely."
+        `Fatal OpenAI authentication/billing error: ${errorText(error)}`
       );
 
       return {
-        creditExhausted: true
+        fatalApiError: true
       };
     }
 
@@ -1365,19 +1375,19 @@ async function processRow(row) {
     );
 
     return {
-      creditExhausted: false
+      fatalApiError: false
     };
   }
 }
 
 async function processBatch(rows) {
   let next = 0;
-  let creditExhausted = false;
+  let fatalApiError = false;
 
   async function runner() {
     while (
       next < rows.length &&
-      !creditExhausted
+      !fatalApiError
     ) {
       const index = next;
       next += 1;
@@ -1385,8 +1395,8 @@ async function processBatch(rows) {
       const result =
         await processRow(rows[index]);
 
-      if (result.creditExhausted) {
-        creditExhausted = true;
+      if (result.fatalApiError) {
+        fatalApiError = true;
       }
     }
   }
@@ -1403,7 +1413,7 @@ async function processBatch(rows) {
     )
   );
 
-  if (creditExhausted) {
+  if (fatalApiError) {
     await Promise.allSettled(
       rows
         .slice(next)
@@ -1412,7 +1422,7 @@ async function processBatch(rows) {
   }
 
   return {
-    creditExhausted
+    fatalApiError
   };
 }
 
@@ -1449,11 +1459,17 @@ async function main() {
       const result =
         await processBatch(rows);
 
-      if (result.creditExhausted) {
+      if (result.fatalApiError) {
+        console.error(
+          "Worker stopped because the OpenAI key is invalid, unauthorized, or billing-blocked."
+        );
         process.exit(1);
       }
     } catch (error) {
-      if (isCreditError(error)) {
+      if (isFatalOpenAiError(error)) {
+        console.error(
+          `Fatal OpenAI error: ${errorText(error)}`
+        );
         process.exit(1);
       }
 

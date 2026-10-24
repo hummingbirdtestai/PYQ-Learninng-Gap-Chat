@@ -173,6 +173,7 @@
     "start:neetssoncotopic2flashcard.js": "node workers/neetssoncotopic2flashcard.js",
     "start:neetssoncotopic2notes.js": "node workers/neetssoncotopic2notes.js",
     "start:neetssonconotes2mcq.js": "node workers/neetssonconotes2mcq.js",
+    "start:neetssonconotes2flowchart.js": "node workers/neetssonconotes2flowchart.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {

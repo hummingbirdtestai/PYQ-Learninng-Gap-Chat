@@ -21,7 +21,11 @@ function integerEnv(name, fallback, min, max) {
     10
   );
 
-  if (!Number.isInteger(value) || value < min || value > max) {
+  if (
+    !Number.isInteger(value) ||
+    value < min ||
+    value > max
+  ) {
     throw new Error(
       `${name} must be an integer between ${min} and ${max}`
     );
@@ -82,11 +86,9 @@ const WORKER_ID =
 /*
 Paste your complete prompt between the comment markers below.
 
-Do not paste it elsewhere in this worker.
-
 Important:
-The prompt must not contain an asterisk immediately followed by
-a forward slash because that would close this comment.
+The pasted prompt must not contain an asterisk immediately
+followed by a forward slash because that closes this comment.
 */
 
 const SYSTEM_PROMPT = (() => {
@@ -166,7 +168,9 @@ this is the approach to a PYT in NEETSS Medicine Exam in algorithmic clinical pa
   const start = source.indexOf("/*") + 2;
   const end = source.lastIndexOf("*/");
 
-  return source.slice(start, end).trim();
+  return source
+    .slice(start, end)
+    .trim();
 })();
 
 if (
@@ -185,7 +189,9 @@ if (
 /* -------------------------------------------------------------------------- */
 
 const sleep = (milliseconds) =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
+  new Promise((resolve) =>
+    setTimeout(resolve, milliseconds)
+  );
 
 function errorText(error) {
   return String(
@@ -252,11 +258,19 @@ function isRetryable(error) {
   );
 }
 
+function isValidationError(error) {
+  return /json|image_1|image_2|image_3|illustrated_panels|reel_duration_seconds|non-empty string|shared_visual_specifications|output does not contain/i.test(
+    errorText(error)
+  );
+}
+
 function requiredText(value, label) {
   const text = String(value ?? "").trim();
 
   if (!text) {
-    throw new Error(`${label} must be a non-empty string`);
+    throw new Error(
+      `${label} must be a non-empty string`
+    );
   }
 
   return text;
@@ -267,8 +281,16 @@ function requiredText(value, label) {
 /* -------------------------------------------------------------------------- */
 
 function buildInput(row) {
-  const topic = requiredText(row.topic, "Topic");
-  const subject = requiredText(row.subject, "Subject");
+  const topic = requiredText(
+    row.topic,
+    "Topic"
+  );
+
+  const subject = requiredText(
+    row.subject,
+    "Subject"
+  );
+
   const flowchart = requiredText(
     row[INPUT_COL],
     INPUT_COL
@@ -283,13 +305,15 @@ function buildInput(row) {
     "SOURCE CLINICAL PATHWAY FLOWCHART:",
     flowchart,
     "",
-    "Convert this flowchart into the text plan for exactly three A4 portrait illustrated infographics.",
-    "Distribute the important clinical-pathway content logically across image_1, image_2 and image_3.",
-    "Each image must support approximately one minute of reel narration.",
+    "Convert the supplied clinical pathway into the content plan for exactly three A4 portrait illustrated infographics.",
+    "Distribute all important high-yield clinical pathway content logically across image_1, image_2 and image_3.",
+    "Each infographic must support approximately one minute of reel narration.",
     "Return only one valid JSON object.",
     "Use exactly the JSON structure specified in the system prompt.",
+    "The images object must contain exactly image_1, image_2 and image_3.",
     "Do not use Markdown code fences.",
-    "Do not include introductory or concluding commentary."
+    "Do not include introductory text.",
+    "Do not include concluding commentary."
   ].join("\n");
 }
 
@@ -318,10 +342,14 @@ function extractText(response) {
     }
   }
 
-  const text = pieces.join("\n").trim();
+  const text = pieces
+    .join("\n")
+    .trim();
 
   if (!text) {
-    throw new Error("OpenAI returned empty output");
+    throw new Error(
+      "OpenAI returned empty output"
+    );
   }
 
   return text;
@@ -349,8 +377,11 @@ function extractJsonObject(value) {
   try {
     return JSON.parse(text);
   } catch {
-    const firstBrace = text.indexOf("{");
-    const lastBrace = text.lastIndexOf("}");
+    const firstBrace =
+      text.indexOf("{");
+
+    const lastBrace =
+      text.lastIndexOf("}");
 
     if (
       firstBrace === -1 ||
@@ -468,14 +499,18 @@ function validateImage(image, key) {
     `images.${key}.focus`
   );
 
-  if (image.reel_duration_seconds !== 60) {
+  if (
+    image.reel_duration_seconds !== 60
+  ) {
     throw new Error(
       `images.${key}.reel_duration_seconds must equal 60`
     );
   }
 
   if (
-    !Array.isArray(image.illustrated_panels) ||
+    !Array.isArray(
+      image.illustrated_panels
+    ) ||
     image.illustrated_panels.length === 0
   ) {
     throw new Error(
@@ -503,8 +538,9 @@ function validateImage(image, key) {
   );
 }
 
-function validateInfographics(raw, row) {
-  const output = extractJsonObject(raw);
+function validateInfographics(raw) {
+  const output =
+    extractJsonObject(raw);
 
   if (
     !output ||
@@ -516,8 +552,16 @@ function validateInfographics(raw, row) {
     );
   }
 
-  validateString(output.pyt, "pyt");
-  validateString(output.exam, "exam");
+  validateString(
+    output.pyt,
+    "pyt"
+  );
+
+  validateString(
+    output.exam,
+    "exam"
+  );
+
   validateString(
     output.deliverable,
     "deliverable"
@@ -554,7 +598,9 @@ function validateInfographics(raw, row) {
     "shared_visual_specifications.layout_rule"
   );
 
-  if (visual.reel_duration_seconds !== 60) {
+  if (
+    visual.reel_duration_seconds !== 60
+  ) {
     throw new Error(
       "shared_visual_specifications.reel_duration_seconds must equal 60"
     );
@@ -570,18 +616,17 @@ function validateInfographics(raw, row) {
     );
   }
 
-  const imageKeys = Object.keys(
-    output.images
-  ).sort();
-
   const requiredImageKeys = [
     "image_1",
     "image_2",
     "image_3"
   ];
 
+  const actualImageKeys =
+    Object.keys(output.images).sort();
+
   if (
-    JSON.stringify(imageKeys) !==
+    JSON.stringify(actualImageKeys) !==
     JSON.stringify(requiredImageKeys)
   ) {
     throw new Error(
@@ -596,22 +641,19 @@ function validateInfographics(raw, row) {
     );
   });
 
-  output.pyt = requiredText(
-    output.pyt || row.topic,
-    "pyt"
-  );
-
-  return {
-    output,
-    serialized: JSON.stringify(output),
-    imageCount: requiredImageKeys.length,
-    panelCount: requiredImageKeys.reduce(
+  const panelCount =
+    requiredImageKeys.reduce(
       (total, key) =>
         total +
         output.images[key]
           .illustrated_panels.length,
       0
-    )
+    );
+
+  return {
+    output,
+    imageCount: 3,
+    panelCount
   };
 }
 
@@ -636,8 +678,7 @@ async function generateInfographics(row) {
         });
 
       return validateInfographics(
-        extractText(response),
-        row
+        extractText(response)
       );
     } catch (error) {
       lastError = error;
@@ -646,19 +687,22 @@ async function generateInfographics(row) {
         throw error;
       }
 
+      const canRetry =
+        isRetryable(error) ||
+        isValidationError(error);
+
       if (
         attempt === API_RETRIES ||
-        (!isRetryable(error) &&
-          !/json|image_|illustrated_panels|reel_duration|non-empty/i.test(
-            errorText(error)
-          ))
+        !canRetry
       ) {
         break;
       }
 
       const delay =
         1000 * 2 ** attempt +
-        Math.floor(Math.random() * 500);
+        Math.floor(
+          Math.random() * 500
+        );
 
       console.warn(
         `Retry ${attempt + 1}/${API_RETRIES} after ${delay} ms: ${errorText(error)}`
@@ -705,7 +749,8 @@ async function releaseExpiredLocks() {
 }
 
 async function lockRow(candidate) {
-  const lockedAt = new Date().toISOString();
+  const lockedAt =
+    new Date().toISOString();
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -777,10 +822,14 @@ async function claimRows(limit) {
       result.status === "fulfilled" &&
       result.value
     ) {
-      claimedRows.push(result.value);
+      claimedRows.push(
+        result.value
+      );
     }
 
-    if (result.status === "rejected") {
+    if (
+      result.status === "rejected"
+    ) {
       console.error(
         "Row-lock error:",
         errorText(result.reason)
@@ -798,17 +847,34 @@ async function claimRows(limit) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*                              SAVE OUTPUT                                   */
+/*                        SAVE JSONB OUTPUT DIRECTLY                          */
 /* -------------------------------------------------------------------------- */
 
 async function saveSuccess(
   row,
-  serializedOutput
+  infographicJson
 ) {
+  if (
+    !infographicJson ||
+    typeof infographicJson !== "object" ||
+    Array.isArray(infographicJson)
+  ) {
+    throw new Error(
+      "Infographics output must be a JSON object before saving"
+    );
+  }
+
   const { data, error } = await supabase
     .from(TABLE)
     .update({
-      [OUTPUT_COL]: serializedOutput,
+      /*
+      IMPORTANT:
+      infographics is a PostgreSQL jsonb column.
+
+      Save the JavaScript object directly.
+      Do not use JSON.stringify here.
+      */
+      [OUTPUT_COL]: infographicJson,
       [LOCK_COL]: false,
       [LOCK_AT_COL]: null
     })
@@ -823,7 +889,7 @@ async function saveSuccess(
 
   if (error) {
     throw new Error(
-      `Failed to save infographics: ${error.message}`
+      `Failed to save infographics JSON: ${error.message}`
     );
   }
 
@@ -835,7 +901,10 @@ async function saveSuccess(
 }
 
 async function releaseLock(row) {
-  if (!row?.id || !row?.[LOCK_AT_COL]) {
+  if (
+    !row?.id ||
+    !row?.[LOCK_AT_COL]
+  ) {
     return;
   }
 
@@ -873,9 +942,13 @@ async function processRow(row) {
     const result =
       await generateInfographics(row);
 
+    /*
+    result.output is a JavaScript object.
+    It is saved directly into the jsonb column.
+    */
     await saveSuccess(
       row,
-      result.serialized
+      result.output
     );
 
     console.log(
@@ -888,7 +961,9 @@ async function processRow(row) {
   } catch (error) {
     await releaseLock(row);
 
-    if (isFatalOpenAiError(error)) {
+    if (
+      isFatalOpenAiError(error)
+    ) {
       const fatalMessage =
         errorText(error);
 
@@ -897,7 +972,8 @@ async function processRow(row) {
       );
 
       return {
-        fatalApiError: fatalMessage
+        fatalApiError:
+          fatalMessage
       };
     }
 
@@ -934,9 +1010,13 @@ async function processBatch(rows) {
       nextIndex += 1;
 
       const result =
-        await processRow(rows[index]);
+        await processRow(
+          rows[index]
+        );
 
-      if (result.fatalApiError) {
+      if (
+        result.fatalApiError
+      ) {
         fatalApiError =
           result.fatalApiError;
 
@@ -945,25 +1025,29 @@ async function processBatch(rows) {
     }
   }
 
+  const runnerCount =
+    Math.min(
+      CONCURRENCY,
+      rows.length
+    );
+
   await Promise.all(
     Array.from(
       {
-        length: Math.min(
-          CONCURRENCY,
-          rows.length
-        )
+        length: runnerCount
       },
       () => runner()
     )
   );
 
   if (fatalApiError) {
+    const unstartedRows =
+      rows.slice(nextIndex);
+
     await Promise.allSettled(
-      rows
-        .slice(nextIndex)
-        .map((row) =>
-          releaseLock(row)
-        )
+      unstartedRows.map((row) =>
+        releaseLock(row)
+      )
     );
   }
 
@@ -982,16 +1066,21 @@ async function main() {
   );
 
   console.log(
-    `Model=${MODEL} | Table=${TABLE} | Input=${INPUT_COL} | Output=${OUTPUT_COL} | Pickup=${PICKUP_LIMIT} | Concurrent=${CONCURRENCY}`
+    `Model=${MODEL} | Table=${TABLE} | Input=${INPUT_COL} | Output=${OUTPUT_COL} | OutputType=JSONB | Pickup=${PICKUP_LIMIT} | Concurrent=${CONCURRENCY}`
   );
 
   while (true) {
     try {
       const rows =
-        await claimRows(PICKUP_LIMIT);
+        await claimRows(
+          PICKUP_LIMIT
+        );
 
       if (!rows.length) {
-        await sleep(LOOP_SLEEP_MS);
+        await sleep(
+          LOOP_SLEEP_MS
+        );
+
         continue;
       }
 
@@ -1002,7 +1091,9 @@ async function main() {
       const result =
         await processBatch(rows);
 
-      if (result.fatalApiError) {
+      if (
+        result.fatalApiError
+      ) {
         console.error(
           `Worker stopped because of fatal OpenAI authentication or billing error: ${result.fatalApiError}`
         );
@@ -1011,7 +1102,9 @@ async function main() {
         return;
       }
     } catch (error) {
-      if (isFatalOpenAiError(error)) {
+      if (
+        isFatalOpenAiError(error)
+      ) {
         console.error(
           `Worker stopped because of fatal OpenAI authentication or billing error: ${errorText(error)}`
         );

@@ -175,6 +175,7 @@
     "start:neetssonconotes2mcq.js": "node workers/neetssonconotes2mcq.js",
     "start:neetssonconotes2flowchart.js": "node workers/neetssonconotes2flowchart.js",
     "start:neetssmedflowchart2infographics.js": "node workers/neetssmedflowchart2infographics.js",
+    "start:mrcptopnot2mcq.js": "node workers/mrcptopnot2mcq.js",
     "test": "echo \"No tests\" && exit 0"
   },
   "dependencies": {
